@@ -1,0 +1,28 @@
+services:
+  api:
+    build: ./api
+    restart: unless-stopped
+    volumes:
+      - ./data:/data
+      - ${FIREBASE_CREDENTIALS_PATH:-./firebase-service-account.json}:/run/secrets/firebase.json:ro
+    environment:
+      PORT: "3000"
+      DATABASE_PATH: /data/monitor.sqlite
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase.json
+      CHECK_TIMEOUT_MS: ${CHECK_TIMEOUT_MS:-10000}
+    networks:
+      - monitor
+
+  web:
+    build: ./web
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-8089}:80"
+    depends_on:
+      - api
+    networks:
+      - monitor
+
+networks:
+  monitor:
+    driver: bridge
