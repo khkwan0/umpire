@@ -35,8 +35,20 @@ export interface StatusTarget {
   last_alert_at: string | null
 }
 
+export interface PluginRef {
+  id: string
+}
+
+export interface NotifierStatus {
+  id: string
+  ready: boolean
+}
+
 export interface StatusResponse {
-  fcm_ready: boolean
+  store: PluginRef
+  check: PluginRef
+  scheduler: PluginRef
+  notifiers: NotifierStatus[]
   settings: Settings
   targets: StatusTarget[]
 }

@@ -1,13 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import {
-  createTarget,
-  deleteTarget,
-  getTarget,
-  listRecentResults,
-  listTargets,
-  updateTarget,
-} from '../db.js'
-import { rescheduleAll } from '../checker.js'
+import { getScheduler, getStore } from '../plugins/registry.js'
 
 function isValidUrl(url: string): boolean {
   try {
@@ -19,7 +11,7 @@ function isValidUrl(url: string): boolean {
 }
 
 export async function targetsRoutes(app: FastifyInstance): Promise<void> {
-  app.get('/api/targets', async () => listTargets())
+  app.get('/api/targets', async () => getStore().listTargets())
 
   app.post<{
     Body: { url?: string; interval_seconds?: number; enabled?: boolean }
@@ -33,8 +25,8 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
     if (!Number.isFinite(interval) || interval < 5) {
       return reply.code(400).send({ error: 'interval_seconds must be >= 5' })
     }
-    const target = createTarget(url, interval, enabled)
-    rescheduleAll()
+    const target = getStore().createTarget(url, interval, enabled)
+    getScheduler().reschedule()
     return reply.code(201).send(target)
   })
 
@@ -53,18 +45,18 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
     ) {
       return reply.code(400).send({ error: 'interval_seconds must be >= 5' })
     }
-    const updated = updateTarget(id, req.body ?? {})
+    const updated = getStore().updateTarget(id, req.body ?? {})
     if (!updated) return reply.code(404).send({ error: 'not found' })
-    rescheduleAll()
+    getScheduler().reschedule()
     return updated
   })
 
   app.delete<{ Params: { id: string } }>('/api/targets/:id', async (req, reply) => {
     const id = Number(req.params.id)
     if (!Number.isInteger(id)) return reply.code(400).send({ error: 'invalid id' })
-    const ok = deleteTarget(id)
+    const ok = getStore().deleteTarget(id)
     if (!ok) return reply.code(404).send({ error: 'not found' })
-    rescheduleAll()
+    getScheduler().reschedule()
     return reply.code(204).send()
   })
 
@@ -73,8 +65,8 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       const id = Number(req.params.id)
       if (!Number.isInteger(id)) return reply.code(400).send({ error: 'invalid id' })
-      if (!getTarget(id)) return reply.code(404).send({ error: 'not found' })
-      return listRecentResults(id, 100)
+      if (!getStore().getTarget(id)) return reply.code(404).send({ error: 'not found' })
+      return getStore().listRecentResults(id, 100)
     },
   )
 }

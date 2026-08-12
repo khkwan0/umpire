@@ -45,8 +45,9 @@ export default function Tokens() {
       <section className="panel">
         <h2>Add FCM token</h2>
         <p className="muted">
-          Store device tokens as plain strings (JSON via the API). Alerts go to
-          every enabled token.
+          Used by the <strong>fcm</strong> notifier plugin. Store device tokens as
+          plain strings; FCM alerts go to every enabled token. Other notifiers
+          (e.g. webhook) use their own config via env.
         </p>
         <form className="form-row" onSubmit={onCreate}>
           <label className="grow">

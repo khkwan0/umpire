@@ -1,13 +1,13 @@
 import type { FastifyInstance } from 'fastify'
-import { getSettings, getStatusSummary } from '../db.js'
-import { isFcmReady } from '../fcm.js'
+import { getStore, pluginStatus } from '../plugins/registry.js'
 
 export async function statusRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/status', async () => {
-    const targets = getStatusSummary()
-    const settings = getSettings()
+    const targets = getStore().getStatusSummary()
+    const settings = getStore().getSettings()
+    const plugins = pluginStatus()
     return {
-      fcm_ready: isFcmReady(),
+      ...plugins,
       settings,
       targets,
     }

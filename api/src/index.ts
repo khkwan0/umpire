@@ -1,7 +1,6 @@
 import Fastify from 'fastify'
-import { initDb } from './db.js'
-import { initFcm } from './fcm.js'
-import { startChecker } from './checker.js'
+import { initPlugins, getScheduler, getStore } from './plugins/registry.js'
+import { runCheck } from './pipeline.js'
 import { targetsRoutes } from './routes/targets.js'
 import { tokensRoutes } from './routes/tokens.js'
 import { settingsRoutes } from './routes/settings.js'
@@ -11,8 +10,19 @@ const port = Number(process.env.PORT) || 3000
 const databasePath = process.env.DATABASE_PATH || './data/monitor.sqlite'
 
 async function main() {
-  initDb(databasePath)
-  initFcm()
+  await initPlugins(databasePath)
+
+  getScheduler().init?.({
+    getTargets: () =>
+      getStore()
+        .listTargets()
+        .map((t) => ({
+          id: t.id,
+          intervalSeconds: t.interval_seconds,
+          enabled: Boolean(t.enabled),
+        })),
+    run: (targetId) => runCheck(targetId),
+  })
 
   const app = Fastify({ logger: true })
 
@@ -24,7 +34,7 @@ async function main() {
   await app.register(statusRoutes)
 
   await app.listen({ port, host: '0.0.0.0' })
-  startChecker()
+  getScheduler().start()
 }
 
 main().catch((err) => {

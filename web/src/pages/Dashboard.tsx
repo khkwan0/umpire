@@ -49,12 +49,21 @@ export default function Dashboard() {
           <strong>{paused}</strong>
           <span>paused</span>
         </div>
-        <div>
-          <strong className={data.fcm_ready ? 'ok' : 'warn'}>
-            {data.fcm_ready ? 'ready' : 'off'}
-          </strong>
-          <span>FCM</span>
-        </div>
+        {data.notifiers.length === 0 ? (
+          <div>
+            <strong className="warn">none</strong>
+            <span>notifiers</span>
+          </div>
+        ) : (
+          data.notifiers.map((n) => (
+            <div key={n.id}>
+              <strong className={n.ready ? 'ok' : 'warn'}>
+                {n.ready ? 'ready' : 'off'}
+              </strong>
+              <span>{n.id}</span>
+            </div>
+          ))
+        )}
       </section>
 
       <section className="panel">
