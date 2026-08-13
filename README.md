@@ -226,38 +226,71 @@ interface NotifierPlugin {
   init?(): void | Promise<void>
   isReady(): boolean
   notify(event: AlertEvent): Promise<void>
+  /** Optional — mount routes relative to /api/plugins/<kind>/<id> (host applies the prefix). */
+  registerRoutes?(app: FastifyInstance): void | Promise<void>
 }
 ```
 
-A valid notifier **must** implement `isReady` and `notify`. `init` is optional but typical (read env, connect, load plugin-owned data). Export as `default` or `plugin`. Treat `AlertEvent` field names as a stable contract. Use `checks` for per-check routing (e.g. which destinations care about `http` vs `tls`); do not parse `error` / `body` for check ids.
+A valid notifier **must** implement `isReady` and `notify`. `init` is optional but typical (read env, connect, load plugin-owned data). Optional `registerRoutes` receives a **scoped** Fastify instance already prefixed with `/api/plugins/<kind>/<id>` — register paths like `/tokens`, not `/api/…`. Export as `default` or `plugin`. Treat `AlertEvent` field names as a stable contract. Use `checks` for per-check routing (e.g. which destinations care about `http` vs `tls`); do not parse `error` / `body` for check ids.
 
 #### Lifecycle (what core does)
 
 1. Load each id from `plugins.json` → `notify/available/<id>.ts`.
 2. Call `init()` if present (failures are logged; other notifiers still load).
-3. On each alert, core filters by `notifier_ids`, then runs the selected notifiers with `Promise.allSettled` (one failure does not block the others).
-4. If **at least one** `notify` fulfills, core calls `markAlertSent` for throttle / policy bookkeeping.
-5. Status / dashboard exposes each notifier’s `id` and `isReady()` as `ready`.
+3. After core HTTP routes are registered, mount each plugin under `/api/plugins/<kind>/<id>` and call `registerRoutes` if present (checks, then scheduler, then notifiers). Record routes for `GET /api/plugins`.
+4. On each alert, core filters by `notifier_ids`, then runs the selected notifiers with `Promise.allSettled` (one failure does not block the others).
+5. If **at least one** `notify` fulfills, core calls `markAlertSent` for throttle / policy bookkeeping.
+6. Status / dashboard exposes each notifier’s `id` and `isReady()` as `ready`.
+
+#### Plugin HTTP routes (namespaced)
+
+**Why:** Plugins often need their own HTTP surface (CRUD for plugin-owned data) without hardcoding those routes in core. Letting plugins register freely on the root Fastify app risked collisions with core (`/api/targets`, …) and with each other. The host therefore owns the URL map: every plugin is isolated under a fixed prefix, and core exposes a catalog of what was mounted.
+
+**Mental model:**
+
+1. After core routes load, the host calls [`mountAllPluginRoutes`](api/src/plugins/routes.ts) for every loaded check, the scheduler, and every notifier.
+2. Each plugin is encapsulated at **`/api/plugins/<kind>/<pluginId>`** (`kind` ∈ `check` | `scheduler` | `notify`).
+3. If the plugin implements `registerRoutes`, it receives a **scoped** Fastify app and should register **relative** paths only (e.g. `/tokens` → `/api/plugins/notify/fcm/tokens`).
+4. While mounting, the host records `{ method, path }` (fully qualified) into an in-memory catalog — including plugins with **no** `registerRoutes` (`routes: []`).
+5. **`GET /api/plugins`** returns that catalog.
+
+Collisions across plugins (or with core) are prevented by the prefix. Duplicate method+path *within* one plugin still fails Fastify at startup.
+
+Implementation: [`api/src/plugins/routes.ts`](api/src/plugins/routes.ts).
 
 #### `isReady` and `notify`
 
 - `isReady()` should reflect whether the notifier can actually send (credentials present, URL configured, etc.). It is surfaced on the dashboard; core does **not** skip `notify` solely because `ready` is false — your `notify` should no-op or warn if not ready.
-- `notify` should throw only on hard failure if you want that attempt counted as rejected for `markAlertSent`. Soft skip (not configured) should return without throwing.
-- Non-core destinations (FCM tokens, Slack webhooks beyond env, etc.) are **owned by the notifier** — not core SQLite. FCM uses `data/fcm-tokens.json` (`FCM_TOKENS_PATH` overrides the full file path). `/api/tokens` is FCM-specific and returns 404 unless `fcm` is enabled.
+- `notify` should throw only on hard failure if you want that attempt counted as rejected for `markAlertSent`. Soft skip (not configured / no matching destinations) should return without throwing.
+- Non-core destinations (FCM tokens, Slack webhooks beyond env, etc.) are **owned by the notifier** — not core SQLite.
+
+#### FCM token routing (plugin-owned)
+
+The `fcm` notifier stores tokens in `data/fcm-tokens.json` (`FCM_TOKENS_PATH` overrides the path) and registers `GET/POST/PATCH/DELETE /tokens` via `registerRoutes`, exposed as **`/api/plugins/notify/fcm/tokens`**.
+
+Each token may restrict who gets which alerts:
+
+| Field | Empty | Non-empty |
+|-------|--------|-----------|
+| `target_ids` | all targets | only those target ids |
+| `check_ids` | any alert for a matching target (including recovery) | only when at least one listed check failed; **recoveries skipped** |
+
+Disabled tokens never receive alerts. No matching tokens → soft skip (no throw).
+
+References:
+
+- [`api/src/plugins/notify/available/fcm.ts`](api/src/plugins/notify/available/fcm.ts) + [`fcm-tokens.ts`](api/src/plugins/notify/available/fcm-tokens.ts) + [`fcm-routes.ts`](api/src/plugins/notify/available/fcm-routes.ts)
+- [`api/src/plugins/notify/available/webhook.ts`](api/src/plugins/notify/available/webhook.ts) (`WEBHOOK_URL`, optional `WEBHOOK_HEADERS`)
 
 #### Responsibilities
 
 | Do | Don’t |
 |----|--------|
 | Deliver `title` / `body` (and any extra fields you need from `AlertEvent`) | Decide alert policy (core already did) |
-| Own your config and destination storage | Write `check_results` / `target_state` |
+| Own your config, destinations, and optional `registerRoutes` under `/api/plugins/<kind>/<id>` | Write `check_results` / `target_state` |
 | Implement honest `isReady()` | Assume you are the only notifier |
 | Keep secrets in env or plugin-owned files | Put notifier-specific tables into core |
-
-References:
-
-- [`api/src/plugins/notify/available/fcm.ts`](api/src/plugins/notify/available/fcm.ts) + [`fcm-tokens.ts`](api/src/plugins/notify/available/fcm-tokens.ts)
-- [`api/src/plugins/notify/available/webhook.ts`](api/src/plugins/notify/available/webhook.ts) (`WEBHOOK_URL`, optional `WEBHOOK_HEADERS`)
+| Register relative paths only (e.g. `/tokens`) | Register absolute core paths like `/api/targets` |
 
 #### Enable your notifier
 
@@ -353,7 +386,8 @@ Swagger UI: [http://localhost:8089/documentation](http://localhost:8089/document
 - `GET /api/targets/:id/results`
 - `GET /api/checks` — loaded check plugins `{ id }`
 - `GET /api/notifiers` — loaded notifier plugins `{ id, ready }`
-- `GET/POST/DELETE /api/tokens` (FCM destinations; 404 if fcm disabled)
+- `GET /api/plugins` — loaded plugins + namespaced HTTP routes
+- `GET/POST/PATCH/DELETE /api/plugins/notify/fcm/tokens` — FCM destinations (`target_ids` / `check_ids`); only when `fcm` is enabled
 - `GET/PUT /api/settings`
 - `GET /api/status`
 - `GET /api/schema`

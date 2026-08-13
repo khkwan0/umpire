@@ -120,12 +120,31 @@ const checkResultSchema = {
 const fcmTokenSchema = {
   $id: 'FcmToken',
   type: 'object',
-  required: ['id', 'token', 'label', 'enabled', 'created_at'],
+  required: [
+    'id',
+    'token',
+    'label',
+    'enabled',
+    'target_ids',
+    'check_ids',
+    'created_at',
+  ],
   properties: {
     id: { type: 'integer' },
     token: { type: 'string' },
     label: { type: 'string' },
     enabled: { type: 'integer', enum: [0, 1] },
+    target_ids: {
+      type: 'array',
+      items: { type: 'integer', minimum: 1 },
+      description: 'Target ids this token receives. Empty = all targets.',
+    },
+    check_ids: {
+      type: 'array',
+      items: { type: 'string' },
+      description:
+        'Check plugin ids. Empty = any alert (incl. recovery). Non-empty = only when a listed check failed.',
+    },
     created_at: { type: 'string' },
   },
 } as const
@@ -283,6 +302,35 @@ const coreSchemaResponseSchema = {
   },
 } as const
 
+const pluginRouteRefSchema = {
+  $id: 'PluginRouteRef',
+  type: 'object',
+  required: ['method', 'path'],
+  properties: {
+    method: { type: 'string', description: 'HTTP method (e.g. GET)' },
+    path: {
+      type: 'string',
+      description: 'Fully qualified path (e.g. /api/plugins/notify/fcm/tokens)',
+    },
+  },
+} as const
+
+const pluginCatalogEntrySchema = {
+  $id: 'PluginCatalogEntry',
+  type: 'object',
+  required: ['id', 'kind', 'routes'],
+  properties: {
+    id: { type: 'string' },
+    kind: { type: 'string', enum: ['check', 'scheduler', 'notify'] },
+    routes: {
+      type: 'array',
+      items: { $ref: 'PluginRouteRef#' },
+      description:
+        'HTTP routes registered under /api/plugins/<kind>/<id>. Empty if the plugin has no registerRoutes.',
+    },
+  },
+} as const
+
 export async function registerOpenApi(app: FastifyInstance): Promise<void> {
   for (const schema of [
     errorSchema,
@@ -299,6 +347,8 @@ export async function registerOpenApi(app: FastifyInstance): Promise<void> {
     alertCheckOutcomeSchema,
     alertEventSchema,
     coreSchemaResponseSchema,
+    pluginRouteRefSchema,
+    pluginCatalogEntrySchema,
   ]) {
     app.addSchema(schema)
   }
@@ -309,7 +359,7 @@ export async function registerOpenApi(app: FastifyInstance): Promise<void> {
       info: {
         title: 'UMPIRE API',
         description:
-          'Universal Monitoring Plugin & Incident Reporter. Manage targets (with per-target check_ids / notifier_ids allowlists), groups, alert settings, FCM tokens, and inspect loaded check/notifier plugins. Notifier plugins receive an AlertEvent (see components); the webhook notifier POSTs that JSON body.',
+          'Universal Monitoring Plugin & Incident Reporter. Manage targets (with per-target check_ids / notifier_ids allowlists), groups, alert settings, and plugins. Plugin HTTP APIs are namespaced under /api/plugins/<kind>/<id>. See GET /api/plugins for the route catalog. Notifier plugins receive an AlertEvent (see components); the webhook notifier POSTs that JSON body.',
         version: '1.0.0',
       },
       tags: [
@@ -323,8 +373,14 @@ export async function registerOpenApi(app: FastifyInstance): Promise<void> {
         { name: 'checks', description: 'Loaded check plugins' },
         { name: 'notifiers', description: 'Loaded notifier plugins' },
         {
+          name: 'plugins',
+          description:
+            'Loaded plugins and their namespaced HTTP routes (/api/plugins/<kind>/<id>/…)',
+        },
+        {
           name: 'tokens',
-          description: 'FCM device tokens (404 unless fcm notifier enabled)',
+          description:
+            'FCM device tokens at /api/plugins/notify/fcm/tokens (fcm notifier)',
         },
         { name: 'settings', description: 'Alert policy' },
         { name: 'status', description: 'Dashboard summary' },

@@ -1,3 +1,5 @@
+import type { FastifyInstance } from 'fastify'
+
 export type AlertPolicy = 'state_change' | 'every_fail' | 'throttle'
 
 /** Aggregated target health across all check plugins. */
@@ -57,6 +59,15 @@ export interface FcmToken {
   token: string
   label: string
   enabled: number
+  /**
+   * Target ids this token receives. Empty = all targets.
+   */
+  target_ids: number[]
+  /**
+   * Check plugin ids this token cares about. Empty = any alert (including recovery).
+   * Non-empty = only when at least one listed check failed (recoveries skipped).
+   */
+  check_ids: string[]
   created_at: string
 }
 
@@ -130,11 +141,15 @@ export interface NotifierPlugin {
   init?(): void | Promise<void>
   isReady(): boolean
   notify(event: AlertEvent): Promise<void>
+  /** Optional HTTP routes under /api/plugins/<kind>/<id>/… (host applies the prefix). */
+  registerRoutes?(app: FastifyInstance): void | Promise<void>
 }
 
 export interface CheckPlugin {
   id: string
   check(url: string): Promise<CheckOutcome>
+  /** Optional HTTP routes under /api/plugins/<kind>/<id>/… (host applies the prefix). */
+  registerRoutes?(app: FastifyInstance): void | Promise<void>
 }
 
 export interface SchedulableTarget {
@@ -154,4 +169,6 @@ export interface SchedulerPlugin {
   start(): void
   stop(): void
   reschedule(): void
+  /** Optional HTTP routes under /api/plugins/<kind>/<id>/… (host applies the prefix). */
+  registerRoutes?(app: FastifyInstance): void | Promise<void>
 }

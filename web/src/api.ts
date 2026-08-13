@@ -32,6 +32,10 @@ export interface FcmToken {
   token: string
   label: string
   enabled: number
+  /** Empty = all targets */
+  target_ids: number[]
+  /** Empty = any alert; non-empty = only listed check failures */
+  check_ids: string[]
   created_at: string
 }
 
@@ -154,14 +158,34 @@ export const api = {
       request<CheckResult[]>(`/api/targets/${id}/results`),
   },
   tokens: {
-    list: () => request<FcmToken[]>('/api/tokens'),
-    create: (data: { token: string; label?: string }) =>
-      request<FcmToken>('/api/tokens', {
+    list: () => request<FcmToken[]>('/api/plugins/notify/fcm/tokens'),
+    create: (data: {
+      token: string
+      label?: string
+      target_ids?: number[]
+      check_ids?: string[]
+    }) =>
+      request<FcmToken>('/api/plugins/notify/fcm/tokens', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+    update: (
+      id: number,
+      data: Partial<{
+        label: string
+        enabled: boolean
+        target_ids: number[]
+        check_ids: string[]
+      }>,
+    ) =>
+      request<FcmToken>(`/api/plugins/notify/fcm/tokens/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
     remove: (id: number) =>
-      request<void>(`/api/tokens/${id}`, { method: 'DELETE' }),
+      request<void>(`/api/plugins/notify/fcm/tokens/${id}`, {
+        method: 'DELETE',
+      }),
   },
   settings: {
     get: () => request<Settings>('/api/settings'),

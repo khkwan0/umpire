@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import type { FcmToken } from '../../types.js'
+import type { AlertEvent, FcmToken } from '../../types.js'
 
 type TokenRow = FcmToken
 
@@ -12,19 +12,81 @@ function tokensPath(): string {
   return path.resolve(path.dirname(databasePath), 'fcm-tokens.json')
 }
 
+export function normalizeTargetIds(input: unknown): number[] {
+  if (input === undefined || input === null) return []
+  if (!Array.isArray(input)) {
+    throw new Error('target_ids must be an array of positive integers')
+  }
+  const out: number[] = []
+  const seen = new Set<number>()
+  for (const item of input) {
+    const n = typeof item === 'number' ? item : Number(item)
+    if (!Number.isInteger(n) || n < 1) {
+      throw new Error('target_ids must be an array of positive integers')
+    }
+    if (seen.has(n)) continue
+    seen.add(n)
+    out.push(n)
+  }
+  return out
+}
+
+export function normalizeCheckIds(input: unknown): string[] {
+  if (input === undefined || input === null) return []
+  if (!Array.isArray(input)) {
+    throw new Error('check_ids must be an array of strings')
+  }
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const item of input) {
+    if (typeof item !== 'string' || !item.trim()) {
+      throw new Error('check_ids must be an array of non-empty strings')
+    }
+    const id = item.trim()
+    if (seen.has(id)) continue
+    seen.add(id)
+    out.push(id)
+  }
+  return out
+}
+
+function mapToken(raw: unknown): FcmToken | null {
+  if (!raw || typeof raw !== 'object') return null
+  const row = raw as Record<string, unknown>
+  if (typeof row.id !== 'number' || typeof row.token !== 'string') return null
+  let targetIds: number[] = []
+  let checkIds: string[] = []
+  try {
+    targetIds = normalizeTargetIds(row.target_ids ?? [])
+  } catch {
+    targetIds = []
+  }
+  try {
+    checkIds = normalizeCheckIds(row.check_ids ?? [])
+  } catch {
+    checkIds = []
+  }
+  return {
+    id: row.id,
+    token: row.token,
+    label: typeof row.label === 'string' ? row.label : '',
+    enabled: row.enabled === 0 ? 0 : 1,
+    target_ids: targetIds,
+    check_ids: checkIds,
+    created_at:
+      typeof row.created_at === 'string'
+        ? row.created_at
+        : new Date().toISOString(),
+  }
+}
+
 function readAll(): TokenRow[] {
   const file = tokensPath()
   if (!fs.existsSync(file)) return []
   try {
     const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as unknown
     if (!Array.isArray(raw)) return []
-    return raw.filter(
-      (row): row is TokenRow =>
-        !!row &&
-        typeof row === 'object' &&
-        typeof (row as TokenRow).id === 'number' &&
-        typeof (row as TokenRow).token === 'string',
-    )
+    return raw.map(mapToken).filter((r): r is FcmToken => r != null)
   } catch (err) {
     console.error('[notify:fcm] failed to read tokens file', err)
     return []
@@ -41,7 +103,12 @@ export function listTokens(): FcmToken[] {
   return readAll().sort((a, b) => a.id - b.id)
 }
 
-export function createToken(token: string, label = ''): FcmToken {
+export function createToken(
+  token: string,
+  label = '',
+  targetIds: number[] = [],
+  checkIds: string[] = [],
+): FcmToken {
   const rows = readAll()
   if (rows.some((r) => r.token === token)) {
     throw new Error('UNIQUE constraint failed: token already exists')
@@ -52,11 +119,49 @@ export function createToken(token: string, label = ''): FcmToken {
     token,
     label,
     enabled: 1,
+    target_ids: normalizeTargetIds(targetIds),
+    check_ids: normalizeCheckIds(checkIds),
     created_at: new Date().toISOString(),
   }
   rows.push(row)
   writeAll(rows)
   return row
+}
+
+export function updateToken(
+  id: number,
+  patch: Partial<{
+    label: string
+    enabled: boolean | number
+    target_ids: number[]
+    check_ids: string[]
+  }>,
+): FcmToken | undefined {
+  const rows = readAll()
+  const idx = rows.findIndex((r) => r.id === id)
+  if (idx < 0) return undefined
+  const existing = rows[idx]!
+  const next: FcmToken = {
+    ...existing,
+    label: patch.label !== undefined ? patch.label : existing.label,
+    enabled:
+      patch.enabled !== undefined
+        ? patch.enabled === true || patch.enabled === 1
+          ? 1
+          : 0
+        : existing.enabled,
+    target_ids:
+      patch.target_ids !== undefined
+        ? normalizeTargetIds(patch.target_ids)
+        : existing.target_ids,
+    check_ids:
+      patch.check_ids !== undefined
+        ? normalizeCheckIds(patch.check_ids)
+        : existing.check_ids,
+  }
+  rows[idx] = next
+  writeAll(rows)
+  return next
 }
 
 export function deleteToken(id: number): boolean {
@@ -67,8 +172,26 @@ export function deleteToken(id: number): boolean {
   return true
 }
 
-export function enabledTokens(): string[] {
-  return readAll()
-    .filter((r) => r.enabled)
+/** Whether this token should receive the given alert. */
+export function tokenMatchesAlert(row: FcmToken, event: AlertEvent): boolean {
+  if (!row.enabled) return false
+  if (
+    row.target_ids.length > 0 &&
+    !row.target_ids.includes(event.target.id)
+  ) {
+    return false
+  }
+  if (row.check_ids.length === 0) return true
+  // Non-empty check allowlist: only failure overlap; skip recoveries.
+  if (event.status === 'up') return false
+  const failed = new Set(
+    event.checks.filter((c) => !c.ok).map((c) => c.id),
+  )
+  return row.check_ids.some((id) => failed.has(id))
+}
+
+export function matchingTokenStrings(event: AlertEvent): string[] {
+  return listTokens()
+    .filter((r) => tokenMatchesAlert(r, event))
     .map((r) => r.token)
 }

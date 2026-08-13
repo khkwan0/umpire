@@ -1,7 +1,8 @@
 import fs from 'node:fs'
 import admin from 'firebase-admin'
 import type { AlertEvent, NotifierPlugin } from '../../types.js'
-import { enabledTokens } from './fcm-tokens.js'
+import { registerFcmRoutes } from './fcm-routes.js'
+import { matchingTokenStrings } from './fcm-tokens.js'
 
 let ready = false
 
@@ -48,14 +49,18 @@ const fcmNotifier: NotifierPlugin = {
     return ready
   },
 
+  async registerRoutes(app) {
+    await registerFcmRoutes(app)
+  },
+
   async notify(event: AlertEvent): Promise<void> {
     if (!ready) {
       console.warn('[notify:fcm] skip send — not initialized')
       return
     }
-    const tokens = enabledTokens()
+    const tokens = matchingTokenStrings(event)
     if (tokens.length === 0) {
-      console.warn('[notify:fcm] skip send — no tokens')
+      console.warn('[notify:fcm] skip send — no matching tokens')
       return
     }
 
