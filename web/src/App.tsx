@@ -13,7 +13,7 @@ export default function App() {
           <span className="brand-mark">YAMT</span>
           <div>
             <h1>Yet Another Monitoring Tool</h1>
-            <p>HTTP uptime checks with FCM alerts</p>
+            <p>Pluggable monitoring with alerts</p>
           </div>
         </div>
         <nav>
