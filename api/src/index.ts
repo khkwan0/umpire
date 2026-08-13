@@ -10,6 +10,7 @@ import { settingsRoutes } from './routes/settings.js'
 import { statusRoutes } from './routes/status.js'
 import { schemaRoutes } from './routes/schema.js'
 import { checksRoutes } from './routes/checks.js'
+import { notifiersRoutes } from './routes/notifiers.js'
 
 const port = Number(process.env.PORT) || 3000
 const databasePath = process.env.DATABASE_PATH || './data/monitor.sqlite'
@@ -59,6 +60,7 @@ async function main() {
   await app.register(statusRoutes)
   await app.register(schemaRoutes)
   await app.register(checksRoutes)
+  await app.register(notifiersRoutes)
 
   await app.listen({ port, host: '0.0.0.0' })
   getScheduler().start()

@@ -43,6 +43,11 @@ export interface Target {
    * Empty array = all loaded checks.
    */
   check_ids: string[]
+  /**
+   * Notifier plugin ids to use for this target's alerts.
+   * Empty array = all loaded notifiers.
+   */
+  notifier_ids: string[]
   created_at: string
   updated_at: string
 }
@@ -89,11 +94,22 @@ export interface CheckOutcome {
   latencyMs: number
 }
 
+/** Per-check result attached to aggregated runs and AlertEvent. */
+export interface AlertCheckOutcome {
+  id: string
+  ok: boolean
+  statusCode: number | null
+  error: string | null
+  latencyMs: number
+}
+
 export interface AggregatedCheck {
   status: HealthStatus
   statusCode: number | null
   error: string | null
   latencyMs: number
+  /** Checks that ran this cycle; empty if none ran. */
+  checks: AlertCheckOutcome[]
 }
 
 export interface AlertEvent {
@@ -105,6 +121,8 @@ export interface AlertEvent {
   checkedAt: string
   title: string
   body: string
+  /** Structured per-check outcomes for this run (empty if none ran). */
+  checks: AlertCheckOutcome[]
 }
 
 export interface NotifierPlugin {

@@ -120,17 +120,20 @@ function assertChildGroupForTarget(groupId: number | null | undefined): void {
   }
 }
 
-/** Normalize and validate check plugin id allowlist. */
-export function normalizeCheckIds(input: unknown): string[] {
+/** Normalize and validate a plugin id allowlist (check_ids / notifier_ids). */
+export function normalizePluginIds(
+  input: unknown,
+  fieldName: string,
+): string[] {
   if (input === undefined || input === null) return []
   if (!Array.isArray(input)) {
-    throw new Error('check_ids must be an array of strings')
+    throw new Error(`${fieldName} must be an array of strings`)
   }
   const out: string[] = []
   const seen = new Set<string>()
   for (const item of input) {
     if (typeof item !== 'string' || !item.trim()) {
-      throw new Error('check_ids must be an array of non-empty strings')
+      throw new Error(`${fieldName} must be an array of non-empty strings`)
     }
     const id = item.trim()
     if (seen.has(id)) continue
@@ -140,28 +143,40 @@ export function normalizeCheckIds(input: unknown): string[] {
   return out
 }
 
-function parseCheckIdsJson(raw: unknown): string[] {
+/** @deprecated use normalizePluginIds */
+export function normalizeCheckIds(input: unknown): string[] {
+  return normalizePluginIds(input, 'check_ids')
+}
+
+function parsePluginIdsJson(raw: unknown, fieldName: string): string[] {
   if (raw === null || raw === undefined) return []
   if (typeof raw !== 'string') {
     try {
-      return normalizeCheckIds(raw)
+      return normalizePluginIds(raw, fieldName)
     } catch {
       return []
     }
   }
   try {
-    return normalizeCheckIds(JSON.parse(raw) as unknown)
+    return normalizePluginIds(JSON.parse(raw) as unknown, fieldName)
   } catch {
     return []
   }
 }
 
-type TargetRow = Omit<Target, 'check_ids'> & { check_ids?: string | null }
+type TargetRow = Omit<Target, 'check_ids' | 'notifier_ids'> & {
+  check_ids?: string | null
+  notifier_ids?: string | null
+}
 
 function mapTarget(row: TargetRow | undefined): Target | undefined {
   if (!row) return undefined
-  const { check_ids: raw, ...rest } = row
-  return { ...rest, check_ids: parseCheckIdsJson(raw) }
+  const { check_ids: rawChecks, notifier_ids: rawNotifiers, ...rest } = row
+  return {
+    ...rest,
+    check_ids: parsePluginIdsJson(rawChecks, 'check_ids'),
+    notifier_ids: parsePluginIdsJson(rawNotifiers, 'notifier_ids'),
+  }
 }
 
 function buildTree(rows: Group[]): GroupTreeNode[] {
@@ -344,14 +359,23 @@ export const core: CoreStore = {
     enabled = true,
     groupId: number | null = null,
     checkIds: string[] = [],
+    notifierIds: string[] = [],
   ): Target {
     assertChildGroupForTarget(groupId)
-    const ids = normalizeCheckIds(checkIds)
+    const checks = normalizePluginIds(checkIds, 'check_ids')
+    const notifiers = normalizePluginIds(notifierIds, 'notifier_ids')
     const result = getDb()
       .prepare(
-        `INSERT INTO targets (url, interval_seconds, enabled, group_id, check_ids) VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO targets (url, interval_seconds, enabled, group_id, check_ids, notifier_ids) VALUES (?, ?, ?, ?, ?, ?)`,
       )
-      .run(url, intervalSeconds, enabled ? 1 : 0, groupId, JSON.stringify(ids))
+      .run(
+        url,
+        intervalSeconds,
+        enabled ? 1 : 0,
+        groupId,
+        JSON.stringify(checks),
+        JSON.stringify(notifiers),
+      )
     const id = Number(result.lastInsertRowid)
     getDb()
       .prepare(`INSERT INTO target_state (target_id) VALUES (?)`)
@@ -367,6 +391,7 @@ export const core: CoreStore = {
       enabled: boolean
       group_id: number | null
       check_ids: string[]
+      notifier_ids: string[]
     }>,
   ): Target | undefined {
     const existing = core.getTarget(id)
@@ -379,14 +404,26 @@ export const core: CoreStore = {
       patch.group_id !== undefined ? patch.group_id : existing.group_id
     const checkIds =
       patch.check_ids !== undefined
-        ? normalizeCheckIds(patch.check_ids)
+        ? normalizePluginIds(patch.check_ids, 'check_ids')
         : existing.check_ids
+    const notifierIds =
+      patch.notifier_ids !== undefined
+        ? normalizePluginIds(patch.notifier_ids, 'notifier_ids')
+        : existing.notifier_ids
     assertChildGroupForTarget(groupId)
     getDb()
       .prepare(
-        `UPDATE targets SET url = ?, interval_seconds = ?, enabled = ?, group_id = ?, check_ids = ?, updated_at = datetime('now') WHERE id = ?`,
+        `UPDATE targets SET url = ?, interval_seconds = ?, enabled = ?, group_id = ?, check_ids = ?, notifier_ids = ?, updated_at = datetime('now') WHERE id = ?`,
       )
-      .run(url, interval, enabled, groupId, JSON.stringify(checkIds), id)
+      .run(
+        url,
+        interval,
+        enabled,
+        groupId,
+        JSON.stringify(checkIds),
+        JSON.stringify(notifierIds),
+        id,
+      )
     return core.getTarget(id)
   },
 
@@ -517,6 +554,7 @@ export function initCore(databasePath: string): void {
       enabled INTEGER NOT NULL DEFAULT 1,
       group_id INTEGER REFERENCES groups(id) ON DELETE SET NULL,
       check_ids TEXT NOT NULL DEFAULT '[]',
+      notifier_ids TEXT NOT NULL DEFAULT '[]',
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -556,6 +594,7 @@ export function initCore(databasePath: string): void {
     'INTEGER REFERENCES groups(id) ON DELETE SET NULL',
   )
   ensureColumn('targets', 'check_ids', `TEXT NOT NULL DEFAULT '[]'`)
+  ensureColumn('targets', 'notifier_ids', `TEXT NOT NULL DEFAULT '[]'`)
 
   const insertSetting = db.prepare(
     `INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`,

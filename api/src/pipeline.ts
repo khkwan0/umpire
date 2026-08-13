@@ -83,51 +83,59 @@ async function runAllChecks(
       statusCode: null,
       error: detail,
       latencyMs: 0,
+      checks: [],
     }
   }
 
   const outcomes = await Promise.all(
     checks.map(async (plugin) => {
       const outcome = await plugin.check(url)
-      return { id: plugin.id, outcome }
+      return {
+        id: plugin.id,
+        ok: outcome.ok,
+        statusCode: outcome.statusCode,
+        error: outcome.error,
+        latencyMs: outcome.latencyMs,
+      }
     }),
   )
 
-  const passed = outcomes.filter((o) => o.outcome.ok)
-  const failed = outcomes.filter((o) => !o.outcome.ok)
-  const latencyMs = Math.max(0, ...outcomes.map((o) => o.outcome.latencyMs))
+  const passed = outcomes.filter((o) => o.ok)
+  const failed = outcomes.filter((o) => !o.ok)
+  const latencyMs = Math.max(0, ...outcomes.map((o) => o.latencyMs))
 
   if (failed.length === 0) {
-    const withStatus = outcomes.find((o) => o.outcome.statusCode != null)
+    const withStatus = outcomes.find((o) => o.statusCode != null)
     return {
       status: 'up',
-      statusCode: withStatus?.outcome.statusCode ?? null,
+      statusCode: withStatus?.statusCode ?? null,
       error: null,
       latencyMs,
+      checks: outcomes,
     }
   }
 
   const error =
     failed.length === 1
-      ? `[${failed[0]!.id}] ${failed[0]!.outcome.error ?? 'failed'}`
-      : failed
-          .map((f) => `[${f.id}] ${f.outcome.error ?? 'failed'}`)
-          .join('; ')
+      ? `[${failed[0]!.id}] ${failed[0]!.error ?? 'failed'}`
+      : failed.map((f) => `[${f.id}] ${f.error ?? 'failed'}`).join('; ')
 
   if (passed.length === 0) {
     return {
       status: 'down',
-      statusCode: failed[0]!.outcome.statusCode,
+      statusCode: failed[0]!.statusCode,
       error,
       latencyMs,
+      checks: outcomes,
     }
   }
 
   return {
     status: 'partial',
-    statusCode: failed[0]!.outcome.statusCode,
+    statusCode: failed[0]!.statusCode,
     error,
     latencyMs,
+    checks: outcomes,
   }
 }
 
@@ -170,11 +178,20 @@ export async function runCheck(targetId: number): Promise<void> {
     checkedAt: new Date().toISOString(),
     title,
     body,
+    checks: result.checks,
   }
 
-  const notifiers = getNotifiers()
+  const notifiersLoaded = getNotifiers()
+  const notifiers =
+    target.notifier_ids.length === 0
+      ? notifiersLoaded
+      : notifiersLoaded.filter((n) => target.notifier_ids.includes(n.id))
   if (notifiers.length === 0) {
-    console.warn('[pipeline] alert needed but no notifiers configured')
+    console.warn(
+      target.notifier_ids.length === 0
+        ? '[pipeline] alert needed but no notifiers configured'
+        : `[pipeline] alert needed but no loaded notifiers match allowlist [${target.notifier_ids.join(', ')}]`,
+    )
     return
   }
 

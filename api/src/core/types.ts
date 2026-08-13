@@ -30,6 +30,7 @@ export interface CoreStore {
     enabled?: boolean,
     groupId?: number | null,
     checkIds?: string[],
+    notifierIds?: string[],
   ): Target
   updateTarget(
     id: number,
@@ -39,6 +40,7 @@ export interface CoreStore {
       enabled: boolean
       group_id: number | null
       check_ids: string[]
+      notifier_ids: string[]
     }>,
   ): Target | undefined
   deleteTarget(id: number): boolean

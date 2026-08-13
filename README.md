@@ -66,9 +66,60 @@ Implementations live under `api/src/plugins/<kind>/available/`. The registry loa
 
 | Kind | Path | Cardinality |
 |------|------|-------------|
-| Checks | `plugins/check/available/` | One or more — **all** pass → up, **none** → down, **mixed** → partial |
+| Checks | `plugins/check/available/` | One or more in `plugins.json` |
 | Scheduler | `plugins/scheduler/available/` | Exactly one in `plugins.json` |
-| Notifiers | `plugins/notify/available/` | Zero or more — all run on each alert |
+| Notifiers | `plugins/notify/available/` | Zero or more — pool for per-target allowlists |
+
+### How targets, checks, and notifiers mix
+
+Composition is **global plugins + per-target check and notifier allowlists**.
+
+```text
+plugins.json            → which check / scheduler / notifier modules load
+targets[]               → what to watch (url, interval, enabled, group)
+target.check_ids        → which of the loaded checks run for that target
+target.notifier_ids     → which of the loaded notifiers get alerts for that target
+alert policy            → whether to notify after a run
+```
+
+| Layer | Scope | Mix-and-match |
+|-------|--------|----------------|
+| **Checks in `plugins.json`** | Process-wide | Enable any set of check plugins (e.g. `http` + `tls`). They are the pool of available probes. |
+| **`target.check_ids`** | Per target | Restrict which loaded checks run for that target. |
+| **Notifiers in `plugins.json`** | Process-wide | Enable any set (e.g. `fcm` + `webhook`). They are the pool of available alert channels. |
+| **`target.notifier_ids`** | Per target | Restrict which loaded notifiers receive alerts for that target. |
+| **Scheduler** | Process-wide | Exactly one; decides *when* each enabled target runs. |
+
+#### Allowlist semantics (`check_ids` / `notifier_ids`)
+
+Both are stored on each target as a JSON array of plugin id strings.
+
+| Value | Checks (`check_ids`) | Notifiers (`notifier_ids`) |
+|-------|----------------------|----------------------------|
+| `[]` (default / omitted on create) | Run **all** loaded checks. | Notify via **all** loaded notifiers. |
+| `["http"]` / `["fcm"]` | Run only that check if loaded. | Alert only that notifier if loaded. |
+| `["http", "tls"]` | Intersection with loaded checks; selected run in parallel. | Intersection with loaded notifiers; each receives the same `AlertEvent`. |
+
+Further rules (shared unless noted):
+
+1. **Empty = all** — backward compatible with “every target uses every loaded plugin of that kind.”
+2. **Intersection at run time** — ids in the allowlist that are not loaded are **kept in the DB** (so you can enable that plugin later) but **skipped** for this run / alert.
+3. **Non-empty allowlist ∩ loaded = empty** — **checks:** no probes run; result is **`down`** with an error like `no loaded checks match allowlist [...]`. **notifiers:** nothing is sent; core logs a warning and does **not** call `markAlertSent` (so a later run can still try when a matching notifier is available).
+4. **Paused targets** (`enabled: 0`) — scheduler does not run them; allowlists are irrelevant until resumed.
+5. **Check aggregation** (after the selected checks finish): all ok → `up`; all fail → `down`; mix → `partial`. Recorded latency is the max of the selected checks’ `latencyMs`.
+6. **UI** — Targets page checkboxes for checks and notifiers; **all unchecked = all** (`[]`). Checking one or more sets an explicit allowlist. Summary shows `all` or the id list.
+7. **API** — `POST`/`PATCH /api/targets` with `check_ids` / `notifier_ids` (`string[]`); always returned on read. `GET /api/checks` and `GET /api/notifiers` list loaded plugins for the UI (`notifiers` include `{ id, ready }`).
+
+#### Example
+
+`plugins.json` has `checks: ["http", "tls"]` and `notifiers: ["fcm", "webhook"]`.
+
+| Target | `check_ids` | `notifier_ids` | On each run | On alert |
+|--------|-------------|----------------|-------------|----------|
+| A | `[]` | `[]` | `http` + `tls` | FCM + webhook |
+| B | `["http"]` | `["fcm"]` | `http` only | FCM only |
+| C | `["tls", "dns"]` | `["webhook"]` | `tls` only (`dns` not loaded → ignored) | webhook only |
+| D | `["dns"]` | `["pager"]` | none loaded → **down** + error | none loaded → warn, no send |
 
 There is **no store plugin**. Core SQLite is fixed. Extra deps for a custom plugin go in [`api/package.json`](api/package.json) (`cd api && npm install <pkg>`), then list the plugin id in `plugins.json`, then `npm run dev` (`tsx watch` reloads on save).
 
@@ -84,18 +135,7 @@ To enable webhook:
 
 ### Write a check
 
-One or more checks in `plugins.json`. For each target run, core selects which checks to invoke from that target’s **`check_ids` allowlist**, runs them in parallel against the target URL, aggregates outcomes, records the result, then maybe alerts. A check plugin only answers “is this URL ok?” for its probe type.
-
-#### Per-target allowlist (`check_ids`)
-
-| `check_ids` on target | Behavior |
-|-----------------------|----------|
-| `[]` (default) | Run **all** loaded check plugins |
-| `["http", …]` | Run only those plugin ids that are both listed **and** currently loaded |
-
-Unknown ids in the list are kept (so enabling that check later works) but ignored at run time. If the list is non-empty and **none** of the listed checks are loaded, the run is recorded as `down` with an explanatory error (not treated as success).
-
-Set via `POST`/`PATCH /api/targets` (`check_ids`) or the Targets UI checkboxes (unchecked = all). List loaded plugins with `GET /api/checks`.
+One or more checks in `plugins.json`. For each target run, core selects which checks to invoke using that target’s **`check_ids`** (see [How targets, checks, and notifiers mix](#how-targets-checks-and-notifiers-mix)), runs them in parallel against the target URL, aggregates outcomes, records the result, then maybe alerts. A check plugin only answers “is this URL ok?” for its probe type.
 
 #### Contract
 
@@ -151,15 +191,23 @@ Reference: [`api/src/plugins/check/available/http.ts`](api/src/plugins/check/ava
 1. Add `api/src/plugins/check/available/my-check.ts`.
 2. Add `"my-check"` to the `checks` array in [`api/plugins.json`](api/plugins.json) (keep or remove `http` as you prefer).
 3. Restart / let `npm run dev` reload.
-4. Optionally restrict which targets use it via `check_ids` on those targets (Targets UI or API).
+4. Optionally restrict which targets use it via `check_ids` / `notifier_ids` on those targets (Targets UI or API).
 
 ### Write a notifier
 
-Zero or more notifiers in `plugins.json`. When the alert policy says an alert is needed, core calls **every** enabled notifier with the same `AlertEvent`. Notifiers deliver the alert; they do not decide *whether* to alert.
+Zero or more notifiers in `plugins.json`. When the alert policy says an alert is needed, core selects which notifiers to invoke using that target’s **`notifier_ids`** (empty = all loaded; see [mix semantics](#how-targets-checks-and-notifiers-mix)), then calls each with the same `AlertEvent`. Notifiers deliver the alert; they do not decide *whether* to alert.
 
 #### Contract
 
 ```ts
+interface AlertCheckOutcome {
+  id: string
+  ok: boolean
+  statusCode: number | null
+  error: string | null
+  latencyMs: number
+}
+
 interface AlertEvent {
   target: { id: number; url: string }
   status: 'down' | 'up' | 'partial'
@@ -169,6 +217,8 @@ interface AlertEvent {
   checkedAt: string
   title: string
   body: string
+  /** Per-check outcomes for this run; empty if none ran. */
+  checks: AlertCheckOutcome[]
 }
 
 interface NotifierPlugin {
@@ -179,13 +229,13 @@ interface NotifierPlugin {
 }
 ```
 
-A valid notifier **must** implement `isReady` and `notify`. `init` is optional but typical (read env, connect, load plugin-owned data). Export as `default` or `plugin`. Treat `AlertEvent` field names as a stable contract.
+A valid notifier **must** implement `isReady` and `notify`. `init` is optional but typical (read env, connect, load plugin-owned data). Export as `default` or `plugin`. Treat `AlertEvent` field names as a stable contract. Use `checks` for per-check routing (e.g. which destinations care about `http` vs `tls`); do not parse `error` / `body` for check ids.
 
 #### Lifecycle (what core does)
 
 1. Load each id from `plugins.json` → `notify/available/<id>.ts`.
 2. Call `init()` if present (failures are logged; other notifiers still load).
-3. On each alert, core runs all notifiers with `Promise.allSettled` (one failure does not block the others).
+3. On each alert, core filters by `notifier_ids`, then runs the selected notifiers with `Promise.allSettled` (one failure does not block the others).
 4. If **at least one** `notify` fulfills, core calls `markAlertSent` for throttle / policy bookkeeping.
 5. Status / dashboard exposes each notifier’s `id` and `isReady()` as `ready`.
 
@@ -284,7 +334,7 @@ Reference: [`api/src/plugins/scheduler/available/interval.ts`](api/src/plugins/s
 
 ### Core schema
 
-Frozen tables (plugins must not `ALTER` them): `groups`, `targets` (includes `check_ids`), `settings`, `check_results`, `target_state`.
+Frozen tables (plugins must not `ALTER` them): `groups`, `targets` (includes `check_ids`, `notifier_ids`), `settings`, `check_results`, `target_state`.
 
 `GET /api/schema` returns the published schema; `GET /api/schema?data=1` includes a JSON dump of those tables. Plugins may **read** via `getCore()`; they should not rely on mutating core tables.
 
@@ -299,9 +349,10 @@ Frozen tables (plugins must not `ALTER` them): `groups`, `targets` (includes `ch
 Swagger UI: [http://localhost:8089/documentation](http://localhost:8089/documentation) (or API directly at `:3000/documentation`). OpenAPI JSON: `/documentation/json`.
 
 - `GET/POST/PATCH/DELETE /api/groups` (`GET /api/groups?tree=1` for nested trees)
-- `GET/POST/PATCH/DELETE /api/targets` (optional `group_id`, optional `check_ids`; empty `check_ids` = all checks)
+- `GET/POST/PATCH/DELETE /api/targets` (optional `group_id`, optional `check_ids` / `notifier_ids`; empty allowlist = all of that kind)
 - `GET /api/targets/:id/results`
-- `GET /api/checks` (loaded check plugin ids)
+- `GET /api/checks` — loaded check plugins `{ id }`
+- `GET /api/notifiers` — loaded notifier plugins `{ id, ready }`
 - `GET/POST/DELETE /api/tokens` (FCM destinations; 404 if fcm disabled)
 - `GET/PUT /api/settings`
 - `GET /api/status`

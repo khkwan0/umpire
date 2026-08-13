@@ -17,6 +17,9 @@ export async function schemaRoutes(app: FastifyInstance): Promise<void> {
             },
           },
         },
+        response: {
+          200: { $ref: 'CoreSchemaResponse#' },
+        },
       },
     },
     async (req) => {

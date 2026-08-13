@@ -8,6 +8,8 @@ export interface Target {
   group_id: number | null
   /** Empty = all loaded checks */
   check_ids: string[]
+  /** Empty = all loaded notifiers */
+  notifier_ids: string[]
   created_at: string
   updated_at: string
 }
@@ -100,6 +102,9 @@ export const api = {
   checks: {
     list: () => request<PluginRef[]>('/api/checks'),
   },
+  notifiers: {
+    list: () => request<NotifierStatus[]>('/api/notifiers'),
+  },
   groups: {
     list: () => request<Group[]>('/api/groups'),
     tree: () => request<GroupTreeNode[]>('/api/groups?tree=1'),
@@ -125,6 +130,7 @@ export const api = {
       enabled?: boolean
       group_id?: number | null
       check_ids?: string[]
+      notifier_ids?: string[]
     }) =>
       request<Target>('/api/targets', { method: 'POST', body: JSON.stringify(data) }),
     update: (
@@ -135,6 +141,7 @@ export const api = {
         enabled: boolean
         group_id: number | null
         check_ids: string[]
+        notifier_ids: string[]
       }>,
     ) =>
       request<Target>(`/api/targets/${id}`, {

@@ -68,6 +68,7 @@ const targetSchema = {
     'enabled',
     'group_id',
     'check_ids',
+    'notifier_ids',
     'created_at',
     'updated_at',
   ],
@@ -85,6 +86,12 @@ const targetSchema = {
       items: { type: 'string' },
       description:
         'Check plugin ids to run for this target. Empty = all loaded checks.',
+    },
+    notifier_ids: {
+      type: 'array',
+      items: { type: 'string' },
+      description:
+        'Notifier plugin ids for this target. Empty = all loaded notifiers.',
     },
     created_at: { type: 'string' },
     updated_at: { type: 'string' },
@@ -195,6 +202,87 @@ const statusResponseSchema = {
   },
 } as const
 
+/** Webhook notifier POST body (and plugin notify contract). Not an HTTP response. */
+const alertCheckOutcomeSchema = {
+  $id: 'AlertCheckOutcome',
+  type: 'object',
+  required: ['id', 'ok', 'statusCode', 'error', 'latencyMs'],
+  properties: {
+    id: { type: 'string', description: 'Check plugin id' },
+    ok: { type: 'boolean' },
+    statusCode: { type: ['integer', 'null'] },
+    error: { type: ['string', 'null'] },
+    latencyMs: { type: 'number' },
+  },
+} as const
+
+const alertEventSchema = {
+  $id: 'AlertEvent',
+  type: 'object',
+  required: [
+    'target',
+    'status',
+    'previousStatus',
+    'error',
+    'statusCode',
+    'checkedAt',
+    'title',
+    'body',
+    'checks',
+  ],
+  description:
+    'Payload passed to notifier plugins. The webhook notifier POSTs this JSON to WEBHOOK_URL.',
+  properties: {
+    target: {
+      type: 'object',
+      required: ['id', 'url'],
+      properties: {
+        id: { type: 'integer' },
+        url: { type: 'string' },
+      },
+    },
+    status: { type: 'string', enum: ['up', 'down', 'partial'] },
+    previousStatus: {
+      type: 'string',
+      enum: ['up', 'down', 'partial', 'unknown'],
+    },
+    error: { type: ['string', 'null'] },
+    statusCode: { type: ['integer', 'null'] },
+    checkedAt: { type: 'string', format: 'date-time' },
+    title: { type: 'string' },
+    body: { type: 'string' },
+    checks: {
+      type: 'array',
+      description:
+        'Per-check outcomes for this run. Empty if no checks ran. Use for routing; do not parse error/body for check ids.',
+      items: { $ref: 'AlertCheckOutcome#' },
+    },
+  },
+} as const
+
+const coreSchemaResponseSchema = {
+  $id: 'CoreSchemaResponse',
+  type: 'object',
+  required: ['engine', 'tables'],
+  properties: {
+    engine: { type: 'string', enum: ['sqlite'] },
+    tables: {
+      type: 'array',
+      description:
+        'Frozen core tables (includes targets.check_ids and targets.notifier_ids)',
+      items: { type: 'object' },
+    },
+    data: {
+      type: 'object',
+      description: 'Present when ?data=1 — map of table name → row arrays',
+      additionalProperties: {
+        type: 'array',
+        items: { type: 'object' },
+      },
+    },
+  },
+} as const
+
 export async function registerOpenApi(app: FastifyInstance): Promise<void> {
   for (const schema of [
     errorSchema,
@@ -208,6 +296,9 @@ export async function registerOpenApi(app: FastifyInstance): Promise<void> {
     notifierStatusSchema,
     statusTargetSchema,
     statusResponseSchema,
+    alertCheckOutcomeSchema,
+    alertEventSchema,
+    coreSchemaResponseSchema,
   ]) {
     app.addSchema(schema)
   }
@@ -218,18 +309,26 @@ export async function registerOpenApi(app: FastifyInstance): Promise<void> {
       info: {
         title: 'UMPIRE API',
         description:
-          'Universal Monitoring Plugin & Incident Reporter — targets, groups, settings, FCM tokens, and status.',
+          'Universal Monitoring Plugin & Incident Reporter. Manage targets (with per-target check_ids / notifier_ids allowlists), groups, alert settings, FCM tokens, and inspect loaded check/notifier plugins. Notifier plugins receive an AlertEvent (see components); the webhook notifier POSTs that JSON body.',
         version: '1.0.0',
       },
       tags: [
         { name: 'health', description: 'Liveness' },
         { name: 'groups', description: 'Group trees and tags' },
-        { name: 'targets', description: 'URLs to monitor' },
+        {
+          name: 'targets',
+          description:
+            'URLs to monitor; optional check_ids and notifier_ids (empty = all loaded)',
+        },
         { name: 'checks', description: 'Loaded check plugins' },
-        { name: 'tokens', description: 'FCM device tokens' },
+        { name: 'notifiers', description: 'Loaded notifier plugins' },
+        {
+          name: 'tokens',
+          description: 'FCM device tokens (404 unless fcm notifier enabled)',
+        },
         { name: 'settings', description: 'Alert policy' },
         { name: 'status', description: 'Dashboard summary' },
-        { name: 'schema', description: 'Core schema' },
+        { name: 'schema', description: 'Frozen core SQLite schema' },
       ],
     },
   })

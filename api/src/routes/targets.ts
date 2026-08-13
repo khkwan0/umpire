@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { getCore } from '../core/index.js'
-import { normalizeCheckIds } from '../core/sqlite.js'
+import { normalizePluginIds } from '../core/sqlite.js'
 import { getScheduler } from '../plugins/registry.js'
 
 const errorResponse = {
@@ -15,6 +15,13 @@ const checkIdsSchema = {
     'Check plugin ids to run. Empty array = all loaded checks.',
 } as const
 
+const notifierIdsSchema = {
+  type: 'array',
+  items: { type: 'string', minLength: 1 },
+  description:
+    'Notifier plugin ids for alerts. Empty array = all loaded notifiers.',
+} as const
+
 function isValidUrl(url: string): boolean {
   try {
     const u = new URL(url)
@@ -24,12 +31,13 @@ function isValidUrl(url: string): boolean {
   }
 }
 
-function parseCheckIdsBody(
+function parseIdListBody(
   raw: unknown,
+  fieldName: string,
 ): { ok: true; value?: string[] } | { ok: false; error: string } {
   if (raw === undefined) return { ok: true }
   try {
-    return { ok: true, value: normalizeCheckIds(raw) }
+    return { ok: true, value: normalizePluginIds(raw, fieldName) }
   } catch (err) {
     return {
       ok: false,
@@ -60,6 +68,7 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
       enabled?: boolean
       group_id?: number | null
       check_ids?: string[]
+      notifier_ids?: string[]
     }
   }>(
     '/api/targets',
@@ -79,6 +88,7 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
               description: 'Child group id only (not a root)',
             },
             check_ids: checkIdsSchema,
+            notifier_ids: notifierIdsSchema,
           },
         },
         response: {
@@ -93,9 +103,16 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
       const enabled = req.body?.enabled !== false
       const groupId =
         req.body?.group_id === undefined ? null : req.body.group_id
-      const checkIdsParsed = parseCheckIdsBody(req.body?.check_ids)
+      const checkIdsParsed = parseIdListBody(req.body?.check_ids, 'check_ids')
       if (!checkIdsParsed.ok) {
         return reply.code(400).send({ error: checkIdsParsed.error })
+      }
+      const notifierIdsParsed = parseIdListBody(
+        req.body?.notifier_ids,
+        'notifier_ids',
+      )
+      if (!notifierIdsParsed.ok) {
+        return reply.code(400).send({ error: notifierIdsParsed.error })
       }
       if (!url || !isValidUrl(url)) {
         return reply.code(400).send({ error: 'valid http(s) url required' })
@@ -115,6 +132,7 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
           enabled,
           groupId,
           checkIdsParsed.value ?? [],
+          notifierIdsParsed.value ?? [],
         )
         getScheduler().reschedule()
         return reply.code(201).send(target)
@@ -134,6 +152,7 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
       enabled?: boolean
       group_id?: number | null
       check_ids?: string[]
+      notifier_ids?: string[]
     }
   }>(
     '/api/targets/:id',
@@ -154,6 +173,7 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
             enabled: { type: 'boolean' },
             group_id: { type: ['integer', 'null'] },
             check_ids: checkIdsSchema,
+            notifier_ids: notifierIdsSchema,
           },
         },
         response: {
@@ -185,9 +205,16 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
           .code(400)
           .send({ error: 'group_id must be a group id or null' })
       }
-      const checkIdsParsed = parseCheckIdsBody(req.body?.check_ids)
+      const checkIdsParsed = parseIdListBody(req.body?.check_ids, 'check_ids')
       if (!checkIdsParsed.ok) {
         return reply.code(400).send({ error: checkIdsParsed.error })
+      }
+      const notifierIdsParsed = parseIdListBody(
+        req.body?.notifier_ids,
+        'notifier_ids',
+      )
+      if (!notifierIdsParsed.ok) {
+        return reply.code(400).send({ error: notifierIdsParsed.error })
       }
       try {
         const patch: {
@@ -196,9 +223,13 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
           enabled?: boolean
           group_id?: number | null
           check_ids?: string[]
+          notifier_ids?: string[]
         } = { ...(req.body ?? {}) }
         if (checkIdsParsed.value !== undefined) {
           patch.check_ids = checkIdsParsed.value
+        }
+        if (notifierIdsParsed.value !== undefined) {
+          patch.notifier_ids = notifierIdsParsed.value
         }
         const updated = getCore().updateTarget(id, patch)
         if (!updated) return reply.code(404).send({ error: 'not found' })
