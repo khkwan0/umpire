@@ -69,6 +69,17 @@ export interface NotifierStatus {
   ready: boolean
 }
 
+export interface PluginRouteRef {
+  method: string
+  path: string
+}
+
+export interface PluginCatalogEntry {
+  id: string
+  kind: 'check' | 'scheduler' | 'notify'
+  routes: PluginRouteRef[]
+}
+
 export interface StatusResponse {
   core: { engine: string }
   checks: PluginRef[]
@@ -103,6 +114,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   status: () => request<StatusResponse>('/api/status'),
+  plugins: {
+    list: () => request<PluginCatalogEntry[]>('/api/plugins'),
+  },
   checks: {
     list: () => request<PluginRef[]>('/api/checks'),
   },

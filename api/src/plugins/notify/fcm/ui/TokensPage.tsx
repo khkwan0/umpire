@@ -4,13 +4,13 @@ import {
   type FcmToken,
   type PluginRef,
   type Target,
-} from '../api'
+} from '@umpire/web-api'
 
 function toggleId<T extends string | number>(list: T[], id: T): T[] {
   return list.includes(id) ? list.filter((x) => x !== id) : [...list, id]
 }
 
-export default function Tokens() {
+export default function TokensPage() {
   const [tokens, setTokens] = useState<FcmToken[]>([])
   const [targets, setTargets] = useState<Target[]>([])
   const [checks, setChecks] = useState<PluginRef[]>([])

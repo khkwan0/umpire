@@ -66,19 +66,20 @@ function loadConfig(): PluginsConfig {
 }
 
 function resolvePluginFile(kind: PluginKind, id: string): string {
-  const available = path.join(pluginsRoot, kind, 'available')
+  const kindRoot = path.join(pluginsRoot, kind)
   const candidates = [
-    path.join(available, `${id}.ts`),
-    path.join(available, `${id}.js`),
-    path.join(available, `${id}.mjs`),
-    path.join(available, id, 'index.ts'),
-    path.join(available, id, 'index.js'),
+    path.join(kindRoot, id, 'index.ts'),
+    path.join(kindRoot, id, 'index.js'),
+    path.join(kindRoot, id, 'index.mjs'),
+    path.join(kindRoot, `${id}.ts`),
+    path.join(kindRoot, `${id}.js`),
+    path.join(kindRoot, `${id}.mjs`),
   ]
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) return candidate
   }
   throw new Error(
-    `No ${kind} plugin "${id}" under ${available} (tried ${path.basename(candidates[0]!)} etc.)`,
+    `No ${kind} plugin "${id}" under ${kindRoot} (tried ${id}/index.ts, ${id}.ts, …)`,
   )
 }
 

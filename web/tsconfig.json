@@ -15,7 +15,14 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true
+    "noUncheckedSideEffectImports": true,
+    "baseUrl": ".",
+    "paths": {
+      "@umpire/web-api": ["src/api.ts"],
+      "@umpire/plugin-ui": ["src/plugin-ui.ts"],
+      "react": ["./node_modules/@types/react/index.d.ts"],
+      "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime.d.ts"]
+    }
   },
-  "include": ["src"]
+  "include": ["src", "../api/src/plugins/**/ui/**/*"]
 }

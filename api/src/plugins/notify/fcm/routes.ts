@@ -6,7 +6,7 @@ import {
   normalizeCheckIds,
   normalizeTargetIds,
   updateToken,
-} from './fcm-tokens.js'
+} from './tokens.js'
 
 const errorResponse = {
   type: 'object',

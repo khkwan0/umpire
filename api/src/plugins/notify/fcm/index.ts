@@ -1,8 +1,8 @@
 import fs from 'node:fs'
 import admin from 'firebase-admin'
 import type { AlertEvent, NotifierPlugin } from '../../types.js'
-import { registerFcmRoutes } from './fcm-routes.js'
-import { matchingTokenStrings } from './fcm-tokens.js'
+import { registerFcmRoutes } from './routes.js'
+import { matchingTokenStrings } from './tokens.js'
 
 let ready = false
 

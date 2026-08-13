@@ -62,13 +62,27 @@ Enable plugins by editing [`api/plugins.json`](api/plugins.json) (or set `PLUGIN
 }
 ```
 
-Implementations live under `api/src/plugins/<kind>/available/`. The registry loads each id from that folder (`http.ts`, `fcm.ts`, …).
+Implementations live under `api/src/plugins/<kind>/<id>/` (one subdirectory per plugin). The registry loads each id from `plugins.json` as `<kind>/<id>/index.ts` (or `<kind>/<id>.ts` for a single-file plugin).
 
 | Kind | Path | Cardinality |
 |------|------|-------------|
-| Checks | `plugins/check/available/` | One or more in `plugins.json` |
-| Scheduler | `plugins/scheduler/available/` | Exactly one in `plugins.json` |
-| Notifiers | `plugins/notify/available/` | Zero or more — pool for per-target allowlists |
+| Checks | `plugins/check/<id>/` | One or more in `plugins.json` |
+| Scheduler | `plugins/scheduler/<id>/` | Exactly one in `plugins.json` |
+| Notifiers | `plugins/notify/<id>/` | Zero or more — pool for per-target allowlists |
+
+Optional **UI** for a plugin lives beside it at `ui/index.tsx` (see [Plugin UI hooks](#plugin-ui-hooks)). Core web does not own plugin-specific pages (e.g. FCM tokens).
+
+Example package (FCM):
+
+```text
+api/src/plugins/notify/fcm/
+  index.ts       # NotifierPlugin
+  tokens.ts      # plugin-owned storage
+  routes.ts      # registerRoutes → /tokens
+  ui/
+    index.tsx    # PluginUiModule
+    TokensPage.tsx
+```
 
 ### How targets, checks, and notifiers mix
 
@@ -157,7 +171,7 @@ A valid check **must** implement `check`. It receives only the target’s `url` 
 
 #### Lifecycle (what core does)
 
-1. Load each id from `plugins.json` → `check/available/<id>.ts`.
+1. Load each id from `plugins.json` → `check/<id>/index.ts` (or `check/<id>.ts`).
 2. When the scheduler calls `run(targetId)`, core loads the target and, if `enabled`, resolves checks from `check_ids` (or all if empty), then calls each selected `check(url)` via `Promise.all`.
 3. Core aggregates outcomes into one health status, writes `check_results` / `target_state`, then applies the alert policy.
 
@@ -184,11 +198,11 @@ Checks are not started/stopped like the scheduler; they are invoked on demand.
 | Keep probes self-contained (timeouts, env for your probe) | Expect more than `url` from core |
 | Use `statusCode` when applicable (else `null`) | Mutate core tables |
 
-Reference: [`api/src/plugins/check/available/http.ts`](api/src/plugins/check/available/http.ts) (HTTP GET, 200 = healthy, `CHECK_TIMEOUT_MS`).
+Reference: [`api/src/plugins/check/http/index.ts`](api/src/plugins/check/http/index.ts) (HTTP GET, 200 = healthy, `CHECK_TIMEOUT_MS`).
 
 #### Enable your check
 
-1. Add `api/src/plugins/check/available/my-check.ts`.
+1. Add `api/src/plugins/check/my-check/index.ts` (or `check/my-check.ts`).
 2. Add `"my-check"` to the `checks` array in [`api/plugins.json`](api/plugins.json) (keep or remove `http` as you prefer).
 3. Restart / let `npm run dev` reload.
 4. Optionally restrict which targets use it via `check_ids` / `notifier_ids` on those targets (Targets UI or API).
@@ -235,7 +249,7 @@ A valid notifier **must** implement `isReady` and `notify`. `init` is optional b
 
 #### Lifecycle (what core does)
 
-1. Load each id from `plugins.json` → `notify/available/<id>.ts`.
+1. Load each id from `plugins.json` → `notify/<id>/index.ts` (or `notify/<id>.ts`).
 2. Call `init()` if present (failures are logged; other notifiers still load).
 3. After core HTTP routes are registered, mount each plugin under `/api/plugins/<kind>/<id>` and call `registerRoutes` if present (checks, then scheduler, then notifiers). Record routes for `GET /api/plugins`.
 4. On each alert, core filters by `notifier_ids`, then runs the selected notifiers with `Promise.allSettled` (one failure does not block the others).
@@ -279,8 +293,8 @@ Disabled tokens never receive alerts. No matching tokens → soft skip (no throw
 
 References:
 
-- [`api/src/plugins/notify/available/fcm.ts`](api/src/plugins/notify/available/fcm.ts) + [`fcm-tokens.ts`](api/src/plugins/notify/available/fcm-tokens.ts) + [`fcm-routes.ts`](api/src/plugins/notify/available/fcm-routes.ts)
-- [`api/src/plugins/notify/available/webhook.ts`](api/src/plugins/notify/available/webhook.ts) (`WEBHOOK_URL`, optional `WEBHOOK_HEADERS`)
+- [`api/src/plugins/notify/fcm/`](api/src/plugins/notify/fcm/) (`index.ts`, `tokens.ts`, `routes.ts`, optional `ui/`)
+- [`api/src/plugins/notify/webhook/index.ts`](api/src/plugins/notify/webhook/index.ts) (`WEBHOOK_URL`, optional `WEBHOOK_HEADERS`)
 
 #### Responsibilities
 
@@ -294,11 +308,12 @@ References:
 
 #### Enable your notifier
 
-1. Add `api/src/plugins/notify/available/my-notifier.ts`.
+1. Add `api/src/plugins/notify/my-notifier/index.ts`.
 2. If you need a package (e.g. `pg`): `cd api && npm install pg`.
 3. Add `"my-notifier"` to `notifiers` in [`api/plugins.json`](api/plugins.json).
 4. Set any env your plugin needs.
-5. Restart / let `npm run dev` reload.
+5. Optionally add `ui/index.tsx` exporting a `PluginUiModule` (see [Plugin UI hooks](#plugin-ui-hooks)).
+6. Restart / let `npm run dev` reload.
 
 ### Write a scheduler
 
@@ -325,7 +340,7 @@ A valid scheduler **must** implement all of `start`, `stop`, and `reschedule`. `
 
 #### Lifecycle (what core does)
 
-1. Load the single id from `plugins.json` → `scheduler/available/<id>.ts`.
+1. Load the single id from `plugins.json` → `scheduler/<id>/index.ts` (or `scheduler/<id>.ts`).
 2. Call `init({ getTargets, run })` if present — `getTargets` closes over core reads.
 3. After HTTP listen, call `start()`.
 4. On target **create / update / delete** (including Pause/Resume via `enabled`), call `reschedule()` so your schedule matches the DB.
@@ -357,13 +372,38 @@ A full tear-down-and-rebuild is also valid; differential updates are preferred w
 | Clear work in `stop()` / on disable | Enable more than one scheduler at once |
 | Implement a real `reschedule()` sync | Use multiple schedulers just to vary frequency (use per-target `interval_seconds`) |
 
-Reference: [`api/src/plugins/scheduler/available/interval.ts`](api/src/plugins/scheduler/available/interval.ts) (per-target `setTimeout` chains; differential `reschedule` preserves remaining delays).
+Reference: [`api/src/plugins/scheduler/interval/index.ts`](api/src/plugins/scheduler/interval/index.ts) (per-target `setTimeout` chains; differential `reschedule` preserves remaining delays).
 
 #### Enable your scheduler
 
-1. Add `api/src/plugins/scheduler/available/my-scheduler.ts`.
+1. Add `api/src/plugins/scheduler/my-scheduler/index.ts`.
 2. Set `"scheduler": "my-scheduler"` in [`api/plugins.json`](api/plugins.json) (replace `interval`).
 3. Restart / let `npm run dev` reload.
+
+### Plugin UI hooks
+
+Plugin-specific screens (e.g. FCM token management) belong **in the plugin package**, not under `web/src/pages`.
+
+1. Add `api/src/plugins/<kind>/<id>/ui/index.tsx` that default-exports a `PluginUiModule`:
+
+```ts
+import type { PluginUiModule } from '@umpire/plugin-ui'
+import TokensPage from './TokensPage'
+
+export default {
+  id: 'fcm',
+  kind: 'notify',
+  path: '/plugins/notify/fcm',
+  label: 'FCM tokens',
+  Component: TokensPage,
+} satisfies PluginUiModule
+```
+
+2. The core shell ([`web/src/App.tsx`](web/src/App.tsx)) discovers all `plugins/*/*/ui/index.tsx` via Vite `import.meta.glob`, then shows nav + routes only for plugins currently returned by **`GET /api/plugins`** (i.e. enabled and loaded).
+3. Plugin pages import the shared HTTP client as `@umpire/web-api` (alias to [`web/src/api.ts`](web/src/api.ts)).
+4. The API TypeScript build excludes `**/ui/**`; the web build typechecks those files.
+
+FCM: UI at `/plugins/notify/fcm`, API at `/api/plugins/notify/fcm/tokens`.
 
 ### Core schema
 
