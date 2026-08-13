@@ -36,6 +36,16 @@ function scheduleTarget(id: number): void {
     }
   }
 
+  // Startup stagger only — NOT the check interval / schedule.
+  // Purpose: blunt thundering herd on boot or reschedule so many targets
+  // don't all fetch at once. Ongoing cadence is intervalSeconds in `finally`.
+  //
+  // id % 7 → only 7 delay buckets (0..6), 250ms apart, after a 1s base:
+  //   delays ≈ 1000, 1250, 1500, …, 2500 ms.
+  // Implication: with more than 7 enabled targets, some share a bucket and
+  // their *first* check can start together (e.g. id 1 and 8). That is OK —
+  // this is soft load-spreading, not unique-per-target scheduling. After the
+  // first fire, each target follows its own setTimeout chain independently.
   const delay = 1000 + (id % 7) * 250
   const first = setTimeout(tick, delay)
   timers.set(id, first)

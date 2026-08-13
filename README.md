@@ -49,6 +49,8 @@ Plugins live under `api/src/plugins/<kind>/`:
 | Scheduler | `plugins/scheduler/` | Exactly one in `enabled/` |
 | Notifiers | `plugins/notify/` | Zero or more in `enabled/` — all run on each alert |
 
+You do **not** need multiple schedulers inside a group tree. The `interval` scheduler gives each target its own timer from that target’s `interval_seconds`, so subgroups can already run at different cadences. One scheduler at the process (or, later, per root tree) is enough; only swap the scheduler plugin when the *strategy* changes (e.g. cron vs interval), not to vary frequency.
+
 Defaults enabled out of the box: `sqlite`, `http`, `interval`, `fcm` (symlinks). `webhook` ships in `notify/available/` only — enable it with:
 
 ```bash
