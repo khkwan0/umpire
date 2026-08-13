@@ -1,17 +1,18 @@
 :root {
   color-scheme: light;
-  --bg: #f3efe6;
-  --ink: #1c1914;
-  --muted: #6b6458;
-  --panel: #fffdf8;
-  --line: #d9d0c0;
-  --accent: #0f6e56;
+  --bg: #f0f2f5;
+  --ink: #1b365d;
+  --muted: #5a6b7d;
+  --panel: #ffffff;
+  --line: #d0d7e0;
+  --accent: #1b365d;
+  --accent-glow: #39ff14;
   --danger: #9b2c2c;
   --warn: #9a6700;
   --up: #0f6e56;
   --down: #9b2c2c;
   --partial: #9a6700;
-  --paused: #6b6458;
+  --paused: #5a6b7d;
   --pending: #9a6700;
   font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
 }
@@ -25,8 +26,8 @@ body {
   min-height: 100vh;
   color: var(--ink);
   background:
-    radial-gradient(circle at top left, #efe4c8 0%, transparent 40%),
-    linear-gradient(180deg, #f7f2e8, var(--bg));
+    radial-gradient(circle at top left, #dce6f5 0%, transparent 42%),
+    linear-gradient(180deg, #f7f9fc, var(--bg));
 }
 
 a {
@@ -54,21 +55,19 @@ a {
   align-items: center;
 }
 
-.brand-mark {
-  display: grid;
-  place-items: center;
-  width: 3rem;
-  height: 3rem;
-  border-radius: 0.75rem;
-  background: var(--ink);
-  color: #f7f2e8;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+.brand-logo {
+  width: 3.5rem;
+  height: 3.5rem;
+  object-fit: contain;
+  border-radius: 0.65rem;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line);
 }
 
 .brand h1 {
   margin: 0;
-  font-size: 1.35rem;
+  font-size: 1.5rem;
+  letter-spacing: 0.06em;
 }
 
 .brand p {
@@ -236,6 +235,33 @@ label {
 label.grow {
   flex: 1;
   min-width: 16rem;
+}
+
+.check-ids {
+  margin-top: 0.75rem;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+}
+
+.check-ids legend {
+  font-size: 0.85rem;
+  color: var(--muted);
+  padding: 0 0.25rem;
+}
+
+.check-ids-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+
+.check-ids-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--text, inherit);
 }
 
 input,

@@ -10,10 +10,16 @@ export default function App() {
     <div className="shell">
       <header className="top">
         <div className="brand">
-          <span className="brand-mark">YAMT</span>
+          <img
+            className="brand-logo"
+            src="/umpire-logo.png"
+            alt="UMPIRE"
+            width={56}
+            height={56}
+          />
           <div>
-            <h1>Yet Another Monitoring Tool</h1>
-            <p>Pluggable monitoring with alerts</p>
+            <h1>UMPIRE</h1>
+            <p>Universal Monitoring Plugin &amp; Incident Reporter</p>
           </div>
         </div>
         <nav>

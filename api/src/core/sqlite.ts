@@ -120,6 +120,50 @@ function assertChildGroupForTarget(groupId: number | null | undefined): void {
   }
 }
 
+/** Normalize and validate check plugin id allowlist. */
+export function normalizeCheckIds(input: unknown): string[] {
+  if (input === undefined || input === null) return []
+  if (!Array.isArray(input)) {
+    throw new Error('check_ids must be an array of strings')
+  }
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const item of input) {
+    if (typeof item !== 'string' || !item.trim()) {
+      throw new Error('check_ids must be an array of non-empty strings')
+    }
+    const id = item.trim()
+    if (seen.has(id)) continue
+    seen.add(id)
+    out.push(id)
+  }
+  return out
+}
+
+function parseCheckIdsJson(raw: unknown): string[] {
+  if (raw === null || raw === undefined) return []
+  if (typeof raw !== 'string') {
+    try {
+      return normalizeCheckIds(raw)
+    } catch {
+      return []
+    }
+  }
+  try {
+    return normalizeCheckIds(JSON.parse(raw) as unknown)
+  } catch {
+    return []
+  }
+}
+
+type TargetRow = Omit<Target, 'check_ids'> & { check_ids?: string | null }
+
+function mapTarget(row: TargetRow | undefined): Target | undefined {
+  if (!row) return undefined
+  const { check_ids: raw, ...rest } = row
+  return { ...rest, check_ids: parseCheckIdsJson(raw) }
+}
+
 function buildTree(rows: Group[]): GroupTreeNode[] {
   const nodes = new Map<number, GroupTreeNode>()
   for (const row of rows) {
@@ -281,15 +325,17 @@ export const core: CoreStore = {
   },
 
   listTargets(): Target[] {
-    return getDb()
+    const rows = getDb()
       .prepare(`SELECT * FROM targets ORDER BY id ASC`)
-      .all() as Target[]
+      .all() as TargetRow[]
+    return rows.map((r) => mapTarget(r)!)
   },
 
   getTarget(id: number): Target | undefined {
-    return getDb().prepare(`SELECT * FROM targets WHERE id = ?`).get(id) as
-      | Target
+    const row = getDb().prepare(`SELECT * FROM targets WHERE id = ?`).get(id) as
+      | TargetRow
       | undefined
+    return mapTarget(row)
   },
 
   createTarget(
@@ -297,13 +343,15 @@ export const core: CoreStore = {
     intervalSeconds: number,
     enabled = true,
     groupId: number | null = null,
+    checkIds: string[] = [],
   ): Target {
     assertChildGroupForTarget(groupId)
+    const ids = normalizeCheckIds(checkIds)
     const result = getDb()
       .prepare(
-        `INSERT INTO targets (url, interval_seconds, enabled, group_id) VALUES (?, ?, ?, ?)`,
+        `INSERT INTO targets (url, interval_seconds, enabled, group_id, check_ids) VALUES (?, ?, ?, ?, ?)`,
       )
-      .run(url, intervalSeconds, enabled ? 1 : 0, groupId)
+      .run(url, intervalSeconds, enabled ? 1 : 0, groupId, JSON.stringify(ids))
     const id = Number(result.lastInsertRowid)
     getDb()
       .prepare(`INSERT INTO target_state (target_id) VALUES (?)`)
@@ -318,6 +366,7 @@ export const core: CoreStore = {
       interval_seconds: number
       enabled: boolean
       group_id: number | null
+      check_ids: string[]
     }>,
   ): Target | undefined {
     const existing = core.getTarget(id)
@@ -328,12 +377,16 @@ export const core: CoreStore = {
       patch.enabled === undefined ? existing.enabled : patch.enabled ? 1 : 0
     const groupId =
       patch.group_id !== undefined ? patch.group_id : existing.group_id
+    const checkIds =
+      patch.check_ids !== undefined
+        ? normalizeCheckIds(patch.check_ids)
+        : existing.check_ids
     assertChildGroupForTarget(groupId)
     getDb()
       .prepare(
-        `UPDATE targets SET url = ?, interval_seconds = ?, enabled = ?, group_id = ?, updated_at = datetime('now') WHERE id = ?`,
+        `UPDATE targets SET url = ?, interval_seconds = ?, enabled = ?, group_id = ?, check_ids = ?, updated_at = datetime('now') WHERE id = ?`,
       )
-      .run(url, interval, enabled, groupId, id)
+      .run(url, interval, enabled, groupId, JSON.stringify(checkIds), id)
     return core.getTarget(id)
   },
 
@@ -463,6 +516,7 @@ export function initCore(databasePath: string): void {
       interval_seconds INTEGER NOT NULL DEFAULT 60,
       enabled INTEGER NOT NULL DEFAULT 1,
       group_id INTEGER REFERENCES groups(id) ON DELETE SET NULL,
+      check_ids TEXT NOT NULL DEFAULT '[]',
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -501,6 +555,7 @@ export function initCore(databasePath: string): void {
     'group_id',
     'INTEGER REFERENCES groups(id) ON DELETE SET NULL',
   )
+  ensureColumn('targets', 'check_ids', `TEXT NOT NULL DEFAULT '[]'`)
 
   const insertSetting = db.prepare(
     `INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`,

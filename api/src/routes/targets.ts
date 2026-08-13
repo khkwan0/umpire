@@ -1,10 +1,18 @@
 import type { FastifyInstance } from 'fastify'
 import { getCore } from '../core/index.js'
+import { normalizeCheckIds } from '../core/sqlite.js'
 import { getScheduler } from '../plugins/registry.js'
 
 const errorResponse = {
   type: 'object',
   properties: { error: { type: 'string' } },
+} as const
+
+const checkIdsSchema = {
+  type: 'array',
+  items: { type: 'string', minLength: 1 },
+  description:
+    'Check plugin ids to run. Empty array = all loaded checks.',
 } as const
 
 function isValidUrl(url: string): boolean {
@@ -13,6 +21,20 @@ function isValidUrl(url: string): boolean {
     return u.protocol === 'http:' || u.protocol === 'https:'
   } catch {
     return false
+  }
+}
+
+function parseCheckIdsBody(
+  raw: unknown,
+): { ok: true; value?: string[] } | { ok: false; error: string } {
+  if (raw === undefined) return { ok: true }
+  try {
+    return { ok: true, value: normalizeCheckIds(raw) }
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    }
   }
 }
 
@@ -37,6 +59,7 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
       interval_seconds?: number
       enabled?: boolean
       group_id?: number | null
+      check_ids?: string[]
     }
   }>(
     '/api/targets',
@@ -55,6 +78,7 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
               type: ['integer', 'null'],
               description: 'Child group id only (not a root)',
             },
+            check_ids: checkIdsSchema,
           },
         },
         response: {
@@ -69,6 +93,10 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
       const enabled = req.body?.enabled !== false
       const groupId =
         req.body?.group_id === undefined ? null : req.body.group_id
+      const checkIdsParsed = parseCheckIdsBody(req.body?.check_ids)
+      if (!checkIdsParsed.ok) {
+        return reply.code(400).send({ error: checkIdsParsed.error })
+      }
       if (!url || !isValidUrl(url)) {
         return reply.code(400).send({ error: 'valid http(s) url required' })
       }
@@ -81,7 +109,13 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
           .send({ error: 'group_id must be a group id or null' })
       }
       try {
-        const target = getCore().createTarget(url, interval, enabled, groupId)
+        const target = getCore().createTarget(
+          url,
+          interval,
+          enabled,
+          groupId,
+          checkIdsParsed.value ?? [],
+        )
         getScheduler().reschedule()
         return reply.code(201).send(target)
       } catch (err) {
@@ -99,6 +133,7 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
       interval_seconds?: number
       enabled?: boolean
       group_id?: number | null
+      check_ids?: string[]
     }
   }>(
     '/api/targets/:id',
@@ -118,6 +153,7 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
             interval_seconds: { type: 'integer', minimum: 5 },
             enabled: { type: 'boolean' },
             group_id: { type: ['integer', 'null'] },
+            check_ids: checkIdsSchema,
           },
         },
         response: {
@@ -149,8 +185,22 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
           .code(400)
           .send({ error: 'group_id must be a group id or null' })
       }
+      const checkIdsParsed = parseCheckIdsBody(req.body?.check_ids)
+      if (!checkIdsParsed.ok) {
+        return reply.code(400).send({ error: checkIdsParsed.error })
+      }
       try {
-        const updated = getCore().updateTarget(id, req.body ?? {})
+        const patch: {
+          url?: string
+          interval_seconds?: number
+          enabled?: boolean
+          group_id?: number | null
+          check_ids?: string[]
+        } = { ...(req.body ?? {}) }
+        if (checkIdsParsed.value !== undefined) {
+          patch.check_ids = checkIdsParsed.value
+        }
+        const updated = getCore().updateTarget(id, patch)
         if (!updated) return reply.code(404).send({ error: 'not found' })
         getScheduler().reschedule()
         return updated

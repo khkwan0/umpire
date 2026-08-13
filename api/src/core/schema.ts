@@ -50,6 +50,7 @@ export const CORE_TABLES: CoreTableDef[] = [
         type: 'integer',
         references: { table: 'groups', column: 'id', onDelete: 'SET NULL' },
       },
+      { name: 'check_ids', type: 'text', notNull: true, default: '[]' },
       { name: 'created_at', type: 'text', notNull: true, default: { type: 'now' } },
       { name: 'updated_at', type: 'text', notNull: true, default: { type: 'now' } },
     ],

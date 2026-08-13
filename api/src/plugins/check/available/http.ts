@@ -17,7 +17,7 @@ const httpCheck: CheckPlugin = {
         method: 'GET',
         redirect: 'follow',
         signal: controller.signal,
-        headers: { 'user-agent': 'yet-another-monitoring-tool/1.0' },
+        headers: { 'user-agent': 'umpire/1.0' },
       })
       const latencyMs = Date.now() - startedAt
       const ok = res.status === 200

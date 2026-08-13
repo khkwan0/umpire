@@ -67,6 +67,7 @@ const targetSchema = {
     'interval_seconds',
     'enabled',
     'group_id',
+    'check_ids',
     'created_at',
     'updated_at',
   ],
@@ -78,6 +79,12 @@ const targetSchema = {
     group_id: {
       type: ['integer', 'null'],
       description: 'Must be a child group id when set (not a root)',
+    },
+    check_ids: {
+      type: 'array',
+      items: { type: 'string' },
+      description:
+        'Check plugin ids to run for this target. Empty = all loaded checks.',
     },
     created_at: { type: 'string' },
     updated_at: { type: 'string' },
@@ -209,18 +216,20 @@ export async function registerOpenApi(app: FastifyInstance): Promise<void> {
     openapi: {
       openapi: '3.0.3',
       info: {
-        title: 'YAMT API',
+        title: 'UMPIRE API',
         description:
-          'Yet Another Monitoring Tool — targets, groups, settings, FCM tokens, and status.',
+          'Universal Monitoring Plugin & Incident Reporter — targets, groups, settings, FCM tokens, and status.',
         version: '1.0.0',
       },
       tags: [
         { name: 'health', description: 'Liveness' },
         { name: 'groups', description: 'Group trees and tags' },
         { name: 'targets', description: 'URLs to monitor' },
+        { name: 'checks', description: 'Loaded check plugins' },
         { name: 'tokens', description: 'FCM device tokens' },
         { name: 'settings', description: 'Alert policy' },
         { name: 'status', description: 'Dashboard summary' },
+        { name: 'schema', description: 'Core schema' },
       ],
     },
   })

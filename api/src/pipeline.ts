@@ -63,8 +63,29 @@ function alertCopy(status: HealthStatus, url: string, error: string | null): {
 }
 
 /** Aggregate check plugins: all ok → up; none ok → down; mixed → partial. */
-async function runAllChecks(url: string): Promise<AggregatedCheck> {
-  const checks = getChecks()
+async function runAllChecks(
+  url: string,
+  checkIds: string[],
+): Promise<AggregatedCheck> {
+  const loaded = getChecks()
+  const checks =
+    checkIds.length === 0
+      ? loaded
+      : loaded.filter((c) => checkIds.includes(c.id))
+
+  if (checks.length === 0) {
+    const detail =
+      checkIds.length === 0
+        ? 'no check plugins loaded'
+        : `no loaded checks match allowlist [${checkIds.join(', ')}]`
+    return {
+      status: 'down',
+      statusCode: null,
+      error: detail,
+      latencyMs: 0,
+    }
+  }
+
   const outcomes = await Promise.all(
     checks.map(async (plugin) => {
       const outcome = await plugin.check(url)
@@ -118,7 +139,7 @@ export async function runCheck(targetId: number): Promise<void> {
   const stateBefore = store.getTargetState(target.id)
   const previous = healthFromDb(stateBefore?.is_up)
 
-  const result = await runAllChecks(target.url)
+  const result = await runAllChecks(target.url, target.check_ids)
   store.recordCheckResult({
     targetId: target.id,
     status: result.status,

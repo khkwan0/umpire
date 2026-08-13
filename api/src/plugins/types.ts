@@ -38,6 +38,11 @@ export interface Target {
   enabled: number
   /** Child group this target belongs to; null if unassigned */
   group_id: number | null
+  /**
+   * Check plugin ids to run for this target.
+   * Empty array = all loaded checks.
+   */
+  check_ids: string[]
   created_at: string
   updated_at: string
 }

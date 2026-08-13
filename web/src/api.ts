@@ -6,6 +6,8 @@ export interface Target {
   interval_seconds: number
   enabled: number
   group_id: number | null
+  /** Empty = all loaded checks */
+  check_ids: string[]
   created_at: string
   updated_at: string
 }
@@ -95,6 +97,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   status: () => request<StatusResponse>('/api/status'),
+  checks: {
+    list: () => request<PluginRef[]>('/api/checks'),
+  },
   groups: {
     list: () => request<Group[]>('/api/groups'),
     tree: () => request<GroupTreeNode[]>('/api/groups?tree=1'),
@@ -119,6 +124,7 @@ export const api = {
       interval_seconds: number
       enabled?: boolean
       group_id?: number | null
+      check_ids?: string[]
     }) =>
       request<Target>('/api/targets', { method: 'POST', body: JSON.stringify(data) }),
     update: (
@@ -128,6 +134,7 @@ export const api = {
         interval_seconds: number
         enabled: boolean
         group_id: number | null
+        check_ids: string[]
       }>,
     ) =>
       request<Target>(`/api/targets/${id}`, {

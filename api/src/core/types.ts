@@ -29,6 +29,7 @@ export interface CoreStore {
     intervalSeconds: number,
     enabled?: boolean,
     groupId?: number | null,
+    checkIds?: string[],
   ): Target
   updateTarget(
     id: number,
@@ -37,6 +38,7 @@ export interface CoreStore {
       interval_seconds: number
       enabled: boolean
       group_id: number | null
+      check_ids: string[]
     }>,
   ): Target | undefined
   deleteTarget(id: number): boolean

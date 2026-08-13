@@ -1,13 +1,19 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { api, type Group, type Target } from '../api'
+import { api, type Group, type PluginRef, type Target } from '../api'
+
+function toggleId(list: string[], id: string): string[] {
+  return list.includes(id) ? list.filter((x) => x !== id) : [...list, id]
+}
 
 export default function Targets() {
   const [targets, setTargets] = useState<Target[]>([])
   const [groups, setGroups] = useState<Group[]>([])
+  const [checks, setChecks] = useState<PluginRef[]>([])
   const [url, setUrl] = useState('https://')
   const [interval, setIntervalSeconds] = useState(60)
   const [groupId, setGroupId] = useState<number | ''>('')
+  const [createCheckIds, setCreateCheckIds] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -23,12 +29,14 @@ export default function Targets() {
   }, [groups])
 
   const load = useCallback(async () => {
-    const [nextTargets, nextGroups] = await Promise.all([
+    const [nextTargets, nextGroups, nextChecks] = await Promise.all([
       api.targets.list(),
       api.groups.list(),
+      api.checks.list(),
     ])
     setTargets(nextTargets)
     setGroups(nextGroups)
+    setChecks(nextChecks)
   }, [])
 
   useEffect(() => {
@@ -47,10 +55,12 @@ export default function Targets() {
         interval_seconds: interval,
         enabled: true,
         group_id: groupId === '' ? null : groupId,
+        check_ids: createCheckIds,
       })
       setUrl('https://')
       setIntervalSeconds(60)
       setGroupId('')
+      setCreateCheckIds([])
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -74,6 +84,16 @@ export default function Targets() {
     }
   }
 
+  async function changeChecks(t: Target, next: string[]) {
+    setError(null)
+    try {
+      await api.targets.update(t.id, { check_ids: next })
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
   async function remove(id: number) {
     if (!confirm('Delete this target?')) return
     await api.targets.remove(id)
@@ -86,7 +106,8 @@ export default function Targets() {
         <h2>Add target</h2>
         <p className="muted">
           Assign targets to a <strong>child</strong> group (not a root).{' '}
-          <Link to="/groups">Manage groups</Link>.
+          <Link to="/groups">Manage groups</Link>. Leave checks unchecked to
+          run <strong>all</strong> loaded check plugins.
         </p>
         <form className="form-row" onSubmit={onCreate}>
           <label className="grow">
@@ -128,6 +149,30 @@ export default function Targets() {
             Add
           </button>
         </form>
+        {checks.length > 0 && (
+          <fieldset className="check-ids">
+            <legend>Checks (optional allowlist)</legend>
+            <div className="check-ids-list">
+              {checks.map((c) => (
+                <label key={c.id} className="check-ids-item">
+                  <input
+                    type="checkbox"
+                    checked={createCheckIds.includes(c.id)}
+                    onChange={() =>
+                      setCreateCheckIds((prev) => toggleId(prev, c.id))
+                    }
+                  />
+                  {c.id}
+                </label>
+              ))}
+            </div>
+            <p className="muted small">
+              {createCheckIds.length === 0
+                ? 'All loaded checks will run.'
+                : `Only: ${createCheckIds.join(', ')}`}
+            </p>
+          </fieldset>
+        )}
         {error && <p className="error">{error}</p>}
         {childGroups.length === 0 && (
           <p className="muted small">
@@ -147,6 +192,7 @@ export default function Targets() {
               <tr>
                 <th>URL</th>
                 <th>Group</th>
+                <th>Checks</th>
                 <th>Interval</th>
                 <th>Enabled</th>
                 <th />
@@ -155,6 +201,7 @@ export default function Targets() {
             <tbody>
               {targets.map((t) => {
                 const g = t.group_id != null ? groupById.get(t.group_id) : null
+                const ids = t.check_ids ?? []
                 return (
                   <tr key={t.id}>
                     <td className="mono">{t.url}</td>
@@ -177,6 +224,29 @@ export default function Targets() {
                       </select>
                       {g && (
                         <div className="muted small mono">{g.tag}</div>
+                      )}
+                    </td>
+                    <td>
+                      {checks.length === 0 ? (
+                        <span className="muted">—</span>
+                      ) : (
+                        <div className="check-ids-list">
+                          {checks.map((c) => (
+                            <label key={c.id} className="check-ids-item">
+                              <input
+                                type="checkbox"
+                                checked={ids.includes(c.id)}
+                                onChange={() =>
+                                  void changeChecks(t, toggleId(ids, c.id))
+                                }
+                              />
+                              {c.id}
+                            </label>
+                          ))}
+                          <div className="muted small">
+                            {ids.length === 0 ? 'all' : ids.join(', ')}
+                          </div>
+                        </div>
                       )}
                     </td>
                     <td>{t.interval_seconds}s</td>
