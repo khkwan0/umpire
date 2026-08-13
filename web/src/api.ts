@@ -5,8 +5,22 @@ export interface Target {
   url: string
   interval_seconds: number
   enabled: number
+  group_id: number | null
   created_at: string
   updated_at: string
+}
+
+export interface Group {
+  id: number
+  parent: number
+  name: string
+  tag: string
+  created_at: string
+  updated_at: string
+}
+
+export interface GroupTreeNode extends Group {
+  children: GroupTreeNode[]
 }
 
 export interface FcmToken {
@@ -27,6 +41,9 @@ export interface StatusTarget {
   url: string
   interval_seconds: number
   enabled: number
+  group_id: number | null
+  group_tag?: string | null
+  /** 1=up, 0=down, 2=partial, null=never checked */
   is_up: number | null
   last_checked_at: string | null
   last_status_code: number | null
@@ -46,7 +63,7 @@ export interface NotifierStatus {
 
 export interface StatusResponse {
   store: PluginRef
-  check: PluginRef
+  checks: PluginRef[]
   scheduler: PluginRef
   notifiers: NotifierStatus[]
   settings: Settings
@@ -78,13 +95,40 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   status: () => request<StatusResponse>('/api/status'),
+  groups: {
+    list: () => request<Group[]>('/api/groups'),
+    tree: () => request<GroupTreeNode[]>('/api/groups?tree=1'),
+    get: (id: number) => request<Group>(`/api/groups/${id}`),
+    create: (data: { parent?: number; name?: string; tag?: string }) =>
+      request<Group>('/api/groups', { method: 'POST', body: JSON.stringify(data) }),
+    update: (
+      id: number,
+      data: Partial<{ parent: number; name: string; tag: string }>,
+    ) =>
+      request<Group>(`/api/groups/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+    remove: (id: number) =>
+      request<void>(`/api/groups/${id}`, { method: 'DELETE' }),
+  },
   targets: {
     list: () => request<Target[]>('/api/targets'),
-    create: (data: { url: string; interval_seconds: number; enabled?: boolean }) =>
+    create: (data: {
+      url: string
+      interval_seconds: number
+      enabled?: boolean
+      group_id?: number | null
+    }) =>
       request<Target>('/api/targets', { method: 'POST', body: JSON.stringify(data) }),
     update: (
       id: number,
-      data: Partial<{ url: string; interval_seconds: number; enabled: boolean }>,
+      data: Partial<{
+        url: string
+        interval_seconds: number
+        enabled: boolean
+        group_id: number | null
+      }>,
     ) =>
       request<Target>(`/api/targets/${id}`, {
         method: 'PATCH',

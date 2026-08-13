@@ -6,7 +6,7 @@ import type {
 } from './types.js'
 
 let store: StorePlugin | undefined
-let check: CheckPlugin | undefined
+let checks: CheckPlugin[] = []
 let scheduler: SchedulerPlugin | undefined
 let notifiers: NotifierPlugin[] = []
 
@@ -14,8 +14,8 @@ export function setStore(plugin: StorePlugin): void {
   store = plugin
 }
 
-export function setCheck(plugin: CheckPlugin): void {
-  check = plugin
+export function setChecks(plugins: CheckPlugin[]): void {
+  checks = plugins
 }
 
 export function setScheduler(plugin: SchedulerPlugin): void {
@@ -31,9 +31,8 @@ export function getStore(): StorePlugin {
   return store
 }
 
-export function getCheck(): CheckPlugin {
-  if (!check) throw new Error('Check plugin not initialized')
-  return check
+export function getChecks(): CheckPlugin[] {
+  return checks
 }
 
 export function getScheduler(): SchedulerPlugin {

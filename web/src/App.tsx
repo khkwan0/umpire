@@ -1,5 +1,6 @@
 import { NavLink, Route, Routes } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
+import Groups from './pages/Groups'
 import Targets from './pages/Targets'
 import Tokens from './pages/Tokens'
 import SettingsPage from './pages/Settings'
@@ -19,6 +20,7 @@ export default function App() {
           <NavLink to="/" end>
             Dashboard
           </NavLink>
+          <NavLink to="/groups">Groups</NavLink>
           <NavLink to="/targets">Targets</NavLink>
           <NavLink to="/tokens">Tokens</NavLink>
           <NavLink to="/settings">Settings</NavLink>
@@ -27,6 +29,7 @@ export default function App() {
       <main>
         <Routes>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/groups" element={<Groups />} />
           <Route path="/targets" element={<Targets />} />
           <Route path="/tokens" element={<Tokens />} />
           <Route path="/settings" element={<SettingsPage />} />

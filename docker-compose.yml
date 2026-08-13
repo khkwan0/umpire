@@ -10,10 +10,6 @@ services:
       DATABASE_PATH: /data/monitor.sqlite
       GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase.json
       CHECK_TIMEOUT_MS: ${CHECK_TIMEOUT_MS:-10000}
-      STORE_PLUGIN: ${STORE_PLUGIN:-sqlite}
-      CHECK_PLUGIN: ${CHECK_PLUGIN:-http}
-      SCHEDULER_PLUGIN: ${SCHEDULER_PLUGIN:-interval}
-      NOTIFY_PLUGINS: ${NOTIFY_PLUGINS:-fcm}
       WEBHOOK_URL: ${WEBHOOK_URL:-}
       WEBHOOK_HEADERS: ${WEBHOOK_HEADERS:-}
     networks:

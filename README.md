@@ -35,39 +35,46 @@ Without valid Firebase credentials the API still runs and checks URLs; the FCM n
 
 Core owns the check → record → alert-policy → notify pipeline. Plugins implement contracts; core calls their hooks.
 
-| Kind | Env | Default | Notes |
-|------|-----|---------|-------|
-| Store | `STORE_PLUGIN` | `sqlite` | One active |
-| Check | `CHECK_PLUGIN` | `http` | One active |
-| Scheduler | `SCHEDULER_PLUGIN` | `interval` | One active (per-target timers) |
-| Notifiers | `NOTIFY_PLUGINS` | `fcm` | **Many** — comma list, all run on each alert |
+Plugins live under `api/src/plugins/<kind>/`:
 
-Examples:
+| Directory | Role |
+|-----------|------|
+| `available/` | Plugin implementations on disk (shipped or custom) |
+| `enabled/` | What is **loaded at boot** — typically symlinks into `available/` |
+
+| Kind | Path | Cardinality |
+|------|------|-------------|
+| Store | `plugins/store/` | Exactly one in `enabled/` |
+| Checks | `plugins/check/` | One or more in `enabled/` — **all** pass → up, **none** → down, **mixed** → partial |
+| Scheduler | `plugins/scheduler/` | Exactly one in `enabled/` |
+| Notifiers | `plugins/notify/` | Zero or more in `enabled/` — all run on each alert |
+
+Defaults enabled out of the box: `sqlite`, `http`, `interval`, `fcm` (symlinks). `webhook` ships in `notify/available/` only — enable it with:
 
 ```bash
-NOTIFY_PLUGINS=fcm,webhook
-WEBHOOK_URL=https://example.com/hooks/yamt
-# optional JSON object of extra headers:
-# WEBHOOK_HEADERS={"Authorization":"Bearer secret"}
+ln -s ../available/webhook.ts api/src/plugins/notify/enabled/webhook.ts
 ```
 
-Status payload includes active plugin ids and each notifier’s `ready` flag.
+Then set `WEBHOOK_URL` (and optional `WEBHOOK_HEADERS` JSON).
+
+Status payload includes active plugin ids (`checks[]`, `notifiers[]`) and each notifier’s `ready` flag.
 
 ### Write a notifier
 
-Implement the core `NotifierPlugin` contract (`id`, `isReady()`, `notify(event)`). Built-ins live under `api/src/plugins/notify/`. External modules can be loaded by path or package name in `NOTIFY_PLUGINS`:
+1. Add `api/src/plugins/notify/available/my-slack.ts` exporting a `NotifierPlugin` as `default` (or `plugin`).
+2. Enable it:
 
 ```bash
-NOTIFY_PLUGINS=fcm,./plugins/my-slack.js
+ln -s ../available/my-slack.ts api/src/plugins/notify/enabled/my-slack.ts
 ```
 
-The module must export a `NotifierPlugin` (or a factory that returns one) as `default`, `plugin`, or `notifier`. On alert, core passes a stable `AlertEvent`:
+3. Restart the API. On alert, core passes a stable `AlertEvent`:
 
 ```ts
 {
   target: { id: number; url: string }
-  status: 'down' | 'up'
-  previousStatus: 'down' | 'up' | 'unknown'
+  status: 'down' | 'up' | 'partial'
+  previousStatus: 'down' | 'up' | 'partial' | 'unknown'
   error: string | null
   statusCode: number | null
   checkedAt: string
@@ -76,6 +83,7 @@ The module must export a `NotifierPlugin` (or a factory that returns one) as `de
 }
 ```
 
+`is_up` / check result `ok` encoding: `1` = up, `0` = down, `2` = partial.
 Treat `AlertEvent` field names as a stable contract — avoid renaming them casually.
 
 ## Alert policies
@@ -93,7 +101,6 @@ cd api
 npm install
 DATABASE_PATH=../data/monitor.sqlite \
 GOOGLE_APPLICATION_CREDENTIALS=../firebase-service-account.json \
-NOTIFY_PLUGINS=fcm \
 npm run dev
 ```
 
@@ -107,12 +114,24 @@ npm run dev
 
 ## API
 
-- `GET/POST/PATCH/DELETE /api/targets`
+Swagger UI: [http://localhost:8089/documentation](http://localhost:8089/documentation) (or API directly at `:3000/documentation`). OpenAPI JSON: `/documentation/json`.
+
+- `GET/POST/PATCH/DELETE /api/groups` (`GET /api/groups?tree=1` for nested trees)
+- `GET/POST/PATCH/DELETE /api/targets` (optional `group_id` — must be a **child** group, not a root)
 - `GET /api/targets/:id/results`
 - `GET/POST/DELETE /api/tokens` (FCM notifier destinations)
 - `GET/PUT /api/settings`
 - `GET /api/status`
 - `GET /api/health`
+
+## Groups and tags
+
+Groups form one or more trees (`parent = 0` is a root). Default tags:
+
+- Root: `group_{id}` (e.g. `group_1`)
+- Child: `group_{rootSeg}_{childSeg}_…` (e.g. child `2` under root `1` → `group_group_1_group_2`)
+
+Targets attach to **child** groups via `group_id` (not roots). Deleting a group deletes its subtree and clears `group_id` on affected targets.
 
 ## Data
 

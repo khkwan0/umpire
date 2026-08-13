@@ -1,20 +1,16 @@
+import fs from 'node:fs'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { createHttpCheck } from './check/http.js'
-import { createFcmNotifier } from './notify/fcm.js'
-import { createWebhookNotifier } from './notify/webhook.js'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
-  getCheck,
+  getChecks,
   getNotifiers,
   getScheduler,
   getStore,
-  setCheck,
+  setChecks,
   setNotifiers,
   setScheduler,
   setStore,
 } from './runtime.js'
-import { createIntervalScheduler } from './scheduler/interval.js'
-import { createSqliteStore } from './store/sqlite.js'
 import type {
   CheckPlugin,
   NotifierPlugin,
@@ -23,141 +19,179 @@ import type {
 } from './types.js'
 
 export {
-  getCheck,
+  getChecks,
   getNotifiers,
   getScheduler,
   getStore,
 } from './runtime.js'
 
-const builtinStores: Record<string, () => StorePlugin> = {
-  sqlite: createSqliteStore,
+type PluginKind = 'store' | 'check' | 'scheduler' | 'notify'
+
+const pluginsRoot = path.dirname(fileURLToPath(import.meta.url))
+
+function enabledDir(kind: PluginKind): string {
+  return path.join(pluginsRoot, kind, 'enabled')
 }
 
-const builtinChecks: Record<string, () => CheckPlugin> = {
-  http: createHttpCheck,
+function isPluginModule(name: string): boolean {
+  if (name.startsWith('.')) return false
+  return (
+    name.endsWith('.js') ||
+    name.endsWith('.mjs') ||
+    name.endsWith('.cjs') ||
+    name.endsWith('.ts')
+  ) && !name.endsWith('.d.ts')
 }
 
-const builtinSchedulers: Record<string, () => SchedulerPlugin> = {
-  interval: createIntervalScheduler,
+function listEnabledModules(kind: PluginKind): string[] {
+  const dir = enabledDir(kind)
+  if (!fs.existsSync(dir)) {
+    throw new Error(`Plugin enabled directory missing: ${dir}`)
+  }
+  return fs
+    .readdirSync(dir)
+    .filter(isPluginModule)
+    .sort((a, b) => a.localeCompare(b))
+    .map((name) => path.join(dir, name))
 }
 
-const builtinNotifiers: Record<string, () => NotifierPlugin> = {
-  fcm: createFcmNotifier,
-  webhook: createWebhookNotifier,
+function pickExport<T>(
+  mod: Record<string, unknown>,
+  filePath: string,
+  guard: (value: unknown) => value is T,
+  kind: string,
+): T {
+  for (const key of ['default', 'plugin'] as const) {
+    const value = mod[key]
+    if (guard(value)) return value
+  }
+  if (guard(mod)) return mod as T
+  throw new Error(
+    `${kind} module "${filePath}" must export a plugin object as default or plugin`,
+  )
 }
 
-function envOr(name: string, fallback: string): string {
-  const v = process.env[name]?.trim()
-  return v && v.length > 0 ? v : fallback
+function isStorePlugin(value: unknown): value is StorePlugin {
+  if (!value || typeof value !== 'object') return false
+  const p = value as Record<string, unknown>
+  return typeof p.id === 'string' && typeof p.init === 'function'
 }
 
-function parseList(raw: string): string[] {
-  return raw
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
+function isCheckPlugin(value: unknown): value is CheckPlugin {
+  if (!value || typeof value !== 'object') return false
+  const p = value as Record<string, unknown>
+  return typeof p.id === 'string' && typeof p.check === 'function'
+}
+
+function isSchedulerPlugin(value: unknown): value is SchedulerPlugin {
+  if (!value || typeof value !== 'object') return false
+  const p = value as Record<string, unknown>
+  return (
+    typeof p.id === 'string' &&
+    typeof p.start === 'function' &&
+    typeof p.stop === 'function' &&
+    typeof p.reschedule === 'function'
+  )
 }
 
 function isNotifierPlugin(value: unknown): value is NotifierPlugin {
   if (!value || typeof value !== 'object') return false
-  const n = value as Record<string, unknown>
+  const p = value as Record<string, unknown>
   return (
-    typeof n.id === 'string' &&
-    typeof n.isReady === 'function' &&
-    typeof n.notify === 'function'
+    typeof p.id === 'string' &&
+    typeof p.isReady === 'function' &&
+    typeof p.notify === 'function'
   )
 }
 
-function extractNotifier(mod: Record<string, unknown>, spec: string): NotifierPlugin {
-  const candidates = [mod.default, mod.plugin, mod.notifier, mod]
-  for (const c of candidates) {
-    if (isNotifierPlugin(c)) return c
-    if (typeof c === 'function') {
-      const created = (c as () => unknown)()
-      if (isNotifierPlugin(created)) return created
+async function loadModule(filePath: string): Promise<Record<string, unknown>> {
+  return (await import(pathToFileURL(filePath).href)) as Record<string, unknown>
+}
+
+async function loadEnabled<T>(
+  kind: PluginKind,
+  guard: (value: unknown) => value is T,
+  label: string,
+): Promise<Array<{ plugin: T; file: string }>> {
+  const files = listEnabledModules(kind)
+  const loaded: Array<{ plugin: T; file: string }> = []
+  for (const file of files) {
+    try {
+      const plugin = pickExport(await loadModule(file), file, guard, label)
+      loaded.push({ plugin, file })
+    } catch (err) {
+      console.error(`[plugins] failed to load ${label} from ${file}`, err)
     }
   }
-  throw new Error(
-    `Notifier module "${spec}" must export a NotifierPlugin (default, plugin, or notifier)`,
-  )
-}
-
-async function loadExternalNotifier(spec: string): Promise<NotifierPlugin> {
-  const resolved =
-    spec.startsWith('.') || spec.startsWith('/')
-      ? pathToFileURL(path.resolve(spec)).href
-      : spec
-  const mod = (await import(resolved)) as Record<string, unknown>
-  return extractNotifier(mod, spec)
-}
-
-async function resolveNotifier(spec: string): Promise<NotifierPlugin> {
-  const factory = builtinNotifiers[spec]
-  if (factory) return factory()
-  return loadExternalNotifier(spec)
+  return loaded
 }
 
 export async function initPlugins(databasePath: string): Promise<void> {
-  const storeId = envOr('STORE_PLUGIN', 'sqlite')
-  const checkId = envOr('CHECK_PLUGIN', 'http')
-  const schedulerId = envOr('SCHEDULER_PLUGIN', 'interval')
-  const notifierSpecs = parseList(envOr('NOTIFY_PLUGINS', 'fcm'))
-
-  const storeFactory = builtinStores[storeId]
-  if (!storeFactory) {
+  const stores = await loadEnabled('store', isStorePlugin, 'Store')
+  if (stores.length === 0) {
     throw new Error(
-      `Unknown STORE_PLUGIN "${storeId}". Built-ins: ${Object.keys(builtinStores).join(', ')}`,
+      `No store plugins in ${enabledDir('store')}. Add one (e.g. sqlite.ts → available).`,
     )
   }
-  const checkFactory = builtinChecks[checkId]
-  if (!checkFactory) {
+  if (stores.length > 1) {
     throw new Error(
-      `Unknown CHECK_PLUGIN "${checkId}". Built-ins: ${Object.keys(builtinChecks).join(', ')}`,
+      `Expected exactly one store in enabled/, found ${stores.length}: ${stores.map((s) => path.basename(s.file)).join(', ')}`,
     )
   }
-  const schedulerFactory = builtinSchedulers[schedulerId]
-  if (!schedulerFactory) {
-    throw new Error(
-      `Unknown SCHEDULER_PLUGIN "${schedulerId}". Built-ins: ${Object.keys(builtinSchedulers).join(', ')}`,
-    )
-  }
-
-  const store = storeFactory()
+  const store = stores[0]!.plugin
   store.init({ databasePath })
   setStore(store)
-  console.log(`[plugins] store=${store.id}`)
+  console.log(`[plugins] store=${store.id} (${path.basename(stores[0]!.file)})`)
 
-  const check = checkFactory()
-  setCheck(check)
-  console.log(`[plugins] check=${check.id}`)
+  const checks = await loadEnabled('check', isCheckPlugin, 'Check')
+  if (checks.length === 0) {
+    throw new Error(
+      `No check plugins in ${enabledDir('check')}. Enable at least one under check/enabled/.`,
+    )
+  }
+  setChecks(checks.map((c) => c.plugin))
+  for (const c of checks) {
+    console.log(`[plugins] check=${c.plugin.id} (${path.basename(c.file)})`)
+  }
 
-  const loaded: NotifierPlugin[] = []
-  for (const spec of notifierSpecs) {
+  const notifiers = await loadEnabled('notify', isNotifierPlugin, 'Notifier')
+  for (const n of notifiers) {
     try {
-      const notifier = await resolveNotifier(spec)
-      if (!isNotifierPlugin(notifier)) {
-        throw new Error('invalid notifier shape')
-      }
-      await notifier.init?.()
-      loaded.push(notifier)
+      await n.plugin.init?.()
       console.log(
-        `[plugins] notifier=${notifier.id} ready=${notifier.isReady()}`,
+        `[plugins] notifier=${n.plugin.id} ready=${n.plugin.isReady()} (${path.basename(n.file)})`,
       )
     } catch (err) {
-      console.error(`[plugins] failed to load notifier "${spec}"`, err)
+      console.error(
+        `[plugins] failed to init notifier from ${n.file}`,
+        err,
+      )
     }
   }
-  setNotifiers(loaded)
+  setNotifiers(notifiers.map((n) => n.plugin))
 
-  const scheduler = schedulerFactory()
+  const schedulers = await loadEnabled('scheduler', isSchedulerPlugin, 'Scheduler')
+  if (schedulers.length === 0) {
+    throw new Error(
+      `No scheduler plugins in ${enabledDir('scheduler')}. Enable one under scheduler/enabled/.`,
+    )
+  }
+  if (schedulers.length > 1) {
+    throw new Error(
+      `Expected exactly one scheduler in enabled/, found ${schedulers.length}: ${schedulers.map((s) => path.basename(s.file)).join(', ')}`,
+    )
+  }
+  const scheduler = schedulers[0]!.plugin
   setScheduler(scheduler)
-  console.log(`[plugins] scheduler=${scheduler.id}`)
+  console.log(
+    `[plugins] scheduler=${scheduler.id} (${path.basename(schedulers[0]!.file)})`,
+  )
 }
 
 export function pluginStatus() {
   return {
     store: { id: getStore().id },
-    check: { id: getCheck().id },
+    checks: getChecks().map((c) => ({ id: c.id })),
     scheduler: { id: getScheduler().id },
     notifiers: getNotifiers().map((n) => ({
       id: n.id,

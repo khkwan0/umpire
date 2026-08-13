@@ -1,15 +1,34 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { api, type Target } from '../api'
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
+import { api, type Group, type Target } from '../api'
 
 export default function Targets() {
   const [targets, setTargets] = useState<Target[]>([])
+  const [groups, setGroups] = useState<Group[]>([])
   const [url, setUrl] = useState('https://')
   const [interval, setIntervalSeconds] = useState(60)
+  const [groupId, setGroupId] = useState<number | ''>('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
+  const childGroups = useMemo(
+    () => groups.filter((g) => g.parent !== 0),
+    [groups],
+  )
+
+  const groupById = useMemo(() => {
+    const map = new Map<number, Group>()
+    for (const g of groups) map.set(g.id, g)
+    return map
+  }, [groups])
+
   const load = useCallback(async () => {
-    setTargets(await api.targets.list())
+    const [nextTargets, nextGroups] = await Promise.all([
+      api.targets.list(),
+      api.groups.list(),
+    ])
+    setTargets(nextTargets)
+    setGroups(nextGroups)
   }, [])
 
   useEffect(() => {
@@ -27,9 +46,11 @@ export default function Targets() {
         url: url.trim(),
         interval_seconds: interval,
         enabled: true,
+        group_id: groupId === '' ? null : groupId,
       })
       setUrl('https://')
       setIntervalSeconds(60)
+      setGroupId('')
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -43,6 +64,16 @@ export default function Targets() {
     await load()
   }
 
+  async function changeGroup(t: Target, next: number | null) {
+    setError(null)
+    try {
+      await api.targets.update(t.id, { group_id: next })
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
   async function remove(id: number) {
     if (!confirm('Delete this target?')) return
     await api.targets.remove(id)
@@ -53,8 +84,12 @@ export default function Targets() {
     <div className="stack">
       <section className="panel">
         <h2>Add target</h2>
+        <p className="muted">
+          Assign targets to a <strong>child</strong> group (not a root).{' '}
+          <Link to="/groups">Manage groups</Link>.
+        </p>
         <form className="form-row" onSubmit={onCreate}>
-          <label>
+          <label className="grow">
             URL
             <input
               value={url}
@@ -73,11 +108,33 @@ export default function Targets() {
               required
             />
           </label>
+          <label>
+            Group
+            <select
+              value={groupId === '' ? '' : String(groupId)}
+              onChange={(e) =>
+                setGroupId(e.target.value === '' ? '' : Number(e.target.value))
+              }
+            >
+              <option value="">Unassigned</option>
+              {childGroups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name || `#${g.id}`} ({g.tag})
+                </option>
+              ))}
+            </select>
+          </label>
           <button type="submit" disabled={busy}>
             Add
           </button>
         </form>
         {error && <p className="error">{error}</p>}
+        {childGroups.length === 0 && (
+          <p className="muted small">
+            No child groups yet — create a root and a child on the Groups page
+            before assigning.
+          </p>
+        )}
       </section>
 
       <section className="panel">
@@ -89,31 +146,56 @@ export default function Targets() {
             <thead>
               <tr>
                 <th>URL</th>
+                <th>Group</th>
                 <th>Interval</th>
                 <th>Enabled</th>
                 <th />
               </tr>
             </thead>
             <tbody>
-              {targets.map((t) => (
-                <tr key={t.id}>
-                  <td className="mono">{t.url}</td>
-                  <td>{t.interval_seconds}s</td>
-                  <td>{t.enabled ? 'yes' : 'no'}</td>
-                  <td className="actions">
-                    <button type="button" onClick={() => void toggle(t)}>
-                      {t.enabled ? 'Pause' : 'Resume'}
-                    </button>
-                    <button
-                      type="button"
-                      className="danger"
-                      onClick={() => void remove(t.id)}
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {targets.map((t) => {
+                const g = t.group_id != null ? groupById.get(t.group_id) : null
+                return (
+                  <tr key={t.id}>
+                    <td className="mono">{t.url}</td>
+                    <td>
+                      <select
+                        value={t.group_id ?? ''}
+                        onChange={(e) =>
+                          void changeGroup(
+                            t,
+                            e.target.value === '' ? null : Number(e.target.value),
+                          )
+                        }
+                      >
+                        <option value="">Unassigned</option>
+                        {childGroups.map((cg) => (
+                          <option key={cg.id} value={cg.id}>
+                            {cg.name || `#${cg.id}`} ({cg.tag})
+                          </option>
+                        ))}
+                      </select>
+                      {g && (
+                        <div className="muted small mono">{g.tag}</div>
+                      )}
+                    </td>
+                    <td>{t.interval_seconds}s</td>
+                    <td>{t.enabled ? 'yes' : 'no'}</td>
+                    <td className="actions">
+                      <button type="button" onClick={() => void toggle(t)}>
+                        {t.enabled ? 'Pause' : 'Resume'}
+                      </button>
+                      <button
+                        type="button"
+                        className="danger"
+                        onClick={() => void remove(t.id)}
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         )}

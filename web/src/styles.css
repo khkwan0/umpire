@@ -10,6 +10,7 @@
   --warn: #9a6700;
   --up: #0f6e56;
   --down: #9b2c2c;
+  --partial: #9a6700;
   --paused: #6b6458;
   --pending: #9a6700;
   font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
@@ -196,6 +197,11 @@ td {
   color: var(--down);
 }
 
+.pill.partial {
+  background: #f7e7c4;
+  color: var(--partial);
+}
+
 .pill.paused {
   background: #ece7dc;
   color: var(--paused);
@@ -260,6 +266,41 @@ button.danger {
   display: flex;
   gap: 0.4rem;
   justify-content: flex-end;
+}
+
+.group-tree,
+.group-children {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.group-node + .group-node {
+  margin-top: 0.35rem;
+}
+
+.group-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: #fffcf6;
+}
+
+.group-main {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.group-children {
+  margin-top: 0.35rem;
 }
 
 .muted {

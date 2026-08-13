@@ -1,7 +1,9 @@
 import Fastify from 'fastify'
 import { initPlugins, getScheduler, getStore } from './plugins/registry.js'
 import { runCheck } from './pipeline.js'
+import { registerOpenApi } from './openapi.js'
 import { targetsRoutes } from './routes/targets.js'
+import { groupsRoutes } from './routes/groups.js'
 import { tokensRoutes } from './routes/tokens.js'
 import { settingsRoutes } from './routes/settings.js'
 import { statusRoutes } from './routes/status.js'
@@ -26,9 +28,28 @@ async function main() {
 
   const app = Fastify({ logger: true })
 
-  app.get('/api/health', async () => ({ ok: true }))
+  await registerOpenApi(app)
+
+  app.get(
+    '/api/health',
+    {
+      schema: {
+        tags: ['health'],
+        summary: 'Health check',
+        response: {
+          200: {
+            type: 'object',
+            required: ['ok'],
+            properties: { ok: { type: 'boolean' } },
+          },
+        },
+      },
+    },
+    async () => ({ ok: true }),
+  )
 
   await app.register(targetsRoutes)
+  await app.register(groupsRoutes)
   await app.register(tokensRoutes)
   await app.register(settingsRoutes)
   await app.register(statusRoutes)

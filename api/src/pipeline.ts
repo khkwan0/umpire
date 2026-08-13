@@ -1,29 +1,39 @@
-import { getCheck, getNotifiers, getStore } from './plugins/registry.js'
-import type { AlertPolicy } from './plugins/types.js'
+import { getChecks, getNotifiers, getStore } from './plugins/registry.js'
+import type {
+  AggregatedCheck,
+  AlertPolicy,
+  HealthStatus,
+} from './plugins/types.js'
+import { healthFromDb } from './plugins/types.js'
 
 function shouldAlert(opts: {
   policy: AlertPolicy
   throttleMinutes: number
-  previouslyUp: boolean | null
-  nowUp: boolean
+  previous: HealthStatus | null
+  now: HealthStatus
   lastAlertAt: string | null
 }): boolean {
-  const { policy, throttleMinutes, previouslyUp, nowUp, lastAlertAt } = opts
+  const { policy, throttleMinutes, previous, now, lastAlertAt } = opts
 
   if (policy === 'every_fail') {
-    return !nowUp
+    return now !== 'up'
   }
 
   if (policy === 'state_change') {
-    if (previouslyUp === null) return !nowUp
-    return previouslyUp !== nowUp
+    if (previous === null) return now !== 'up'
+    return previous !== now
   }
 
   // throttle
-  if (nowUp) {
-    return previouslyUp === false
+  if (now === 'up') {
+    return previous !== null && previous !== 'up'
   }
-  if (previouslyUp === true || previouslyUp === null) {
+  // now down or partial
+  if (previous === null || previous === 'up') {
+    return true
+  }
+  // switched between down and partial — treat as a change worth alerting
+  if (previous !== now) {
     return true
   }
   if (!lastAlertAt) return true
@@ -32,21 +42,85 @@ function shouldAlert(opts: {
   return Date.now() - last >= throttleMinutes * 60_000
 }
 
+function alertCopy(status: HealthStatus, url: string, error: string | null): {
+  title: string
+  body: string
+} {
+  if (status === 'up') {
+    return { title: 'Site recovered', body: `${url} is back up` }
+  }
+  if (status === 'partial') {
+    return {
+      title: 'Site partial',
+      body: `${url} partial: ${error ?? 'some checks failed'}`,
+    }
+  }
+  return {
+    title: 'Site down',
+    body: `${url} failed: ${error ?? 'unknown error'}`,
+  }
+}
+
+/** Aggregate check plugins: all ok → up; none ok → down; mixed → partial. */
+async function runAllChecks(url: string): Promise<AggregatedCheck> {
+  const checks = getChecks()
+  const outcomes = await Promise.all(
+    checks.map(async (plugin) => {
+      const outcome = await plugin.check(url)
+      return { id: plugin.id, outcome }
+    }),
+  )
+
+  const passed = outcomes.filter((o) => o.outcome.ok)
+  const failed = outcomes.filter((o) => !o.outcome.ok)
+  const latencyMs = Math.max(0, ...outcomes.map((o) => o.outcome.latencyMs))
+
+  if (failed.length === 0) {
+    const withStatus = outcomes.find((o) => o.outcome.statusCode != null)
+    return {
+      status: 'up',
+      statusCode: withStatus?.outcome.statusCode ?? null,
+      error: null,
+      latencyMs,
+    }
+  }
+
+  const error =
+    failed.length === 1
+      ? `[${failed[0]!.id}] ${failed[0]!.outcome.error ?? 'failed'}`
+      : failed
+          .map((f) => `[${f.id}] ${f.outcome.error ?? 'failed'}`)
+          .join('; ')
+
+  if (passed.length === 0) {
+    return {
+      status: 'down',
+      statusCode: failed[0]!.outcome.statusCode,
+      error,
+      latencyMs,
+    }
+  }
+
+  return {
+    status: 'partial',
+    statusCode: failed[0]!.outcome.statusCode,
+    error,
+    latencyMs,
+  }
+}
+
 export async function runCheck(targetId: number): Promise<void> {
   const store = getStore()
   const target = store.getTarget(targetId)
   if (!target || !target.enabled) return
 
   const stateBefore = store.getTargetState(target.id)
-  const previouslyUp =
-    stateBefore?.is_up === null || stateBefore?.is_up === undefined
-      ? null
-      : Boolean(stateBefore.is_up)
+  const previous = healthFromDb(stateBefore?.is_up)
 
-  const result = await getCheck().check(target.url)
+  const result = await runAllChecks(target.url)
   store.recordCheckResult({
     targetId: target.id,
-    ok: result.ok,
+    status: result.status,
     statusCode: result.statusCode,
     error: result.error,
     latencyMs: result.latencyMs,
@@ -56,24 +130,19 @@ export async function runCheck(targetId: number): Promise<void> {
   const alert = shouldAlert({
     policy: settings.alert_policy,
     throttleMinutes: settings.throttle_minutes,
-    previouslyUp,
-    nowUp: result.ok,
+    previous,
+    now: result.status,
     lastAlertAt: stateBefore?.last_alert_at ?? null,
   })
 
   if (!alert) return
 
-  const previousStatus =
-    previouslyUp === null ? 'unknown' : previouslyUp ? 'up' : 'down'
-  const title = result.ok ? 'Site recovered' : 'Site down'
-  const body = result.ok
-    ? `${target.url} is back (HTTP 200)`
-    : `${target.url} failed: ${result.error ?? 'unknown error'}`
+  const { title, body } = alertCopy(result.status, target.url, result.error)
 
   const event = {
     target: { id: target.id, url: target.url },
-    status: result.ok ? ('up' as const) : ('down' as const),
-    previousStatus: previousStatus as 'down' | 'up' | 'unknown',
+    status: result.status,
+    previousStatus: (previous ?? 'unknown') as HealthStatus | 'unknown',
     error: result.error,
     statusCode: result.statusCode,
     checkedAt: new Date().toISOString(),

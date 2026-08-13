@@ -5,7 +5,9 @@ import { api, type StatusResponse } from '../api'
 function statusLabel(isUp: number | null, enabled: number): string {
   if (!enabled) return 'paused'
   if (isUp === null) return 'pending'
-  return isUp ? 'up' : 'down'
+  if (isUp === 1) return 'up'
+  if (isUp === 2) return 'partial'
+  return 'down'
 }
 
 export default function Dashboard() {
@@ -31,6 +33,7 @@ export default function Dashboard() {
   if (!data) return <p className="muted">Loading…</p>
 
   const up = data.targets.filter((t) => t.enabled && t.is_up === 1).length
+  const partial = data.targets.filter((t) => t.enabled && t.is_up === 2).length
   const down = data.targets.filter((t) => t.enabled && t.is_up === 0).length
   const paused = data.targets.filter((t) => !t.enabled).length
 
@@ -40,6 +43,10 @@ export default function Dashboard() {
         <div>
           <strong>{up}</strong>
           <span>up</span>
+        </div>
+        <div>
+          <strong className={partial ? 'warn' : ''}>{partial}</strong>
+          <span>partial</span>
         </div>
         <div>
           <strong className={down ? 'bad' : ''}>{down}</strong>
@@ -95,7 +102,12 @@ export default function Dashboard() {
                     <td>
                       <span className={`pill ${label}`}>{label}</span>
                     </td>
-                    <td className="mono">{t.url}</td>
+                    <td className="mono">
+                      {t.url}
+                      {t.group_tag ? (
+                        <div className="muted small">{t.group_tag}</div>
+                      ) : null}
+                    </td>
                     <td>{t.interval_seconds}s</td>
                     <td>{t.last_checked_at ?? '—'}</td>
                     <td>

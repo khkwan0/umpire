@@ -2,18 +2,58 @@ import type { FastifyInstance } from 'fastify'
 import { getStore } from '../plugins/registry.js'
 import type { AlertPolicy } from '../plugins/types.js'
 
+const errorResponse = {
+  type: 'object',
+  properties: { error: { type: 'string' } },
+} as const
+
 export async function settingsRoutes(app: FastifyInstance): Promise<void> {
-  app.get('/api/settings', async () => getStore().getSettings())
+  app.get(
+    '/api/settings',
+    {
+      schema: {
+        tags: ['settings'],
+        summary: 'Get alert settings',
+        response: {
+          200: { $ref: 'Settings#' },
+        },
+      },
+    },
+    async () => getStore().getSettings(),
+  )
 
   app.put<{
     Body: { alert_policy?: AlertPolicy; throttle_minutes?: number }
-  }>('/api/settings', async (req, reply) => {
-    try {
-      return getStore().updateSettings(req.body ?? {})
-    } catch (err) {
-      return reply
-        .code(400)
-        .send({ error: err instanceof Error ? err.message : String(err) })
-    }
-  })
+  }>(
+    '/api/settings',
+    {
+      schema: {
+        tags: ['settings'],
+        summary: 'Update alert settings',
+        body: {
+          type: 'object',
+          properties: {
+            alert_policy: {
+              type: 'string',
+              enum: ['state_change', 'every_fail', 'throttle'],
+            },
+            throttle_minutes: { type: 'integer', minimum: 1 },
+          },
+        },
+        response: {
+          200: { $ref: 'Settings#' },
+          400: errorResponse,
+        },
+      },
+    },
+    async (req, reply) => {
+      try {
+        return getStore().updateSettings(req.body ?? {})
+      } catch (err) {
+        return reply
+          .code(400)
+          .send({ error: err instanceof Error ? err.message : String(err) })
+      }
+    },
+  )
 }
