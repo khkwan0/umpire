@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify'
-import { getStore, pluginStatus } from '../plugins/registry.js'
+import { getCore } from '../core/index.js'
+import { pluginStatus } from '../plugins/registry.js'
 
 export async function statusRoutes(app: FastifyInstance): Promise<void> {
   app.get(
@@ -14,8 +15,8 @@ export async function statusRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     async () => {
-      const targets = getStore().getStatusSummary()
-      const settings = getStore().getSettings()
+      const targets = getCore().getStatusSummary()
+      const settings = getCore().getSettings()
       const plugins = pluginStatus()
       return {
         ...plugins,

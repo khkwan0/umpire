@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { getStore } from '../plugins/registry.js'
+import { getCore } from '../core/index.js'
 
 const errorResponse = {
   type: 'object',
@@ -39,7 +39,7 @@ export async function groupsRoutes(app: FastifyInstance): Promise<void> {
         req.query.tree === '1' ||
         req.query.tree === 'true' ||
         req.query.tree === 'yes'
-      return tree ? getStore().listGroupTree() : getStore().listGroups()
+      return tree ? getCore().listGroupTree() : getCore().listGroups()
     },
   )
 
@@ -66,7 +66,7 @@ export async function groupsRoutes(app: FastifyInstance): Promise<void> {
       if (!Number.isInteger(id) || id < 1) {
         return reply.code(400).send({ error: 'invalid id' })
       }
-      const group = getStore().getGroup(id)
+      const group = getCore().getGroup(id)
       if (!group) return reply.code(404).send({ error: 'not found' })
       return group
     },
@@ -105,7 +105,7 @@ export async function groupsRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(400).send({ error: 'parent must be 0 or a group id' })
       }
       try {
-        const group = getStore().createGroup({
+        const group = getCore().createGroup({
           parent,
           name: req.body?.name,
           tag: req.body?.tag,
@@ -160,7 +160,7 @@ export async function groupsRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(400).send({ error: 'parent must be 0 or a group id' })
       }
       try {
-        const updated = getStore().updateGroup(id, req.body ?? {})
+        const updated = getCore().updateGroup(id, req.body ?? {})
         if (!updated) return reply.code(404).send({ error: 'not found' })
         return updated
       } catch (err) {
@@ -195,7 +195,7 @@ export async function groupsRoutes(app: FastifyInstance): Promise<void> {
       if (!Number.isInteger(id) || id < 1) {
         return reply.code(400).send({ error: 'invalid id' })
       }
-      const ok = getStore().deleteGroup(id)
+      const ok = getCore().deleteGroup(id)
       if (!ok) return reply.code(404).send({ error: 'not found' })
       return reply.code(204).send()
     },

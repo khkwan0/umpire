@@ -1,4 +1,5 @@
-import { getChecks, getNotifiers, getStore } from './plugins/registry.js'
+import { getCore } from './core/index.js'
+import { getChecks, getNotifiers } from './plugins/registry.js'
 import type {
   AggregatedCheck,
   AlertPolicy,
@@ -110,7 +111,7 @@ async function runAllChecks(url: string): Promise<AggregatedCheck> {
 }
 
 export async function runCheck(targetId: number): Promise<void> {
-  const store = getStore()
+  const store = getCore()
   const target = store.getTarget(targetId)
   if (!target || !target.enabled) return
 

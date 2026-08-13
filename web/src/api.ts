@@ -62,7 +62,7 @@ export interface NotifierStatus {
 }
 
 export interface StatusResponse {
-  store: PluginRef
+  core: { engine: string }
   checks: PluginRef[]
   scheduler: PluginRef
   notifiers: NotifierStatus[]

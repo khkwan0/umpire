@@ -1,8 +1,19 @@
+// Reference interval scheduler: per-target setTimeout chains.
+// reschedule() only touches targets that were added, removed, enabled/disabled,
+// or whose interval changed — other timers keep their remaining delay.
+
 import type { SchedulerContext, SchedulerPlugin } from '../../types.js'
 
 type Timer = ReturnType<typeof setTimeout>
 
+type TargetMeta = {
+  intervalSeconds: number
+  enabled: boolean
+}
+
 const timers = new Map<number, Timer>()
+/** Last schedule-relevant snapshot (used to skip unchanged targets on reschedule). */
+const meta = new Map<number, TargetMeta>()
 let ctx: SchedulerContext | undefined
 let started = false
 
@@ -21,6 +32,14 @@ function scheduleTarget(id: number): void {
       const latest = ctx.getTargets().find((t) => t.id === id)
       if (!latest || !latest.enabled) {
         clearTarget(id)
+        if (latest) {
+          meta.set(id, {
+            intervalSeconds: latest.intervalSeconds,
+            enabled: false,
+          })
+        } else {
+          meta.delete(id)
+        }
         return
       }
       await ctx.run(id)
@@ -30,22 +49,28 @@ function scheduleTarget(id: number): void {
       if (!ctx) return
       const latest = ctx.getTargets().find((t) => t.id === id)
       if (latest?.enabled) {
-        const next = setTimeout(tick, Math.max(5, latest.intervalSeconds) * 1000)
+        const next = setTimeout(
+          tick,
+          Math.max(5, latest.intervalSeconds) * 1000,
+        )
         timers.set(id, next)
+        meta.set(id, {
+          intervalSeconds: latest.intervalSeconds,
+          enabled: true,
+        })
+      } else {
+        clearTarget(id)
+        if (latest) {
+          meta.set(id, {
+            intervalSeconds: latest.intervalSeconds,
+            enabled: false,
+          })
+        }
       }
     }
   }
 
-  // Startup stagger only — NOT the check interval / schedule.
-  // Purpose: blunt thundering herd on boot or reschedule so many targets
-  // don't all fetch at once. Ongoing cadence is intervalSeconds in `finally`.
-  //
-  // id % 7 → only 7 delay buckets (0..6), 250ms apart, after a 1s base:
-  //   delays ≈ 1000, 1250, 1500, …, 2500 ms.
-  // Implication: with more than 7 enabled targets, some share a bucket and
-  // their *first* check can start together (e.g. id 1 and 8). That is OK —
-  // this is soft load-spreading, not unique-per-target scheduling. After the
-  // first fire, each target follows its own setTimeout chain independently.
+  // Stagger first fire so many new targets don't start in the same millisecond.
   const delay = 1000 + (id % 7) * 250
   const first = setTimeout(tick, delay)
   timers.set(id, first)
@@ -53,13 +78,62 @@ function scheduleTarget(id: number): void {
 
 function reschedule(): void {
   if (!ctx) return
-  for (const id of [...timers.keys()]) clearTarget(id)
-  for (const target of ctx.getTargets()) {
-    if (target.enabled) {
+
+  const targets = ctx.getTargets()
+  const seen = new Set<number>()
+  let startedCount = 0
+  let stoppedCount = 0
+  let unchangedCount = 0
+
+  for (const target of targets) {
+    seen.add(target.id)
+    const prev = meta.get(target.id)
+
+    if (!target.enabled) {
+      if (timers.has(target.id)) {
+        clearTarget(target.id)
+        stoppedCount++
+      }
+      meta.set(target.id, {
+        intervalSeconds: target.intervalSeconds,
+        enabled: false,
+      })
+      continue
+    }
+
+    const intervalChanged =
+      prev !== undefined && prev.intervalSeconds !== target.intervalSeconds
+    const needsStart = !timers.has(target.id)
+
+    if (needsStart || intervalChanged) {
       scheduleTarget(target.id)
+      meta.set(target.id, {
+        intervalSeconds: target.intervalSeconds,
+        enabled: true,
+      })
+      startedCount++
+    } else {
+      meta.set(target.id, {
+        intervalSeconds: target.intervalSeconds,
+        enabled: true,
+      })
+      unchangedCount++
     }
   }
-  console.log(`[scheduler:interval] scheduled ${timers.size} target(s)`)
+
+  for (const id of [...timers.keys()]) {
+    if (!seen.has(id)) {
+      clearTarget(id)
+      stoppedCount++
+    }
+  }
+  for (const id of [...meta.keys()]) {
+    if (!seen.has(id)) meta.delete(id)
+  }
+
+  console.log(
+    `[scheduler:interval] timers=${timers.size} started=${startedCount} stopped=${stoppedCount} unchanged=${unchangedCount}`,
+  )
 }
 
 const intervalScheduler: SchedulerPlugin = {
@@ -77,6 +151,7 @@ const intervalScheduler: SchedulerPlugin = {
 
   stop(): void {
     for (const id of [...timers.keys()]) clearTarget(id)
+    meta.clear()
     started = false
   },
 

@@ -1,5 +1,6 @@
 import Fastify from 'fastify'
-import { initPlugins, getScheduler, getStore } from './plugins/registry.js'
+import { initCore, getCore } from './core/index.js'
+import { initPlugins, getScheduler } from './plugins/registry.js'
 import { runCheck } from './pipeline.js'
 import { registerOpenApi } from './openapi.js'
 import { targetsRoutes } from './routes/targets.js'
@@ -7,16 +8,18 @@ import { groupsRoutes } from './routes/groups.js'
 import { tokensRoutes } from './routes/tokens.js'
 import { settingsRoutes } from './routes/settings.js'
 import { statusRoutes } from './routes/status.js'
+import { schemaRoutes } from './routes/schema.js'
 
 const port = Number(process.env.PORT) || 3000
 const databasePath = process.env.DATABASE_PATH || './data/monitor.sqlite'
 
 async function main() {
-  await initPlugins(databasePath)
+  initCore(databasePath)
+  await initPlugins()
 
   getScheduler().init?.({
     getTargets: () =>
-      getStore()
+      getCore()
         .listTargets()
         .map((t) => ({
           id: t.id,
@@ -53,6 +56,7 @@ async function main() {
   await app.register(tokensRoutes)
   await app.register(settingsRoutes)
   await app.register(statusRoutes)
+  await app.register(schemaRoutes)
 
   await app.listen({ port, host: '0.0.0.0' })
   getScheduler().start()

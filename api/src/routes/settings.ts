@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { getStore } from '../plugins/registry.js'
+import { getCore } from '../core/index.js'
 import type { AlertPolicy } from '../plugins/types.js'
 
 const errorResponse = {
@@ -19,7 +19,7 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
         },
       },
     },
-    async () => getStore().getSettings(),
+    async () => getCore().getSettings(),
   )
 
   app.put<{
@@ -48,7 +48,7 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
     },
     async (req, reply) => {
       try {
-        return getStore().updateSettings(req.body ?? {})
+        return getCore().updateSettings(req.body ?? {})
       } catch (err) {
         return reply
           .code(400)

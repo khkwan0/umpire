@@ -4,21 +4,22 @@ import path from 'node:path'
 import type {
   AlertPolicy,
   CheckResult,
-  FcmToken,
   Group,
   GroupTreeNode,
   HealthStatus,
   Settings,
-  StorePlugin,
   Target,
   TargetState,
-} from '../../types.js'
-import { healthToDb } from '../../types.js'
+} from '../plugins/types.js'
+import { healthToDb } from '../plugins/types.js'
+import { CORE_TABLES } from './schema.js'
+import type { CoreStore } from './types.js'
 
 let db: Database.Database | undefined
+let dbPath = ''
 
 function getDb(): Database.Database {
-  if (!db) throw new Error('Database not initialized')
+  if (!db) throw new Error('Core database not initialized')
   return db
 }
 
@@ -138,88 +139,28 @@ function buildTree(rows: Group[]): GroupTreeNode[] {
   return roots
 }
 
-const store: StorePlugin = {
-  id: 'sqlite',
+export const core: CoreStore = {
+  databasePath(): string {
+    if (!dbPath) throw new Error('Core database not initialized')
+    return dbPath
+  },
 
-  init(config: { databasePath: string }): void {
-    const dir = path.dirname(config.databasePath)
-    fs.mkdirSync(dir, { recursive: true })
+  dataDir(): string {
+    return path.dirname(core.databasePath())
+  },
 
-    db = new Database(config.databasePath)
-    db.pragma('journal_mode = WAL')
-    db.pragma('foreign_keys = ON')
+  schema() {
+    return CORE_TABLES
+  },
 
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS groups (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        parent INTEGER NOT NULL DEFAULT 0,
-        name TEXT NOT NULL DEFAULT '',
-        tag TEXT NOT NULL UNIQUE,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_groups_parent ON groups(parent);
-
-      CREATE TABLE IF NOT EXISTS targets (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        url TEXT NOT NULL,
-        interval_seconds INTEGER NOT NULL DEFAULT 60,
-        enabled INTEGER NOT NULL DEFAULT 1,
-        group_id INTEGER REFERENCES groups(id) ON DELETE SET NULL,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-
-      CREATE TABLE IF NOT EXISTS fcm_tokens (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        token TEXT NOT NULL UNIQUE,
-        label TEXT NOT NULL DEFAULT '',
-        enabled INTEGER NOT NULL DEFAULT 1,
-        created_at TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-
-      CREATE TABLE IF NOT EXISTS settings (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS check_results (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        target_id INTEGER NOT NULL REFERENCES targets(id) ON DELETE CASCADE,
-        ok INTEGER NOT NULL,
-        status_code INTEGER,
-        error TEXT,
-        latency_ms INTEGER,
-        checked_at TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_check_results_target_checked
-        ON check_results(target_id, checked_at DESC);
-
-      CREATE TABLE IF NOT EXISTS target_state (
-        target_id INTEGER PRIMARY KEY REFERENCES targets(id) ON DELETE CASCADE,
-        is_up INTEGER,
-        last_alert_at TEXT,
-        last_checked_at TEXT,
-        last_status_code INTEGER,
-        last_error TEXT,
-        last_latency_ms INTEGER
-      );
-    `)
-
-    // Existing DBs created before groups/group_id
-    ensureColumn(
-      'targets',
-      'group_id',
-      'INTEGER REFERENCES groups(id) ON DELETE SET NULL',
-    )
-
-    const insertSetting = db.prepare(
-      `INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`,
-    )
-    insertSetting.run('alert_policy', 'state_change')
-    insertSetting.run('throttle_minutes', '30')
+  dumpData(): Record<string, unknown[]> {
+    const out: Record<string, unknown[]> = {}
+    for (const table of CORE_TABLES) {
+      out[table.name] = getDb()
+        .prepare(`SELECT * FROM ${table.name}`)
+        .all() as unknown[]
+    }
+    return out
   },
 
   getSettings(): Settings {
@@ -237,7 +178,7 @@ const store: StorePlugin = {
   },
 
   updateSettings(partial: Partial<Settings>): Settings {
-    const current = store.getSettings()
+    const current = core.getSettings()
     const next: Settings = {
       alert_policy: partial.alert_policy ?? current.alert_policy,
       throttle_minutes: partial.throttle_minutes ?? current.throttle_minutes,
@@ -264,7 +205,7 @@ const store: StorePlugin = {
   },
 
   listGroupTree(): GroupTreeNode[] {
-    return buildTree(store.listGroups())
+    return buildTree(core.listGroups())
   },
 
   getGroup(id: number): Group | undefined {
@@ -283,8 +224,7 @@ const store: StorePlugin = {
       .run(parent, name, placeholder)
     const id = Number(result.lastInsertRowid)
     const tag =
-      input.tag?.trim() ||
-      computeTagForPath(pathIdsToRoot(id, parent))
+      input.tag?.trim() || computeTagForPath(pathIdsToRoot(id, parent))
     try {
       setGroupTag(id, tag)
     } catch (err) {
@@ -368,7 +308,7 @@ const store: StorePlugin = {
     getDb()
       .prepare(`INSERT INTO target_state (target_id) VALUES (?)`)
       .run(id)
-    return store.getTarget(id)!
+    return core.getTarget(id)!
   },
 
   updateTarget(
@@ -380,7 +320,7 @@ const store: StorePlugin = {
       group_id: number | null
     }>,
   ): Target | undefined {
-    const existing = store.getTarget(id)
+    const existing = core.getTarget(id)
     if (!existing) return undefined
     const url = patch.url ?? existing.url
     const interval = patch.interval_seconds ?? existing.interval_seconds
@@ -394,40 +334,12 @@ const store: StorePlugin = {
         `UPDATE targets SET url = ?, interval_seconds = ?, enabled = ?, group_id = ?, updated_at = datetime('now') WHERE id = ?`,
       )
       .run(url, interval, enabled, groupId, id)
-    return store.getTarget(id)
+    return core.getTarget(id)
   },
 
   deleteTarget(id: number): boolean {
     const result = getDb().prepare(`DELETE FROM targets WHERE id = ?`).run(id)
     return result.changes > 0
-  },
-
-  listTokens(): FcmToken[] {
-    return getDb()
-      .prepare(`SELECT * FROM fcm_tokens ORDER BY id ASC`)
-      .all() as FcmToken[]
-  },
-
-  createToken(token: string, label = ''): FcmToken {
-    const result = getDb()
-      .prepare(`INSERT INTO fcm_tokens (token, label) VALUES (?, ?)`)
-      .run(token, label)
-    return getDb()
-      .prepare(`SELECT * FROM fcm_tokens WHERE id = ?`)
-      .get(Number(result.lastInsertRowid)) as FcmToken
-  },
-
-  deleteToken(id: number): boolean {
-    const result = getDb().prepare(`DELETE FROM fcm_tokens WHERE id = ?`).run(id)
-    return result.changes > 0
-  },
-
-  enabledTokens(): string[] {
-    return (
-      getDb()
-        .prepare(`SELECT token FROM fcm_tokens WHERE enabled = 1`)
-        .all() as Array<{ token: string }>
-    ).map((r) => r.token)
   },
 
   getTargetState(targetId: number): TargetState | undefined {
@@ -523,4 +435,78 @@ const store: StorePlugin = {
   },
 }
 
-export default store
+export function initCore(databasePath: string): void {
+  const resolved = path.resolve(databasePath)
+  const dir = path.dirname(resolved)
+  fs.mkdirSync(dir, { recursive: true })
+
+  db = new Database(resolved)
+  dbPath = resolved
+  db.pragma('journal_mode = WAL')
+  db.pragma('foreign_keys = ON')
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS groups (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      parent INTEGER NOT NULL DEFAULT 0,
+      name TEXT NOT NULL DEFAULT '',
+      tag TEXT NOT NULL UNIQUE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_groups_parent ON groups(parent);
+
+    CREATE TABLE IF NOT EXISTS targets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      url TEXT NOT NULL,
+      interval_seconds INTEGER NOT NULL DEFAULT 60,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      group_id INTEGER REFERENCES groups(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS check_results (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      target_id INTEGER NOT NULL REFERENCES targets(id) ON DELETE CASCADE,
+      ok INTEGER NOT NULL,
+      status_code INTEGER,
+      error TEXT,
+      latency_ms INTEGER,
+      checked_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_check_results_target_checked
+      ON check_results(target_id, checked_at DESC);
+
+    CREATE TABLE IF NOT EXISTS target_state (
+      target_id INTEGER PRIMARY KEY REFERENCES targets(id) ON DELETE CASCADE,
+      is_up INTEGER,
+      last_alert_at TEXT,
+      last_checked_at TEXT,
+      last_status_code INTEGER,
+      last_error TEXT,
+      last_latency_ms INTEGER
+    );
+  `)
+
+  ensureColumn(
+    'targets',
+    'group_id',
+    'INTEGER REFERENCES groups(id) ON DELETE SET NULL',
+  )
+
+  const insertSetting = db.prepare(
+    `INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`,
+  )
+  insertSetting.run('alert_policy', 'state_change')
+  insertSetting.run('throttle_minutes', '30')
+
+  console.log(`[core] sqlite=${resolved}`)
+}

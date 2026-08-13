@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify'
-import { getScheduler, getStore } from '../plugins/registry.js'
+import { getCore } from '../core/index.js'
+import { getScheduler } from '../plugins/registry.js'
 
 const errorResponse = {
   type: 'object',
@@ -27,7 +28,7 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
         },
       },
     },
-    async () => getStore().listTargets(),
+    async () => getCore().listTargets(),
   )
 
   app.post<{
@@ -80,7 +81,7 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
           .send({ error: 'group_id must be a group id or null' })
       }
       try {
-        const target = getStore().createTarget(url, interval, enabled, groupId)
+        const target = getCore().createTarget(url, interval, enabled, groupId)
         getScheduler().reschedule()
         return reply.code(201).send(target)
       } catch (err) {
@@ -149,7 +150,7 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
           .send({ error: 'group_id must be a group id or null' })
       }
       try {
-        const updated = getStore().updateTarget(id, req.body ?? {})
+        const updated = getCore().updateTarget(id, req.body ?? {})
         if (!updated) return reply.code(404).send({ error: 'not found' })
         getScheduler().reschedule()
         return updated
@@ -182,7 +183,7 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       const id = Number(req.params.id)
       if (!Number.isInteger(id)) return reply.code(400).send({ error: 'invalid id' })
-      const ok = getStore().deleteTarget(id)
+      const ok = getCore().deleteTarget(id)
       if (!ok) return reply.code(404).send({ error: 'not found' })
       getScheduler().reschedule()
       return reply.code(204).send()
@@ -210,8 +211,8 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       const id = Number(req.params.id)
       if (!Number.isInteger(id)) return reply.code(400).send({ error: 'invalid id' })
-      if (!getStore().getTarget(id)) return reply.code(404).send({ error: 'not found' })
-      return getStore().listRecentResults(id, 100)
+      if (!getCore().getTarget(id)) return reply.code(404).send({ error: 'not found' })
+      return getCore().listRecentResults(id, 100)
     },
   )
 }

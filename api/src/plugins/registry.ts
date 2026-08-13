@@ -5,54 +5,81 @@ import {
   getChecks,
   getNotifiers,
   getScheduler,
-  getStore,
+  hasNotifier,
   setChecks,
   setNotifiers,
   setScheduler,
-  setStore,
 } from './runtime.js'
 import type {
   CheckPlugin,
   NotifierPlugin,
   SchedulerPlugin,
-  StorePlugin,
 } from './types.js'
 
 export {
   getChecks,
   getNotifiers,
   getScheduler,
-  getStore,
+  hasNotifier,
 } from './runtime.js'
 
-type PluginKind = 'store' | 'check' | 'scheduler' | 'notify'
+type PluginKind = 'check' | 'scheduler' | 'notify'
+
+interface PluginsConfig {
+  checks: string[]
+  scheduler: string
+  notifiers: string[]
+}
 
 const pluginsRoot = path.dirname(fileURLToPath(import.meta.url))
 
-function enabledDir(kind: PluginKind): string {
-  return path.join(pluginsRoot, kind, 'enabled')
-}
-
-function isPluginModule(name: string): boolean {
-  if (name.startsWith('.')) return false
-  return (
-    name.endsWith('.js') ||
-    name.endsWith('.mjs') ||
-    name.endsWith('.cjs') ||
-    name.endsWith('.ts')
-  ) && !name.endsWith('.d.ts')
-}
-
-function listEnabledModules(kind: PluginKind): string[] {
-  const dir = enabledDir(kind)
-  if (!fs.existsSync(dir)) {
-    throw new Error(`Plugin enabled directory missing: ${dir}`)
+function pluginsConfigPath(): string {
+  if (process.env.PLUGINS_CONFIG) {
+    return path.resolve(process.env.PLUGINS_CONFIG)
   }
-  return fs
-    .readdirSync(dir)
-    .filter(isPluginModule)
-    .sort((a, b) => a.localeCompare(b))
-    .map((name) => path.join(dir, name))
+  // api/src/plugins → api/plugins.json
+  return path.resolve(pluginsRoot, '../../plugins.json')
+}
+
+function loadConfig(): PluginsConfig {
+  const file = pluginsConfigPath()
+  if (!fs.existsSync(file)) {
+    throw new Error(
+      `plugins.json not found at ${file}. Create it or set PLUGINS_CONFIG.`,
+    )
+  }
+  const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as Partial<PluginsConfig>
+  if (!Array.isArray(raw.checks) || raw.checks.length === 0) {
+    throw new Error('plugins.json: checks must be a non-empty array of ids')
+  }
+  if (typeof raw.scheduler !== 'string' || !raw.scheduler.trim()) {
+    throw new Error('plugins.json: scheduler must be a plugin id string')
+  }
+  if (!Array.isArray(raw.notifiers)) {
+    throw new Error('plugins.json: notifiers must be an array of ids')
+  }
+  return {
+    checks: raw.checks.map((id) => String(id)),
+    scheduler: raw.scheduler.trim(),
+    notifiers: raw.notifiers.map((id) => String(id)),
+  }
+}
+
+function resolvePluginFile(kind: PluginKind, id: string): string {
+  const available = path.join(pluginsRoot, kind, 'available')
+  const candidates = [
+    path.join(available, `${id}.ts`),
+    path.join(available, `${id}.js`),
+    path.join(available, `${id}.mjs`),
+    path.join(available, id, 'index.ts'),
+    path.join(available, id, 'index.js'),
+  ]
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate
+  }
+  throw new Error(
+    `No ${kind} plugin "${id}" under ${available} (tried ${path.basename(candidates[0]!)} etc.)`,
+  )
 }
 
 function pickExport<T>(
@@ -69,12 +96,6 @@ function pickExport<T>(
   throw new Error(
     `${kind} module "${filePath}" must export a plugin object as default or plugin`,
   )
-}
-
-function isStorePlugin(value: unknown): value is StorePlugin {
-  if (!value || typeof value !== 'object') return false
-  const p = value as Record<string, unknown>
-  return typeof p.id === 'string' && typeof p.init === 'function'
 }
 
 function isCheckPlugin(value: unknown): value is CheckPlugin {
@@ -108,89 +129,66 @@ async function loadModule(filePath: string): Promise<Record<string, unknown>> {
   return (await import(pathToFileURL(filePath).href)) as Record<string, unknown>
 }
 
-async function loadEnabled<T>(
+async function loadById<T extends { id: string }>(
   kind: PluginKind,
+  id: string,
   guard: (value: unknown) => value is T,
   label: string,
-): Promise<Array<{ plugin: T; file: string }>> {
-  const files = listEnabledModules(kind)
-  const loaded: Array<{ plugin: T; file: string }> = []
-  for (const file of files) {
-    try {
-      const plugin = pickExport(await loadModule(file), file, guard, label)
-      loaded.push({ plugin, file })
-    } catch (err) {
-      console.error(`[plugins] failed to load ${label} from ${file}`, err)
-    }
+): Promise<{ plugin: T; file: string }> {
+  const file = resolvePluginFile(kind, id)
+  const plugin = pickExport(await loadModule(file), file, guard, label)
+  if (plugin.id !== id) {
+    throw new Error(
+      `${label} file "${file}" exports id="${plugin.id}" but plugins.json asked for "${id}"`,
+    )
   }
-  return loaded
+  return { plugin, file }
 }
 
-export async function initPlugins(databasePath: string): Promise<void> {
-  const stores = await loadEnabled('store', isStorePlugin, 'Store')
-  if (stores.length === 0) {
-    throw new Error(
-      `No store plugins in ${enabledDir('store')}. Add one (e.g. sqlite.ts → available).`,
-    )
-  }
-  if (stores.length > 1) {
-    throw new Error(
-      `Expected exactly one store in enabled/, found ${stores.length}: ${stores.map((s) => path.basename(s.file)).join(', ')}`,
-    )
-  }
-  const store = stores[0]!.plugin
-  store.init({ databasePath })
-  setStore(store)
-  console.log(`[plugins] store=${store.id} (${path.basename(stores[0]!.file)})`)
+export async function initPlugins(): Promise<void> {
+  const config = loadConfig()
+  console.log(`[plugins] config=${pluginsConfigPath()}`)
 
-  const checks = await loadEnabled('check', isCheckPlugin, 'Check')
-  if (checks.length === 0) {
-    throw new Error(
-      `No check plugins in ${enabledDir('check')}. Enable at least one under check/enabled/.`,
+  const checks: CheckPlugin[] = []
+  for (const id of config.checks) {
+    const loaded = await loadById('check', id, isCheckPlugin, 'Check')
+    checks.push(loaded.plugin)
+    console.log(
+      `[plugins] check=${loaded.plugin.id} (${path.basename(loaded.file)})`,
     )
   }
-  setChecks(checks.map((c) => c.plugin))
-  for (const c of checks) {
-    console.log(`[plugins] check=${c.plugin.id} (${path.basename(c.file)})`)
-  }
+  setChecks(checks)
 
-  const notifiers = await loadEnabled('notify', isNotifierPlugin, 'Notifier')
-  for (const n of notifiers) {
+  const notifiers: NotifierPlugin[] = []
+  for (const id of config.notifiers) {
     try {
-      await n.plugin.init?.()
+      const loaded = await loadById('notify', id, isNotifierPlugin, 'Notifier')
+      await loaded.plugin.init?.()
+      notifiers.push(loaded.plugin)
       console.log(
-        `[plugins] notifier=${n.plugin.id} ready=${n.plugin.isReady()} (${path.basename(n.file)})`,
+        `[plugins] notifier=${loaded.plugin.id} ready=${loaded.plugin.isReady()} (${path.basename(loaded.file)})`,
       )
     } catch (err) {
-      console.error(
-        `[plugins] failed to init notifier from ${n.file}`,
-        err,
-      )
+      console.error(`[plugins] failed to load notifier "${id}"`, err)
     }
   }
-  setNotifiers(notifiers.map((n) => n.plugin))
+  setNotifiers(notifiers)
 
-  const schedulers = await loadEnabled('scheduler', isSchedulerPlugin, 'Scheduler')
-  if (schedulers.length === 0) {
-    throw new Error(
-      `No scheduler plugins in ${enabledDir('scheduler')}. Enable one under scheduler/enabled/.`,
-    )
-  }
-  if (schedulers.length > 1) {
-    throw new Error(
-      `Expected exactly one scheduler in enabled/, found ${schedulers.length}: ${schedulers.map((s) => path.basename(s.file)).join(', ')}`,
-    )
-  }
-  const scheduler = schedulers[0]!.plugin
-  setScheduler(scheduler)
+  const loadedScheduler = await loadById(
+    'scheduler',
+    config.scheduler,
+    isSchedulerPlugin,
+    'Scheduler',
+  )
+  setScheduler(loadedScheduler.plugin)
   console.log(
-    `[plugins] scheduler=${scheduler.id} (${path.basename(schedulers[0]!.file)})`,
+    `[plugins] scheduler=${loadedScheduler.plugin.id} (${path.basename(loadedScheduler.file)})`,
   )
 }
 
 export function pluginStatus() {
   return {
-    store: { id: getStore().id },
+    core: { engine: 'sqlite' },
     checks: getChecks().map((c) => ({ id: c.id })),
     scheduler: { id: getScheduler().id },
     notifiers: getNotifiers().map((n) => ({

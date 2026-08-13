@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import admin from 'firebase-admin'
-import { getStore } from '../../runtime.js'
 import type { AlertEvent, NotifierPlugin } from '../../types.js'
+import { enabledTokens } from './fcm-tokens.js'
 
 let ready = false
 
@@ -53,7 +53,7 @@ const fcmNotifier: NotifierPlugin = {
       console.warn('[notify:fcm] skip send — not initialized')
       return
     }
-    const tokens = getStore().enabledTokens()
+    const tokens = enabledTokens()
     if (tokens.length === 0) {
       console.warn('[notify:fcm] skip send — no tokens')
       return

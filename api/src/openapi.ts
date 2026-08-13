@@ -173,9 +173,13 @@ const statusTargetSchema = {
 const statusResponseSchema = {
   $id: 'StatusResponse',
   type: 'object',
-  required: ['store', 'checks', 'scheduler', 'notifiers', 'settings', 'targets'],
+  required: ['core', 'checks', 'scheduler', 'notifiers', 'settings', 'targets'],
   properties: {
-    store: { $ref: 'PluginRef#' },
+    core: {
+      type: 'object',
+      required: ['engine'],
+      properties: { engine: { type: 'string' } },
+    },
     checks: { type: 'array', items: { $ref: 'PluginRef#' } },
     scheduler: { $ref: 'PluginRef#' },
     notifiers: { type: 'array', items: { $ref: 'NotifierStatus#' } },

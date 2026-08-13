@@ -114,55 +114,6 @@ export interface CheckPlugin {
   check(url: string): Promise<CheckOutcome>
 }
 
-export interface StorePlugin {
-  id: string
-  init(config: { databasePath: string }): void
-  getSettings(): Settings
-  updateSettings(partial: Partial<Settings>): Settings
-  listGroups(): Group[]
-  listGroupTree(): GroupTreeNode[]
-  getGroup(id: number): Group | undefined
-  createGroup(input: { parent?: number; name?: string; tag?: string }): Group
-  updateGroup(
-    id: number,
-    patch: Partial<{ parent: number; name: string; tag: string }>,
-  ): Group | undefined
-  deleteGroup(id: number): boolean
-  listTargets(): Target[]
-  getTarget(id: number): Target | undefined
-  createTarget(
-    url: string,
-    intervalSeconds: number,
-    enabled?: boolean,
-    groupId?: number | null,
-  ): Target
-  updateTarget(
-    id: number,
-    patch: Partial<{
-      url: string
-      interval_seconds: number
-      enabled: boolean
-      group_id: number | null
-    }>,
-  ): Target | undefined
-  deleteTarget(id: number): boolean
-  listTokens(): FcmToken[]
-  createToken(token: string, label?: string): FcmToken
-  deleteToken(id: number): boolean
-  enabledTokens(): string[]
-  getTargetState(targetId: number): TargetState | undefined
-  recordCheckResult(input: {
-    targetId: number
-    status: HealthStatus
-    statusCode: number | null
-    error: string | null
-    latencyMs: number | null
-  }): void
-  markAlertSent(targetId: number): void
-  listRecentResults(targetId: number, limit?: number): CheckResult[]
-  getStatusSummary(): unknown[]
-}
-
 export interface SchedulableTarget {
   id: number
   intervalSeconds: number

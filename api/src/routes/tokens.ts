@@ -1,5 +1,10 @@
 import type { FastifyInstance } from 'fastify'
-import { getStore } from '../plugins/registry.js'
+import { hasNotifier } from '../plugins/registry.js'
+import {
+  createToken,
+  deleteToken,
+  listTokens,
+} from '../plugins/notify/available/fcm-tokens.js'
 
 const errorResponse = {
   type: 'object',
@@ -15,10 +20,16 @@ export async function tokensRoutes(app: FastifyInstance): Promise<void> {
         summary: 'List FCM tokens',
         response: {
           200: { type: 'array', items: { $ref: 'FcmToken#' } },
+          404: errorResponse,
         },
       },
     },
-    async () => getStore().listTokens(),
+    async (_req, reply) => {
+      if (!hasNotifier('fcm')) {
+        return reply.code(404).send({ error: 'fcm notifier is not enabled' })
+      }
+      return listTokens()
+    },
   )
 
   app.post<{ Body: { token?: string; label?: string } }>(
@@ -38,20 +49,24 @@ export async function tokensRoutes(app: FastifyInstance): Promise<void> {
         response: {
           201: { $ref: 'FcmToken#' },
           400: errorResponse,
+          404: errorResponse,
           409: errorResponse,
         },
       },
     },
     async (req, reply) => {
+      if (!hasNotifier('fcm')) {
+        return reply.code(404).send({ error: 'fcm notifier is not enabled' })
+      }
       const token = req.body?.token?.trim()
       const label = (req.body?.label ?? '').trim()
       if (!token) return reply.code(400).send({ error: 'token required' })
       try {
-        const row = getStore().createToken(token, label)
+        const row = createToken(token, label)
         return reply.code(201).send(row)
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
-        if (message.includes('UNIQUE')) {
+        if (message.includes('UNIQUE') || message.includes('already exists')) {
           return reply.code(409).send({ error: 'token already exists' })
         }
         throw err
@@ -78,9 +93,12 @@ export async function tokensRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     async (req, reply) => {
+      if (!hasNotifier('fcm')) {
+        return reply.code(404).send({ error: 'fcm notifier is not enabled' })
+      }
       const id = Number(req.params.id)
       if (!Number.isInteger(id)) return reply.code(400).send({ error: 'invalid id' })
-      const ok = getStore().deleteToken(id)
+      const ok = deleteToken(id)
       if (!ok) return reply.code(404).send({ error: 'not found' })
       return reply.code(204).send()
     },
