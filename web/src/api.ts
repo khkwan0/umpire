@@ -100,10 +100,11 @@ export interface CheckResult {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
-    headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
-    ...init,
-  })
+  const headers = new Headers(init?.headers)
+  if (init?.body != null && !headers.has('content-type')) {
+    headers.set('content-type', 'application/json')
+  }
+  const res = await fetch(path, { ...init, headers })
   if (res.status === 204) return undefined as T
   const body = await res.json().catch(() => ({}))
   if (!res.ok) {
