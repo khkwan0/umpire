@@ -256,16 +256,73 @@ label.grow {
   gap: 0.5rem 1rem;
 }
 
-.check-ids-item {
+label.check-ids-item {
   display: flex;
   align-items: center;
   gap: 0.35rem;
   font-size: 0.85rem;
-  color: var(--text, inherit);
+  color: var(--ink);
+}
+
+.tokens-table {
+  table-layout: fixed;
+}
+
+.tokens-table th:nth-child(1),
+.tokens-table td:nth-child(1) {
+  width: 8%;
+}
+
+.tokens-table th:nth-child(2),
+.tokens-table td:nth-child(2) {
+  width: 24%;
+}
+
+.tokens-table th:nth-child(6),
+.tokens-table td:nth-child(6) {
+  width: 22%;
+}
+
+.tokens-table th:nth-child(7),
+.tokens-table td:nth-child(7) {
+  width: 18%;
+}
+
+.tokens-table th,
+.tokens-table td {
+  padding: 0.7rem 0.6rem;
+  vertical-align: middle;
+}
+
+.tokens-table .truncate {
+  max-width: none;
+}
+
+.token-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.5rem;
+}
+
+.token-status .error-detail {
+  flex: 1 1 100%;
+  margin: 0;
+}
+
+.token-status .actions {
+  justify-content: flex-start;
+}
+
+.token-status .actions button,
+.tokens-table .actions button {
+  padding: 0.35rem 0.55rem;
+  font-size: 0.82rem;
 }
 
 input,
 select,
+textarea,
 button {
   font: inherit;
   padding: 0.55rem 0.7rem;
@@ -273,6 +330,14 @@ button {
   border: 1px solid var(--line);
   background: #fff;
   color: var(--ink);
+}
+
+textarea {
+  width: 100%;
+  min-height: 8rem;
+  resize: vertical;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.85rem;
 }
 
 button {
@@ -290,8 +355,14 @@ button.danger {
 
 .actions {
   display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: 0.4rem;
   justify-content: flex-end;
+}
+
+.actions.start {
+  justify-content: flex-start;
 }
 
 .group-tree,

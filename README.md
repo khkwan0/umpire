@@ -44,7 +44,7 @@ Or run with Docker Compose (optional deploy path):
 docker compose up --build -d
 ```
 
-Open the UI, add a target URL + interval, add an FCM device token (if using the `fcm` notifier), pick an alert policy.
+Open the UI, add a target URL + interval, add an FCM FID (if using the `fcm` notifier), pick an alert policy.
 
 Without valid Firebase credentials the API still runs and checks targets; the FCM notifier reports `ready: false` on the dashboard.
 
@@ -278,18 +278,20 @@ Implementation: [`api/src/plugins/routes.ts`](api/src/plugins/routes.ts).
 - `notify` should throw only on hard failure if you want that attempt counted as rejected for `markAlertSent`. Soft skip (not configured / no matching destinations) should return without throwing.
 - Non-core destinations (FCM tokens, Slack webhooks beyond env, etc.) are **owned by the notifier** — not core SQLite.
 
-#### FCM token routing (plugin-owned)
+#### FCM destination routing (plugin-owned)
 
-The `fcm` notifier stores tokens in `data/fcm-tokens.json` (`FCM_TOKENS_PATH` overrides the path) and registers `GET/POST/PATCH/DELETE /tokens` via `registerRoutes`, exposed as **`/api/plugins/notify/fcm/tokens`**.
+The `fcm` notifier stores destinations in `data/fcm-tokens.json` (`FCM_TOKENS_PATH` overrides the path) and registers `GET/POST/PATCH/DELETE /tokens` via `registerRoutes`, exposed as **`/api/plugins/notify/fcm/tokens`**.
 
-Each token may restrict who gets which alerts:
+Prefer a **Firebase Installation ID (FID)** from the client. Sends use Admin SDK `{ fid }` unless the stored value looks like a legacy registration token (`:APA91…`), which still goes out as deprecated `{ token }`.
+
+Each destination may restrict who gets which alerts:
 
 | Field | Empty | Non-empty |
 |-------|--------|-----------|
 | `target_ids` | all targets | only those target ids |
 | `check_ids` | any alert for a matching target (including recovery) | only when at least one listed check failed; **recoveries skipped** |
 
-Disabled tokens never receive alerts. No matching tokens → soft skip (no throw).
+Disabled destinations never receive alerts. No matching destinations → soft skip (no throw). `POST /tokens/:id/test` sends a test push: FCM success is recorded as **sent** (accepted, not confirmed on-device). `POST /tokens/:id/received` sets **ok** or **error** (`not received` also disables the destination). `POST /tokens/import` accepts `{ "fids": [...] }` (or `{ "tokens": [...] }`); items may be strings or `{ fid|token, label?, target_ids?, check_ids? }` (duplicates skipped). Sends use a visible alert payload (iOS `apns-push-type: alert`, web push, high-priority Android). Set `FCM_ANDROID_CHANNEL_ID` only if the client created that channel; otherwise FCM uses the app default.
 
 References:
 
@@ -394,7 +396,7 @@ export default {
   id: 'fcm',
   kind: 'notify',
   path: '/plugins/notify/fcm',
-  label: 'FCM tokens',
+  label: 'FCM FIDs',
   Component: TokensPage,
 } satisfies PluginUiModule
 ```
@@ -427,7 +429,11 @@ Swagger UI: [http://localhost:8089/documentation](http://localhost:8089/document
 - `GET /api/checks` — loaded check plugins `{ id }`
 - `GET /api/notifiers` — loaded notifier plugins `{ id, ready }`
 - `GET /api/plugins` — loaded plugins + namespaced HTTP routes
-- `GET/POST/PATCH/DELETE /api/plugins/notify/fcm/tokens` — FCM destinations (`target_ids` / `check_ids`); only when `fcm` is enabled
+- `GET/POST/PATCH/DELETE /api/plugins/notify/fcm/tokens` — FCM destinations (FID preferred; `target_ids` / `check_ids`); only when `fcm` is enabled
+- `POST /api/plugins/notify/fcm/tokens/import` — import `{ fids: [...] }` (or `{ tokens: [...] }`); duplicates skipped
+- `POST /api/plugins/notify/fcm/tokens/test` — send a test push to a raw FID or legacy token
+- `POST /api/plugins/notify/fcm/tokens/:id/test` — send a test push; FCM success is stored as `sent`, not `ok`
+- `POST /api/plugins/notify/fcm/tokens/:id/received` — `{ received: true|false }` confirms on-device result (`false` disables the token)
 - `GET/PUT /api/settings`
 - `GET /api/status`
 - `GET /api/schema`

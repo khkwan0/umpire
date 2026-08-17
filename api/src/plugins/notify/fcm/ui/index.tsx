@@ -5,7 +5,7 @@ const fcmUi: PluginUiModule = {
   id: 'fcm',
   kind: 'notify',
   path: '/plugins/notify/fcm',
-  label: 'FCM tokens',
+  label: 'FCM FIDs',
   Component: TokensPage,
 }
 

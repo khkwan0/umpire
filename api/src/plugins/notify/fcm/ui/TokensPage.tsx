@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   api,
   type FcmToken,
+  type FcmTokenImportResult,
+  type FcmTokenTestResult,
   type PluginRef,
   type Target,
 } from '@umpire/web-api'
@@ -20,6 +22,15 @@ export default function TokensPage() {
   const [createCheckIds, setCreateCheckIds] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [draftTest, setDraftTest] = useState<FcmTokenTestResult | null>(null)
+  const [testingId, setTestingId] = useState<number | 'draft' | null>(null)
+  const [importText, setImportText] = useState('')
+  const [importBusy, setImportBusy] = useState(false)
+  const [importError, setImportError] = useState<string | null>(null)
+  const [importResult, setImportResult] = useState<FcmTokenImportResult | null>(
+    null,
+  )
+  const fileRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
     const [nextTokens, nextTargets, nextChecks] = await Promise.all([
@@ -42,13 +53,23 @@ export default function TokensPage() {
     e.preventDefault()
     setBusy(true)
     setError(null)
+    setDraftTest(null)
     try {
-      await api.tokens.create({
-        token: token.trim(),
-        label: label.trim(),
-        target_ids: createTargetIds,
-        check_ids: createCheckIds,
-      })
+      await api.tokens.create(
+        /:APA91/i.test(token.trim())
+          ? {
+              token: token.trim(),
+              label: label.trim(),
+              target_ids: createTargetIds,
+              check_ids: createCheckIds,
+            }
+          : {
+              fid: token.trim(),
+              label: label.trim(),
+              target_ids: createTargetIds,
+              check_ids: createCheckIds,
+            },
+      )
       setToken('')
       setLabel('')
       setCreateTargetIds([])
@@ -97,22 +118,139 @@ export default function TokensPage() {
     await load()
   }
 
+  async function testDraft() {
+    const value = token.trim()
+    if (!value) {
+      setError('token required')
+      return
+    }
+    setTestingId('draft')
+    setError(null)
+    try {
+      setDraftTest(await api.tokens.testRaw(value))
+    } catch (err) {
+      setDraftTest(null)
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setTestingId(null)
+    }
+  }
+
+  async function testSaved(t: FcmToken) {
+    setTestingId(t.id)
+    setError(null)
+    try {
+      const updated = await api.tokens.test(t.id)
+      setTokens((prev) => prev.map((row) => (row.id === updated.id ? updated : row)))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setTestingId(null)
+    }
+  }
+
+  function testStatus(ok: number | boolean | null, errorText: string | null) {
+    if (ok === null || ok === undefined) {
+      return <span className="muted">—</span>
+    }
+    if (ok === 2) {
+      return <span className="pill pending">sent</span>
+    }
+    const passed = ok === true || ok === 1
+    return (
+      <>
+        <span className={`pill ${passed ? 'up' : 'down'}`}>
+          {passed ? 'ok' : 'error'}
+        </span>
+        {!passed && errorText ? (
+          <span className="muted small error-detail">{errorText}</span>
+        ) : null}
+      </>
+    )
+  }
+
+  async function markReceived(t: FcmToken, received: boolean) {
+    setError(null)
+    try {
+      const updated = await api.tokens.received(t.id, received)
+      setTokens((prev) =>
+        prev.map((row) => (row.id === updated.id ? updated : row)),
+      )
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  function parseImportJson(text: string): unknown {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(text)
+    } catch {
+      throw new Error('invalid JSON')
+    }
+    if (Array.isArray(parsed)) return parsed
+    if (parsed && typeof parsed === 'object') {
+      const rec = parsed as { fids?: unknown; tokens?: unknown }
+      if (Array.isArray(rec.fids) || Array.isArray(rec.tokens)) return parsed
+    }
+    throw new Error('JSON must be an array, or { "fids": [...] } / { "tokens": [...] }')
+  }
+
+  async function onImport(e: FormEvent) {
+    e.preventDefault()
+    setImportBusy(true)
+    setImportError(null)
+    setImportResult(null)
+    try {
+      const parsed = parseImportJson(importText)
+      const payload = Array.isArray(parsed)
+        ? { fids: parsed }
+        : parsed
+      const result = await api.tokens.import(payload)
+      setImportResult(result)
+      setImportText('')
+      if (fileRef.current) fileRef.current.value = ''
+      await load()
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setImportBusy(false)
+    }
+  }
+
+  async function onImportFile(file: File | undefined) {
+    if (!file) return
+    setImportError(null)
+    setImportResult(null)
+    try {
+      const text = await file.text()
+      setImportText(text)
+      parseImportJson(text)
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
   return (
     <div className="stack">
       <section className="panel">
-        <h2>Add FCM token</h2>
+        <h2>Add FCM FID</h2>
         <p className="muted">
-          Owned by the <strong>fcm</strong> notifier. Leave targets / checks
-          unchecked to receive <strong>all</strong> matching alerts. Other
-          notifiers (e.g. webhook) use their own config.
+          Prefer a Firebase Installation ID from the client (
+          <span className="mono">getId()</span> /{' '}
+          <span className="mono">onRegistered</span>). Legacy{' '}
+          <span className="mono">:APA91</span> registration tokens still send
+          via the deprecated <span className="mono">token</span> field. Leave
+          targets / checks unchecked to receive <strong>all</strong> matching
+          alerts. Test asks FCM to send; confirm with Got it / Not received.
         </p>
         <form className="form-row" onSubmit={onCreate}>
           <label className="grow">
-            Token
+            FID
             <input
               value={token}
               onChange={(e) => setToken(e.target.value)}
-              placeholder="FCM registration token"
+              placeholder="Firebase Installation ID"
               required
             />
           </label>
@@ -127,7 +265,19 @@ export default function TokensPage() {
           <button type="submit" disabled={busy}>
             Add
           </button>
+          <button
+            type="button"
+            disabled={busy || testingId !== null || !token.trim()}
+            onClick={() => void testDraft()}
+          >
+            {testingId === 'draft' ? 'Testing…' : 'Test'}
+          </button>
         </form>
+        {draftTest && (
+          <p className={draftTest.ok ? 'ok' : 'error'}>
+            {draftTest.ok ? 'ok' : `error: ${draftTest.error || 'send failed'}`}
+          </p>
+        )}
         {targets.length > 0 && (
           <fieldset className="check-ids">
             <legend>Targets (optional allowlist)</legend>
@@ -180,18 +330,85 @@ export default function TokensPage() {
       </section>
 
       <section className="panel">
-        <h2>Tokens</h2>
+        <h2>Import FIDs</h2>
+        <p className="muted">
+          Paste a JSON array or upload a <span className="mono">.json</span>{' '}
+          file. Each item may be a FID string or{' '}
+          <span className="mono">
+            {'{ "fid", "label?", "target_ids?", "check_ids?" }'}
+          </span>
+          . Legacy <span className="mono">token</span> fields still import.
+          Duplicates are skipped.
+        </p>
+        <form className="form-col" onSubmit={onImport} style={{ maxWidth: 'none' }}>
+          <label className="grow">
+            JSON
+            <textarea
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              placeholder={'["fid-one", { "fid": "fid-two", "label": "Ken phone" }]'}
+              spellCheck={false}
+              required
+            />
+          </label>
+          <div className="form-row">
+            <label>
+              File
+              <input
+                ref={fileRef}
+                type="file"
+                accept="application/json,.json"
+                onChange={(e) => void onImportFile(e.target.files?.[0])}
+              />
+            </label>
+            <button type="submit" disabled={importBusy || !importText.trim()}>
+              {importBusy ? 'Importing…' : 'Import'}
+            </button>
+          </div>
+        </form>
+        {importResult && (
+          <p className={importResult.created.length ? 'ok' : 'muted'}>
+            Added {importResult.created.length}
+            {importResult.skipped.length
+              ? `, skipped ${importResult.skipped.length}`
+              : ''}
+            .
+          </p>
+        )}
+        {importResult && importResult.skipped.length > 0 && (
+          <ul className="muted small">
+            {importResult.skipped.map((row, i) => (
+              <li key={`${row.token}-${i}`}>
+                <span className="mono">{row.token}</span> — {row.reason}
+              </li>
+            ))}
+          </ul>
+        )}
+        {importError && <p className="error">{importError}</p>}
+      </section>
+
+      <section className="panel">
+        <h2>Destinations</h2>
+        <p className="muted small">
+          Test asks FCM to send. Values without <span className="mono">:APA91</span>{' '}
+          go out as <strong>fid</strong> (recommended). Legacy registration
+          tokens still use the deprecated <strong>token</strong> field.{' '}
+          <strong>sent</strong> means FCM accepted it — not that a banner
+          appeared. Use <strong>Got it</strong> or <strong>Not received</strong>{' '}
+          after each test.
+        </p>
         {tokens.length === 0 ? (
-          <p className="muted">No tokens.</p>
+          <p className="muted">No destinations.</p>
         ) : (
-          <table>
+          <table className="tokens-table">
             <thead>
               <tr>
                 <th>Label</th>
-                <th>Token</th>
+                <th>FID</th>
                 <th>Targets</th>
                 <th>Checks</th>
                 <th>Enabled</th>
+                <th>Status</th>
                 <th />
               </tr>
             </thead>
@@ -260,20 +477,56 @@ export default function TokensPage() {
                       )}
                     </td>
                     <td>{t.enabled ? 'yes' : 'no'}</td>
-                    <td className="actions">
-                      <button
-                        type="button"
-                        onClick={() => void toggleEnabled(t)}
-                      >
-                        {t.enabled ? 'Disable' : 'Enable'}
-                      </button>
-                      <button
-                        type="button"
-                        className="danger"
-                        onClick={() => void remove(t.id)}
-                      >
-                        Delete
-                      </button>
+                    <td>
+                      <div className="token-status">
+                        {testStatus(
+                          t.last_test_ok ?? null,
+                          t.last_test_error ?? null,
+                        )}
+                        {(t.last_test_ok === 1 || t.last_test_ok === 2) && (
+                          <div className="actions">
+                            {t.last_test_ok === 2 && (
+                              <button
+                                type="button"
+                                onClick={() => void markReceived(t, true)}
+                              >
+                                Got it
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              className="danger"
+                              onClick={() => void markReceived(t, false)}
+                            >
+                              Not received
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="actions">
+                        <button
+                          type="button"
+                          disabled={testingId !== null}
+                          onClick={() => void testSaved(t)}
+                        >
+                          {testingId === t.id ? 'Testing…' : 'Test'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void toggleEnabled(t)}
+                        >
+                          {t.enabled ? 'Disable' : 'Enable'}
+                        </button>
+                        <button
+                          type="button"
+                          className="danger"
+                          onClick={() => void remove(t.id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )

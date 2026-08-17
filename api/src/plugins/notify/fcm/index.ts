@@ -1,7 +1,8 @@
 import fs from 'node:fs'
-import admin from 'firebase-admin'
+import { getApps } from 'firebase-admin/app'
 import type { AlertEvent, NotifierPlugin } from '../../types.js'
 import { registerFcmRoutes } from './routes.js'
+import { initFirebase, sendToMany } from './send.js'
 import { matchingTokenStrings } from './tokens.js'
 
 let ready = false
@@ -21,7 +22,7 @@ const fcmNotifier: NotifierPlugin = {
       )
       return
     }
-    if (admin.apps.length) {
+    if (getApps().length) {
       ready = true
       return
     }
@@ -31,12 +32,10 @@ const fcmNotifier: NotifierPlugin = {
         client_email: string
         private_key: string
       }
-      admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId: raw.project_id,
-          clientEmail: raw.client_email,
-          privateKey: raw.private_key.replace(/\\n/g, '\n'),
-        }),
+      initFirebase({
+        projectId: raw.project_id,
+        clientEmail: raw.client_email,
+        privateKey: raw.private_key.replace(/\\n/g, '\n'),
       })
       ready = true
       console.log('[notify:fcm] initialized')
@@ -58,49 +57,17 @@ const fcmNotifier: NotifierPlugin = {
       console.warn('[notify:fcm] skip send — not initialized')
       return
     }
-    const tokens = matchingTokenStrings(event)
-    if (tokens.length === 0) {
-      console.warn('[notify:fcm] skip send — no matching tokens')
+    const destinations = matchingTokenStrings(event)
+    if (destinations.length === 0) {
+      console.warn('[notify:fcm] skip send — no matching destinations')
       return
     }
 
-    const payload = {
-      tokens,
-      notification: {
-        title: event.title,
-        body: event.body,
-      },
-      android: {
-        priority: 'high' as const,
-        notification: {
-          title: event.title,
-          body: event.body,
-          channelId: 'Monitoring',
-        },
-      },
-      apns: {
-        payload: {
-          aps: {
-            alert: {
-              title: event.title,
-              body: event.body,
-            },
-            sound: 'default',
-          },
-        },
-        headers: {
-          'apns-priority': '10',
-        },
-      },
-    }
-
-    const res = await admin.messaging().sendEachForMulticast(payload)
+    const res = await sendToMany(destinations, event.title, event.body)
     if (res.failureCount > 0) {
       console.warn(
-        `[notify:fcm] ${res.failureCount}/${tokens.length} sends failed`,
-        res.responses
-          .filter((r) => !r.success)
-          .map((r) => r.error?.message),
+        `[notify:fcm] ${res.failureCount}/${destinations.length} sends failed`,
+        res.errors,
       )
     }
     if (res.successCount === 0) {

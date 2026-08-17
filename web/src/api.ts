@@ -29,6 +29,7 @@ export interface GroupTreeNode extends Group {
 
 export interface FcmToken {
   id: number
+  /** FID (recommended) or deprecated FCM registration token */
   token: string
   label: string
   enabled: number
@@ -37,6 +38,20 @@ export interface FcmToken {
   /** Empty = any alert; non-empty = only listed check failures */
   check_ids: string[]
   created_at: string
+  /** 1=confirmed received, 2=FCM accepted, 0=error, null=never tested */
+  last_test_ok: number | null
+  last_test_error: string | null
+  last_tested_at: string | null
+}
+
+export interface FcmTokenTestResult {
+  ok: boolean
+  error: string | null
+}
+
+export interface FcmTokenImportResult {
+  created: FcmToken[]
+  skipped: Array<{ token: string; reason: string }>
 }
 
 export interface Settings {
@@ -175,7 +190,8 @@ export const api = {
   tokens: {
     list: () => request<FcmToken[]>('/api/plugins/notify/fcm/tokens'),
     create: (data: {
-      token: string
+      fid?: string
+      token?: string
       label?: string
       target_ids?: number[]
       check_ids?: string[]
@@ -200,6 +216,29 @@ export const api = {
     remove: (id: number) =>
       request<void>(`/api/plugins/notify/fcm/tokens/${id}`, {
         method: 'DELETE',
+      }),
+    test: (id: number) =>
+      request<FcmToken>(`/api/plugins/notify/fcm/tokens/${id}/test`, {
+        method: 'POST',
+      }),
+    received: (id: number, received: boolean) =>
+      request<FcmToken>(`/api/plugins/notify/fcm/tokens/${id}/received`, {
+        method: 'POST',
+        body: JSON.stringify({ received }),
+      }),
+    testRaw: (destination: string) =>
+      request<FcmTokenTestResult>('/api/plugins/notify/fcm/tokens/test', {
+        method: 'POST',
+        body: JSON.stringify(
+          /:APA91/i.test(destination)
+            ? { token: destination }
+            : { fid: destination },
+        ),
+      }),
+    import: (data: unknown) =>
+      request<FcmTokenImportResult>('/api/plugins/notify/fcm/tokens/import', {
+        method: 'POST',
+        body: JSON.stringify(data),
       }),
   },
   settings: {

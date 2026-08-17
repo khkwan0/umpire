@@ -77,6 +77,14 @@ function mapToken(raw: unknown): FcmToken | null {
       typeof row.created_at === 'string'
         ? row.created_at
         : new Date().toISOString(),
+    last_test_ok:
+      row.last_test_ok === 1 || row.last_test_ok === 2 || row.last_test_ok === 0
+        ? row.last_test_ok
+        : null,
+    last_test_error:
+      typeof row.last_test_error === 'string' ? row.last_test_error : null,
+    last_tested_at:
+      typeof row.last_tested_at === 'string' ? row.last_tested_at : null,
   }
 }
 
@@ -103,6 +111,137 @@ export function listTokens(): FcmToken[] {
   return readAll().sort((a, b) => a.id - b.id)
 }
 
+export type TokenImportItem = {
+  token: string
+  label: string
+  target_ids: number[]
+  check_ids: string[]
+}
+
+export type TokenImportResult = {
+  created: FcmToken[]
+  skipped: Array<{ token: string; reason: string }>
+}
+
+function asImportList(input: unknown): unknown[] {
+  if (Array.isArray(input)) return input
+  if (input && typeof input === 'object') {
+    const rec = input as { fids?: unknown; tokens?: unknown }
+    if (Array.isArray(rec.fids)) return rec.fids
+    if (Array.isArray(rec.tokens)) return rec.tokens
+  }
+  throw new Error(
+    'import must be a JSON array of FIDs, or { "fids": [...] } / { "tokens": [...] }',
+  )
+}
+
+export function parseTokenImport(input: unknown): TokenImportItem[] {
+  const list = asImportList(input)
+  if (list.length === 0) {
+    throw new Error('import array is empty')
+  }
+  const items: TokenImportItem[] = []
+  for (let i = 0; i < list.length; i++) {
+    const item = list[i]
+    if (typeof item === 'string') {
+      const token = item.trim()
+      if (!token) throw new Error(`item ${i}: token required`)
+      items.push({ token, label: '', target_ids: [], check_ids: [] })
+      continue
+    }
+    if (!item || typeof item !== 'object') {
+      throw new Error(`item ${i}: must be a string or object`)
+    }
+    const row = item as Record<string, unknown>
+    const token =
+      typeof row.fid === 'string' && row.fid.trim()
+        ? row.fid.trim()
+        : typeof row.token === 'string'
+          ? row.token.trim()
+          : ''
+    if (!token) throw new Error(`item ${i}: fid or token required`)
+    items.push({
+      token,
+      label: typeof row.label === 'string' ? row.label.trim() : '',
+      target_ids: normalizeTargetIds(row.target_ids),
+      check_ids: normalizeCheckIds(row.check_ids),
+    })
+  }
+  return items
+}
+
+export function importTokens(input: unknown): TokenImportResult {
+  const items = parseTokenImport(input)
+  const rows = readAll()
+  const existing = new Set(rows.map((r) => r.token))
+  const seen = new Set<string>()
+  const created: FcmToken[] = []
+  const skipped: Array<{ token: string; reason: string }> = []
+  let nextId = rows.reduce((max, r) => Math.max(max, r.id), 0) + 1
+  const now = new Date().toISOString()
+
+  for (const item of items) {
+    if (existing.has(item.token) || seen.has(item.token)) {
+      skipped.push({ token: item.token, reason: 'already exists' })
+      continue
+    }
+    seen.add(item.token)
+    const row: TokenRow = {
+      id: nextId,
+      token: item.token,
+      label: item.label,
+      enabled: 1,
+      target_ids: item.target_ids,
+      check_ids: item.check_ids,
+      created_at: now,
+      last_test_ok: null,
+      last_test_error: null,
+      last_tested_at: null,
+    }
+    nextId += 1
+    rows.push(row)
+    existing.add(item.token)
+    created.push(row)
+  }
+  if (created.length > 0) writeAll(rows)
+  return { created, skipped }
+}
+
+export function getToken(id: number): FcmToken | undefined {
+  return readAll().find((r) => r.id === id)
+}
+
+export type TokenTestStatus = 'ok' | 'sent' | 'error'
+
+function testStatusToDb(status: TokenTestStatus): number {
+  if (status === 'ok') return 1
+  if (status === 'sent') return 2
+  return 0
+}
+
+export function recordTokenTest(
+  id: number,
+  status: TokenTestStatus,
+  error: string | null,
+  extra?: { enabled?: boolean },
+): FcmToken | undefined {
+  const rows = readAll()
+  const idx = rows.findIndex((r) => r.id === id)
+  if (idx < 0) return undefined
+  const existing = rows[idx]!
+  const next: FcmToken = {
+    ...existing,
+    last_test_ok: testStatusToDb(status),
+    last_test_error: status === 'error' ? error : null,
+    last_tested_at: new Date().toISOString(),
+    enabled:
+      extra?.enabled !== undefined ? (extra.enabled ? 1 : 0) : existing.enabled,
+  }
+  rows[idx] = next
+  writeAll(rows)
+  return next
+}
+
 export function createToken(
   token: string,
   label = '',
@@ -122,6 +261,9 @@ export function createToken(
     target_ids: normalizeTargetIds(targetIds),
     check_ids: normalizeCheckIds(checkIds),
     created_at: new Date().toISOString(),
+    last_test_ok: null,
+    last_test_error: null,
+    last_tested_at: null,
   }
   rows.push(row)
   writeAll(rows)

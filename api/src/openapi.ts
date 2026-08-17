@@ -128,10 +128,17 @@ const fcmTokenSchema = {
     'target_ids',
     'check_ids',
     'created_at',
+    'last_test_ok',
+    'last_test_error',
+    'last_tested_at',
   ],
   properties: {
     id: { type: 'integer' },
-    token: { type: 'string' },
+    token: {
+      type: 'string',
+      description:
+        'Firebase Installation ID (recommended) or a deprecated FCM registration token. Sends use fid unless the value looks like :APA91…',
+    },
     label: { type: 'string' },
     enabled: { type: 'integer', enum: [0, 1] },
     target_ids: {
@@ -146,6 +153,14 @@ const fcmTokenSchema = {
         'Check plugin ids. Empty = any alert (incl. recovery). Non-empty = only when a listed check failed.',
     },
     created_at: { type: 'string' },
+    last_test_ok: {
+      type: ['integer', 'null'],
+      enum: [0, 1, 2, null],
+      description:
+        '1=confirmed received, 2=FCM accepted (not confirmed), 0=error, null=never tested',
+    },
+    last_test_error: { type: ['string', 'null'] },
+    last_tested_at: { type: ['string', 'null'] },
   },
 } as const
 
@@ -380,7 +395,7 @@ export async function registerOpenApi(app: FastifyInstance): Promise<void> {
         {
           name: 'tokens',
           description:
-            'FCM device tokens at /api/plugins/notify/fcm/tokens (fcm notifier)',
+            'FCM destinations (FID preferred) at /api/plugins/notify/fcm/tokens (fcm notifier)',
         },
         { name: 'settings', description: 'Alert policy' },
         { name: 'status', description: 'Dashboard summary' },

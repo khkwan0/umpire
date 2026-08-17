@@ -332,17 +332,19 @@ export default function Targets() {
                     </td>
                     <td>{t.interval_seconds}s</td>
                     <td>{t.enabled ? 'yes' : 'no'}</td>
-                    <td className="actions">
-                      <button type="button" onClick={() => void toggle(t)}>
-                        {t.enabled ? 'Pause' : 'Resume'}
-                      </button>
-                      <button
-                        type="button"
-                        className="danger"
-                        onClick={() => void remove(t.id)}
-                      >
-                        Delete
-                      </button>
+                    <td>
+                      <div className="actions">
+                        <button type="button" onClick={() => void toggle(t)}>
+                          {t.enabled ? 'Pause' : 'Resume'}
+                        </button>
+                        <button
+                          type="button"
+                          className="danger"
+                          onClick={() => void remove(t.id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )

@@ -56,6 +56,9 @@ export interface Target {
 
 export interface FcmToken {
   id: number
+  /**
+   * Firebase Installation ID (recommended) or deprecated FCM registration token.
+   */
   token: string
   label: string
   enabled: number
@@ -69,6 +72,10 @@ export interface FcmToken {
    */
   check_ids: string[]
   created_at: string
+  /** 1=confirmed received, 2=FCM accepted (not confirmed), 0=error, null=never tested */
+  last_test_ok: number | null
+  last_test_error: string | null
+  last_tested_at: string | null
 }
 
 export interface Settings {

@@ -12,11 +12,14 @@ services:
       CHECK_TIMEOUT_MS: ${CHECK_TIMEOUT_MS:-10000}
       WEBHOOK_URL: ${WEBHOOK_URL:-}
       WEBHOOK_HEADERS: ${WEBHOOK_HEADERS:-}
+      FCM_ANDROID_CHANNEL_ID: ${FCM_ANDROID_CHANNEL_ID:-}
     networks:
       - monitor
 
   web:
-    build: ./web
+    build:
+      context: .
+      dockerfile: web/Dockerfile
     restart: unless-stopped
     ports:
       - "${WEB_PORT:-8089}:80"

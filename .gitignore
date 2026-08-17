@@ -8,3 +8,4 @@ firebase-service-account.json
 .DS_Store
 web/dist/
 api/dist/
+fcm-tokens.json
