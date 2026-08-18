@@ -10,8 +10,6 @@ services:
       DATABASE_PATH: /data/monitor.sqlite
       GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase.json
       CHECK_TIMEOUT_MS: ${CHECK_TIMEOUT_MS:-10000}
-      WEBHOOK_URL: ${WEBHOOK_URL:-}
-      WEBHOOK_HEADERS: ${WEBHOOK_HEADERS:-}
       FCM_ANDROID_CHANNEL_ID: ${FCM_ANDROID_CHANNEL_ID:-}
     networks:
       - monitor

@@ -35,7 +35,7 @@ Enabled out of the box by [`api/plugins.json`](api/plugins.json) (override with 
 | **Scheduler** | **Exactly one** | `interval` | — | Per-target `interval_seconds` timers; honors Pause |
 | **Notifier** | Zero or more | `fcm` | `webhook` | Firebase Cloud Messaging to stored FIDs |
 
-`webhook` is in the repo but **not** in the default `notifiers` list. To use it: add `"webhook"` to `notifiers`, set `WEBHOOK_URL` (optional `WEBHOOK_HEADERS` JSON), restart. You can run `fcm` and `webhook` together.
+`webhook` is in the repo but **not** in the default `notifiers` list. To use it: add `"webhook"` to `notifiers`, restart, then set the URL on the **Webhook** page in the UI (or `PUT /api/plugins/notify/webhook/config`). You can run `fcm` and `webhook` together.
 
 On each target, leave check/notifier boxes unchecked to use **all** loaded plugins of that kind, or tick a subset. Empty allowlists are stored as `[]`.
 
@@ -46,7 +46,7 @@ On each target, leave check/notifier boxes unchecked to use **all** loaded plugi
 Core owns the monitoring **host**, not the implementations:
 
 - **Pipeline** — `run(targetId)`: selected checks → aggregate health → write SQLite → apply alert policy → call selected notifiers
-- **Frozen SQLite** — `groups`, `targets` (including `check_ids` / `notifier_ids`), `settings`, `check_results`, `target_state`. Plugins must not `ALTER` these tables. Plugin-owned data (e.g. FCM tokens) lives in env and/or files next to the DB (`data/fcm-tokens.json`)
+- **Frozen SQLite** — `groups`, `targets` (including `check_ids` / `notifier_ids`), `settings`, `check_results`, `target_state`. Plugins must not `ALTER` these tables. Plugin-owned data (FCM tokens, webhook URL) lives in sidecar files next to the DB and is edited in the plugin UI — not `.env`
 - **HTTP API + UI shell** — CRUD for groups, targets, settings, history, status; dashboard and nav. Plugin screens, dashboard widgets, and routes are optional add-ons
 - **Plugin host** — loads `plugins.json`, mounts plugin HTTP under `/api/plugins/<kind>/<id>/…`, catalogs them at `GET /api/plugins`
 - **Alert policy** — decides *whether* to notify (`state_change`, `every_fail`, `throttle`). Notifiers only deliver
@@ -128,6 +128,8 @@ Swagger UI: [http://localhost:8089/documentation](http://localhost:8089/document
 - `POST /api/plugins/notify/fcm/tokens/test` — send a test push to a raw FID or legacy token
 - `POST /api/plugins/notify/fcm/tokens/:id/test` — send a test push; FCM success is stored as `sent`, not `ok`
 - `POST /api/plugins/notify/fcm/tokens/:id/received` — `{ received: true|false }` confirms on-device result (`false` disables the token)
+- `GET/PUT /api/plugins/notify/webhook/config` — webhook URL + headers; only when `webhook` is enabled
+- `POST /api/plugins/notify/webhook/test` — POST a sample `AlertEvent` to the saved URL
 - `GET/PUT /api/settings`
 - `GET /api/status`
 - `GET /api/schema`
@@ -144,7 +146,7 @@ Targets attach to **child** groups via `group_id` (not roots). Deleting a group 
 
 ## Data
 
-SQLite file: `./data/monitor.sqlite` (bind-mounted in Compose at `/data/monitor.sqlite`). FCM tokens sidecar: `./data/fcm-tokens.json`.
+SQLite file: `./data/monitor.sqlite` (bind-mounted in Compose at `/data/monitor.sqlite`). Plugin sidecars next to the DB: `./data/fcm-tokens.json`, `./data/webhook.json`.
 
 ## Notes
 

@@ -6,20 +6,61 @@ Operator setup (run the app, shipped plugins, core HTTP API) lives in [`README.m
 
 ## Contents
 
-1. [Start here](#start-here)
-2. [Mental model](#mental-model)
-3. [File layout](#file-layout)
-4. [Contracts](#contracts)
-5. [Enable loop](#enable-loop)
-6. [`registerRoutes` (plugin HTTP)](#plugin-http-apis)
-7. [Plugin UIs](#plugin-uis)
-8. [Dashboard widgets](#dashboard-widgets)
-9. [Allowlists](#allowlists)
-10. [Hello world](#hello-world) — copy-paste wiring for all three kinds
-11. [Real-world examples](#real-world-examples)
-12. [Do / don’t](#do--dont)
-13. [Verify](#verify)
-14. [Shipped references](#shipped-references)
+1. [Core vs plugins](#core-vs-plugins)
+2. [Start here](#start-here)
+3. [Mental model](#mental-model)
+4. [File layout](#file-layout)
+5. [Contracts](#contracts)
+6. [Enable loop](#enable-loop)
+7. [`registerRoutes` (plugin HTTP)](#plugin-http-apis)
+8. [Plugin UIs](#plugin-uis)
+9. [Dashboard widgets](#dashboard-widgets)
+10. [Allowlists](#allowlists)
+11. [Hello world](#hello-world) — copy-paste wiring for all three kinds
+12. [Real-world examples](#real-world-examples)
+13. [Do / don’t](#do--dont)
+14. [Verify](#verify)
+15. [Shipped references](#shipped-references)
+
+---
+
+## Core vs plugins
+
+Core is the **host**. Plugins are the **workers**. Core never probes a URL, never decides *when* to probe, and never sends a push or webhook. Plugins never store monitoring history and never decide *whether* an alert should fire.
+
+### What core handles
+
+- The app itself: HTTP API, UI shell, and SQLite
+- Loading plugins listed in `plugins.json`
+- The monitoring pipeline: run checks → record the result → apply alert policy → call notifiers
+- *Whether* to notify (`state_change`, `every_fail`, `throttle`)
+- *Which* plugins a target uses (`check_ids` / `notifier_ids`; empty means all loaded of that kind)
+- Frozen tables: `groups`, `targets`, `settings`, `check_results`, `target_state`
+
+### What plugins handle
+
+Three kinds. Each does one job:
+
+| Kind | Job in one phrase |
+|------|-------------------|
+| **Check** | Probe the target (HTTP, TLS, DNS, …) and return ok or fail. Core records it. |
+| **Scheduler** | Decide *when* a target is due, then ask core to run it. Exactly one process-wide. |
+| **Notifier** | Deliver an alert core already decided to send (FCM, webhook, email, …). |
+
+Optional extras (any kind): plugin-owned HTTP under `/api/plugins/…`, a nav page, a dashboard panel. Those are for *your* data (token lists, extra settings). Store that data in a sidecar file and edit it in the UI — not `.env`. They do not replace core screens or drive the pipeline.
+
+### How core talks to plugins
+
+They do not import each other. Core calls a few hooks. Plugins answer, or call back through a tiny context.
+
+1. **Load** — Core reads `plugins.json` and loads those modules. If a plugin has HTTP, core mounts it under `/api/plugins/<kind>/<id>/…`.
+2. **Start the clock** — After the API is listening, core calls the scheduler’s `start()`. After every target create, update, delete, or Pause, core calls `reschedule()`.
+3. **Scheduler asks core to run** — When a target is due, the scheduler calls `ctx.run(targetId)`. That is the only way a check cycle starts.
+4. **Core asks checks to probe** — `run` calls `check(url)` on each selected check. The plugin returns `{ ok, statusCode, error, latencyMs }` and stops there. It does not write the database.
+5. **Core keeps the books** — Core aggregates outcomes, writes SQLite, and applies alert policy.
+6. **Core asks notifiers to deliver** — If policy says alert, core calls `notify(event)` with a ready-made title and body. The notifier only sends.
+
+Plugin HTTP and UI are a side channel for plugin-owned data. They are not how probes run or how alerts fire.
 
 ---
 
@@ -33,7 +74,7 @@ Operator setup (run the app, shipped plugins, core HTTP API) lives in [`README.m
 
 Optional for every kind:
 
-- `registerRoutes(app)` — plugin-owned HTTP under `/api/plugins/<kind>/<id>/…` (skip it if env + core fields are enough; [why](#plugin-http-apis))
+- `registerRoutes(app)` — plugin-owned HTTP under `/api/plugins/<kind>/<id>/…` (skip it only if core target fields are enough; [why](#plugin-http-apis))
 - `ui/index.tsx` — nav item + page in the web shell
 - `Dashboard` on that UI module — optional panel on the **core** home page (does not replace the dashboard)
 
@@ -45,6 +86,8 @@ Optional for every kind:
 
 ## Mental model
 
+Same split as [Core vs plugins](#core-vs-plugins), as a pipeline sketch:
+
 ```text
 plugins.json            → which modules load (process-wide pool)
 targets[]               → what to watch (url, interval, enabled, group)
@@ -55,7 +98,9 @@ core pipeline           → checks → record SQLite → alert policy → notifi
 alert policy            → whether notify() is called (not the notifier’s job)
 ```
 
-Core owns SQLite (`groups`, `targets`, `settings`, `check_results`, `target_state`). Plugins **must not** `ALTER` those tables. Plugin-owned data (destinations, extra config) lives in env vars and/or files next to the DB (see `notify/fcm` → `data/fcm-tokens.json`).
+Core owns SQLite (`groups`, `targets`, `settings`, `check_results`, `target_state`). Plugins **must not** `ALTER` those tables. Plugin-owned settings (destinations, extra config) live in sidecar files next to the DB and are edited through `registerRoutes` + UI — **not** `.env`. See `notify/fcm` → `data/fcm-tokens.json`, `notify/webhook` → `data/webhook.json`.
+
+Host process identity may stay env (`DATABASE_PATH`, `GOOGLE_APPLICATION_CREDENTIALS` for the FCM Admin SDK). Those are deploy secrets, not plugin dashboard settings.
 
 Plugins run **in-process** with API privileges. Only load code you trust. Extra npm deps go in [`api/package.json`](../api/package.json).
 
@@ -79,6 +124,18 @@ api/src/plugins/<kind>/<id>/
 Single-file plugins also work: `api/src/plugins/<kind>/<id>.ts`.
 
 Loader: [`api/src/plugins/registry.ts`](../api/src/plugins/registry.ts) resolves `<id>/index.ts` then `<id>.ts`. The exported `id` **must** equal the `plugins.json` id.
+
+Example (shipped webhook — config + UI, no env):
+
+```text
+api/src/plugins/notify/webhook/
+  index.ts
+  config.ts         # sidecar data/webhook.json
+  send.ts
+  routes.ts         # GET/PUT /config, POST /test
+  ui/index.tsx
+  ui/WebhookPage.tsx
+```
 
 Example (shipped FCM):
 
@@ -164,7 +221,7 @@ interface NotifierPlugin {
 - `isReady()` is shown on the dashboard. Core **still calls** `notify` when `ready` is false; no-op or warn inside `notify`.
 - Throw only on hard failure (counts against `markAlertSent`). Soft skip (not configured / no destinations) → `return` without throwing.
 - `init()` failures are logged; other notifiers still load.
-- Optional `registerRoutes` is for destinations/settings you own (FCM tokens). Omit it if env is enough (shipped `webhook`).
+- Optional `registerRoutes` is for destinations/settings you own (FCM tokens, webhook URL). Omit it only when core fields (`url`, intervals, allowlists) are enough.
 
 ### Scheduler
 
@@ -201,9 +258,8 @@ interface SchedulerPlugin {
    - checks: append to `"checks"`
    - notifier: append to `"notifiers"`
    - scheduler: set `"scheduler"` to your id (**replaces** `interval`)
-4. Set any env your plugin needs.
-5. Optional: `registerRoutes` + `ui/index.tsx`.
-6. Restart API (`tsx watch` reloads on save). Restart/rebuild **web** if you added UI.
+4. Optional: `registerRoutes` + `ui/index.tsx` for plugin-owned settings (not `.env`).
+5. Restart API (`tsx watch` reloads on save). Restart/rebuild **web** if you added UI.
 
 Docker: plugin UI is globbed at Vite build time from `api/src/plugins/*/*/ui/index.tsx`. Rebuild the web image after adding UI ([`web/Dockerfile`](../web/Dockerfile) copies `api/src/plugins`). Prefer host `npm run dev` while iterating.
 
@@ -242,16 +298,16 @@ Do **not** register `/api/targets` or other core paths.
 
 ### When you need it — and when you don’t
 
-Skip it when operators can configure the plugin from **env**, `plugins.json`, and core target fields (`url`, `interval_seconds`, allowlists). The pipeline never needs an extra HTTP endpoint to call your hooks.
+Skip it when the plugin needs nothing beyond **`plugins.json`** and core target fields (`url`, `interval_seconds`, allowlists). The pipeline never needs an extra HTTP endpoint to call your hooks.
 
-Add it when the plugin owns **runtime data or actions** that do not belong in frozen core SQLite: destination lists, extra settings, test-send buttons, import, health of *your* sidecar.
+Add it when the plugin owns **runtime data or actions** that do not belong in frozen core SQLite: destination lists, extra settings, test-send buttons, import. Put those in a sidecar file + `registerRoutes` + UI. **Do not add plugin settings to `.env`.**
 
 | `registerRoutes`? | Plugin | Why |
 |-------------------|--------|-----|
 | **No** | Shipped `http` check | Probe uses only the target `url` |
 | **No** | Shipped `interval` scheduler | Timing uses core `interval_seconds` |
-| **No** | Shipped `webhook` notifier | `WEBHOOK_URL` (+ optional `WEBHOOK_HEADERS`) in env; `notify()` POSTs `AlertEvent` |
-| **Yes** | Shipped `fcm` notifier | Many device FIDs, enable/disable, per-token filters, test push — operators manage that in the UI |
+| **Yes** | Shipped `webhook` notifier | URL and headers are plugin-owned (`data/webhook.json` + Webhook page) |
+| **Yes** | Shipped `fcm` notifier | Many device FIDs, enable/disable, per-token filters, test push |
 | **Yes** | Keyword check (cookbook below) | Needle string is plugin config, not a core column |
 
 UI (`ui/index.tsx`) and routes are independent: a help page needs no API; curl/Swagger CRUD needs no UI. Together they are the usual pair when humans edit plugin-owned data.
@@ -281,9 +337,9 @@ Relative routes in [`routes.ts`](../api/src/plugins/notify/fcm/routes.ts) become
 
 The plugin UI (`ui/TokensPage.tsx`) `fetch`es those URLs. `notify()` reads the sidecar and sends. Without `registerRoutes`, operators would edit `fcm-tokens.json` by hand and could not test a device from the dashboard.
 
-Contrast shipped [`notify/webhook`](../api/src/plugins/notify/webhook/index.ts): one URL in env, no list to manage, **no** `registerRoutes`.
+Shipped [`notify/webhook`](../api/src/plugins/notify/webhook/) is the same idea for a single URL: `GET/PUT /config`, `POST /test`, sidecar `data/webhook.json`, Webhook page in the UI.
 
-A smaller check-plugin pattern is the same idea: `GET/PUT /config` for a keyword needle (see [keyword example](#2-check-keyword-in-response-body-plugin-config-api--ui)).
+A smaller check-plugin pattern is also the same idea: `GET/PUT /config` for a keyword needle (see [keyword example](#2-check-keyword-in-response-body-plugin-config-api--ui)).
 
 ### Mechanics
 
@@ -703,7 +759,7 @@ UI: one panel, input for needle, Save → `PUT`. Use `api` helpers if you add th
 
 This is the usual “check plugin with a settings page” pattern.
 
-### 3. Notifier: ntfy (env-only, no UI)
+### 3. Notifier: ntfy (`notify()` skeleton)
 
 Phone notifications without FCM. Client installs [ntfy](https://ntfy.sh); UMPIRE POSTs to a topic.
 
@@ -746,7 +802,7 @@ const ntfy: NotifierPlugin = {
 export default ntfy
 ```
 
-`NTFY_URL=https://ntfy.sh/your-secret-topic`. Same idea as shipped [`notify/webhook`](../api/src/plugins/notify/webhook/index.ts) (`WEBHOOK_URL` + optional `WEBHOOK_HEADERS` JSON, body = full `AlertEvent`).
+`NTFY_URL=https://ntfy.sh/your-secret-topic` in this snippet is abbreviated. For a real plugin, copy shipped [`notify/webhook`](../api/src/plugins/notify/webhook/): sidecar + `GET/PUT /config` + UI, not `.env`.
 
 ### 4. Notifier: many destinations + routing + test + UI
 
@@ -857,9 +913,9 @@ export default {
 | Do | Don’t |
 |----|--------|
 | Return a full `CheckOutcome` | Call notifiers or write `check_results` |
-| Timeouts via env (`CHECK_TIMEOUT_MS` pattern) | Expect more than `url` from core |
+| Timeouts with a sensible default; extra settings via plugin routes/files | Expect more than `url` from core |
 | `statusCode` when it applies, else `null` | Mutate core tables |
-| Config via plugin routes/files if you need more than `url` | Throw on probe failure |
+| Config via plugin routes/files if you need more than `url` | Throw on probe failure; put settings in `.env` |
 
 ### Notifiers
 
@@ -868,8 +924,8 @@ export default {
 | Deliver `title` / `body` | Decide alert policy |
 | Own destinations under `/api/plugins/notify/<id>` | Write `check_results` / `target_state` |
 | Honest `isReady()` | Assume you are the only notifier |
-| Secrets in env or plugin files | Put notifier tables into core SQLite |
-| Relative paths (`/tokens`) | Absolute core paths (`/api/targets`) |
+| Secrets in plugin sidecar files (or host credentials for SDKs) | Put notifier tables into core SQLite |
+| Relative paths (`/tokens`, `/config`) | Absolute core paths (`/api/targets`); plugin settings in `.env` |
 | Filter with `event.checks[].id` | Parse `error` / `body` for check ids |
 
 ### Schedulers
@@ -909,9 +965,9 @@ After enabling a plugin:
 
 | Plugin | Path | Why read it |
 |--------|------|-------------|
-| HTTP check | [`api/src/plugins/check/http/index.ts`](../api/src/plugins/check/http/index.ts) | Minimal check, timeout env, no UI |
+| HTTP check | [`api/src/plugins/check/http/index.ts`](../api/src/plugins/check/http/index.ts) | Minimal check, timeout default, no UI |
 | Interval scheduler | [`api/src/plugins/scheduler/interval/index.ts`](../api/src/plugins/scheduler/interval/index.ts) | Differential `reschedule`, Pause, stagger |
-| Webhook notifier | [`api/src/plugins/notify/webhook/index.ts`](../api/src/plugins/notify/webhook/index.ts) | Env-only notifier, JSON `AlertEvent` POST |
+| Webhook notifier | [`api/src/plugins/notify/webhook/`](../api/src/plugins/notify/webhook/) | Sidecar + `GET/PUT /config` + test POST + UI |
 | FCM notifier | [`api/src/plugins/notify/fcm/`](../api/src/plugins/notify/fcm/) | Storage, CRUD, OpenAPI, test sends, full UI |
 
 Host pieces: [`registry.ts`](../api/src/plugins/registry.ts) (load), [`routes.ts`](../api/src/plugins/routes.ts) (mount + catalog), [`web/src/App.tsx`](../web/src/App.tsx) (UI glob + dashboard widgets), [`web/src/plugin-ui.ts`](../web/src/plugin-ui.ts) (`PluginUiModule` / `Dashboard`), [`web/src/pages/Dashboard.tsx`](../web/src/pages/Dashboard.tsx) (widget slot), [`web/src/api.ts`](../web/src/api.ts) (HTTP client).
