@@ -8,6 +8,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:ci": "NODE_OPTIONS=--experimental-vm-modules jest --ci --watchman=false --reporters=default --reporters=jest-junit",
     "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch"
   },
   "dependencies": {
@@ -22,6 +23,7 @@
     "@types/jest": "^30.0.0",
     "@types/node": "^22.10.5",
     "jest": "^30.4.2",
+    "jest-junit": "^16.0.0",
     "ts-jest": "^29.4.12",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3"

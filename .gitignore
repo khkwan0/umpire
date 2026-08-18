@@ -8,5 +8,7 @@ firebase-service-account.json
 .DS_Store
 web/dist/
 api/dist/
+junit.xml
+coverage/
 fcm-tokens.json
 webhook.json

@@ -103,6 +103,15 @@ API unit tests:
 cd api && npm test
 ```
 
+CI locally (same as Jenkins API/Web stages):
+
+```bash
+cd api && npm ci && npm run test:ci && npm run build
+cd ../web && npm ci && npm run build
+```
+
+Jenkins: [docs/jenkins.md](docs/jenkins.md) (`Jenkinsfile` at the repo root).
+
 Or run with Docker Compose (optional deploy path):
 
 ```bash
@@ -159,4 +168,5 @@ SQLite file: `./data/monitor.sqlite` (bind-mounted in Compose at `/data/monitor.
 - No auth on the UI — bind to localhost or put it behind a VPN/firewall
 - Default branch for this repo is `master`
 - Docker Compose is optional; prefer host `npm run dev` when writing plugins
+- CI/CD: Jenkins Pipeline in `Jenkinsfile` — [setup](docs/jenkins.md)
 - Plugin authoring (API + UI + dashboard widgets): [docs/plugins.md](docs/plugins.md)
