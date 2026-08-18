@@ -12,6 +12,66 @@ function toggleId(list: string[], id: string): string[] {
   return list.includes(id) ? list.filter((x) => x !== id) : [...list, id]
 }
 
+const MIN_INTERVAL_SECONDS = 5
+
+function IntervalField({
+  value,
+  ariaLabel,
+  onSave,
+}: {
+  value: number
+  ariaLabel: string
+  onSave: (next: number) => Promise<void>
+}) {
+  const [draft, setDraft] = useState(String(value))
+  useEffect(() => {
+    setDraft(String(value))
+  }, [value])
+
+  async function commit() {
+    const next = Number(draft)
+    if (!Number.isInteger(next) || next < MIN_INTERVAL_SECONDS) {
+      setDraft(String(value))
+      return
+    }
+    if (next === value) {
+      setDraft(String(value))
+      return
+    }
+    try {
+      await onSave(next)
+    } catch {
+      setDraft(String(value))
+    }
+  }
+
+  return (
+    <label className="interval-edit">
+      <input
+        className="cell-input"
+        type="number"
+        min={MIN_INTERVAL_SECONDS}
+        step={1}
+        aria-label={ariaLabel}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => void commit()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            e.currentTarget.blur()
+          }
+          if (e.key === 'Escape') {
+            setDraft(String(value))
+            e.currentTarget.blur()
+          }
+        }}
+      />
+      <span className="muted">s</span>
+    </label>
+  )
+}
+
 export default function Targets() {
   const [targets, setTargets] = useState<Target[]>([])
   const [groups, setGroups] = useState<Group[]>([])
@@ -85,6 +145,17 @@ export default function Targets() {
   async function toggle(t: Target) {
     await api.targets.update(t.id, { enabled: !t.enabled })
     await load()
+  }
+
+  async function changeInterval(t: Target, next: number) {
+    setError(null)
+    try {
+      await api.targets.update(t.id, { interval_seconds: next })
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+      throw err
+    }
   }
 
   async function changeGroup(t: Target, next: number | null) {
@@ -330,7 +401,13 @@ export default function Targets() {
                         </div>
                       )}
                     </td>
-                    <td>{t.interval_seconds}s</td>
+                    <td>
+                      <IntervalField
+                        value={t.interval_seconds}
+                        ariaLabel={`Interval in seconds for ${t.url}`}
+                        onSave={(next) => changeInterval(t, next)}
+                      />
+                    </td>
                     <td>{t.enabled ? 'yes' : 'no'}</td>
                     <td>
                       <div className="actions">

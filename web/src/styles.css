@@ -299,7 +299,7 @@ label.check-ids-item {
   cursor: help;
 }
 
-.tokens-table .cell-input {
+.cell-input {
   width: 100%;
   min-width: 0;
   padding: 0.3rem 0.4rem;
@@ -308,15 +308,26 @@ label.check-ids-item {
   border-color: transparent;
 }
 
-.tokens-table .cell-input.mono {
+.cell-input.mono {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 0.78rem;
 }
 
-.tokens-table .cell-input:hover,
-.tokens-table .cell-input:focus {
+.cell-input:hover,
+.cell-input:focus {
   background: #fff;
   border-color: var(--line);
+}
+
+.interval-edit {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 5.5rem;
+}
+
+.interval-edit .cell-input {
+  width: 4.5rem;
 }
 
 .token-status {
