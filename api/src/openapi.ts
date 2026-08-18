@@ -265,7 +265,7 @@ const alertEventSchema = {
     'checks',
   ],
   description:
-    'Payload passed to notifier plugins. The webhook notifier POSTs this JSON to its configured URL.',
+    'Payload passed to notifier plugins. The webhook notifier sends this JSON (body or query, depending on method) to its configured URL.',
   properties: {
     target: {
       type: 'object',
@@ -374,7 +374,7 @@ export async function registerOpenApi(app: FastifyInstance): Promise<void> {
       info: {
         title: 'UMPIRE API',
         description:
-          'Universal Monitoring Plugin & Incident Reporter. Manage targets (with per-target check_ids / notifier_ids allowlists), groups, alert settings, and plugins. Plugin HTTP APIs are namespaced under /api/plugins/<kind>/<id>. See GET /api/plugins for the route catalog. Notifier plugins receive an AlertEvent (see components); the webhook notifier POSTs that JSON body to the URL set in its UI.',
+          'Universal Monitoring Plugin & Incident Reporter. Manage targets (with per-target check_ids / notifier_ids allowlists), groups, alert settings, and plugins. Plugin HTTP APIs are namespaced under /api/plugins/<kind>/<id>. See GET /api/plugins for the route catalog. Notifier plugins receive an AlertEvent (see components); the webhook notifier delivers that JSON with the HTTP method set in its UI.',
         version: '1.0.0',
       },
       tags: [
@@ -400,7 +400,7 @@ export async function registerOpenApi(app: FastifyInstance): Promise<void> {
         {
           name: 'webhook',
           description:
-            'Webhook URL and headers at /api/plugins/notify/webhook/config (webhook notifier)',
+            'Webhook URL, HTTP method, and headers at /api/plugins/notify/webhook/config (webhook notifier)',
         },
         { name: 'settings', description: 'Alert policy' },
         { name: 'status', description: 'Dashboard summary' },

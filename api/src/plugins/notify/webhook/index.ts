@@ -1,7 +1,7 @@
 import type { AlertEvent, NotifierPlugin } from '../../types.js'
 import { isConfigured, readConfig, seedFromEnvIfNeeded } from './config.js'
 import { registerWebhookRoutes } from './routes.js'
-import { postAlert } from './send.js'
+import { sendAlert } from './send.js'
 
 const webhookNotifier: NotifierPlugin = {
   id: 'webhook',
@@ -32,7 +32,7 @@ const webhookNotifier: NotifierPlugin = {
       console.warn('[notify:webhook] skip send — URL not configured')
       return
     }
-    await postAlert(config, event)
+    await sendAlert(config, event)
   },
 }
 

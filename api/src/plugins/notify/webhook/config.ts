@@ -1,12 +1,33 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+export const WEBHOOK_METHODS = [
+  'GET',
+  'HEAD',
+  'POST',
+  'PUT',
+  'PATCH',
+  'DELETE',
+  'OPTIONS',
+] as const
+
+export type WebhookMethod = (typeof WEBHOOK_METHODS)[number]
+
+/** Methods that send AlertEvent as a JSON body. Others put it on the query string. */
+export const WEBHOOK_BODY_METHODS: ReadonlySet<WebhookMethod> = new Set([
+  'POST',
+  'PUT',
+  'PATCH',
+  'DELETE',
+])
+
 export interface WebhookConfig {
   url: string
+  method: WebhookMethod
   headers: Record<string, string>
 }
 
-const empty: WebhookConfig = { url: '', headers: {} }
+const empty: WebhookConfig = { url: '', method: 'POST', headers: {} }
 
 function configPath(): string {
   const databasePath = process.env.DATABASE_PATH || './data/monitor.sqlite'
@@ -31,6 +52,18 @@ export function parseHeaders(input: unknown): Record<string, string> {
   return out
 }
 
+export function parseMethod(input: unknown): WebhookMethod {
+  if (input === undefined || input === null || input === '') return 'POST'
+  if (typeof input !== 'string') {
+    throw new Error(`method must be one of ${WEBHOOK_METHODS.join(', ')}`)
+  }
+  const method = input.trim().toUpperCase()
+  if (!(WEBHOOK_METHODS as readonly string[]).includes(method)) {
+    throw new Error(`method must be one of ${WEBHOOK_METHODS.join(', ')}`)
+  }
+  return method as WebhookMethod
+}
+
 /** Empty string is allowed (not ready). Non-empty must be http(s). */
 export function validateUrl(url: string): string | null {
   const trimmed = url.trim()
@@ -48,7 +81,7 @@ export function validateUrl(url: string): string | null {
 
 export function normalizeConfig(input: unknown): WebhookConfig {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
-    throw new Error('body must be { url, headers? }')
+    throw new Error('body must be { url, method?, headers? }')
   }
   const row = input as Record<string, unknown>
   if (typeof row.url !== 'string') {
@@ -57,7 +90,11 @@ export function normalizeConfig(input: unknown): WebhookConfig {
   const url = row.url.trim()
   const urlError = validateUrl(url)
   if (urlError) throw new Error(urlError)
-  return { url, headers: parseHeaders(row.headers) }
+  return {
+    url,
+    method: parseMethod(row.method),
+    headers: parseHeaders(row.headers),
+  }
 }
 
 export function isConfigured(config: WebhookConfig): boolean {
@@ -79,7 +116,11 @@ export function readConfig(): WebhookConfig {
 export function writeConfig(config: WebhookConfig): WebhookConfig {
   const file = configPath()
   fs.mkdirSync(path.dirname(file), { recursive: true })
-  const next = { url: config.url, headers: config.headers }
+  const next: WebhookConfig = {
+    url: config.url,
+    method: config.method,
+    headers: config.headers,
+  }
   fs.writeFileSync(file, JSON.stringify(next, null, 2), 'utf8')
   return next
 }
@@ -99,7 +140,7 @@ export function seedFromEnvIfNeeded(): void {
         ? (JSON.parse(process.env.WEBHOOK_HEADERS) as unknown)
         : {},
     )
-    const config = normalizeConfig({ url, headers })
+    const config = normalizeConfig({ url, method: 'POST', headers })
     writeConfig(config)
     console.warn(
       '[notify:webhook] copied WEBHOOK_URL into webhook.json; configure in the UI going forward',

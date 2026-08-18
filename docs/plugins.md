@@ -310,7 +310,7 @@ Add it when the plugin owns **runtime data or actions** that do not belong in fr
 |-------------------|--------|-----|
 | **No** | Shipped `http` check | Probe uses only the target `url` |
 | **No** | Shipped `interval` scheduler | Timing uses core `interval_seconds` |
-| **Yes** | Shipped `webhook` notifier | URL and headers are plugin-owned (`data/webhook.json` + Webhook page) |
+| **Yes** | Shipped `webhook` notifier | URL, HTTP method, and headers are plugin-owned (`data/webhook.json` + Webhook page) |
 | **Yes** | Shipped `fcm` notifier | Many device FIDs, enable/disable, per-token filters, test push |
 | **Yes** | Keyword check (cookbook below) | Needle string is plugin config, not a core column |
 
@@ -341,7 +341,7 @@ Relative routes in [`routes.ts`](../api/src/plugins/notify/fcm/routes.ts) become
 
 The plugin UI (`ui/TokensPage.tsx`) `fetch`es those URLs. `notify()` reads the sidecar and sends. Without `registerRoutes`, operators would edit `fcm-tokens.json` by hand and could not test a device from the dashboard.
 
-Shipped [`notify/webhook`](../api/src/plugins/notify/webhook/) is the same idea for a single URL: `GET/PUT /config`, `POST /test`, sidecar `data/webhook.json`, Webhook page in the UI.
+Shipped [`notify/webhook`](../api/src/plugins/notify/webhook/) is the same idea for a single URL: `GET/PUT /config` (URL, HTTP method, headers), `POST /test`, sidecar `data/webhook.json`, Webhook page in the UI. POST/PUT/PATCH/DELETE send `AlertEvent` as JSON; GET/HEAD/OPTIONS put it on the query string.
 
 A smaller check-plugin pattern is also the same idea: `GET/PUT /config` for a keyword needle (see [keyword example](#2-check-keyword-in-response-body-plugin-config-api--ui)).
 
@@ -973,7 +973,7 @@ After enabling a plugin:
 |--------|------|-------------|
 | HTTP check | [`api/src/plugins/check/http/index.ts`](../api/src/plugins/check/http/index.ts) | Minimal check, timeout default, no UI |
 | Interval scheduler | [`api/src/plugins/scheduler/interval/index.ts`](../api/src/plugins/scheduler/interval/index.ts) | Differential `reschedule`, Pause, stagger |
-| Webhook notifier | [`api/src/plugins/notify/webhook/`](../api/src/plugins/notify/webhook/) | Sidecar + `GET/PUT /config` + test POST + UI |
+| Webhook notifier | [`api/src/plugins/notify/webhook/`](../api/src/plugins/notify/webhook/) | Sidecar + method/URL/headers + test + UI |
 | FCM notifier | [`api/src/plugins/notify/fcm/`](../api/src/plugins/notify/fcm/) | Storage, CRUD, OpenAPI, test sends, full UI |
 
 Host pieces: [`registry.ts`](../api/src/plugins/registry.ts) (load), [`routes.ts`](../api/src/plugins/routes.ts) (mount + catalog), [`web/src/App.tsx`](../web/src/App.tsx) (UI glob + dashboard widgets), [`web/src/plugin-ui.ts`](../web/src/plugin-ui.ts) (`PluginUiModule` / `Dashboard`), [`web/src/pages/Dashboard.tsx`](../web/src/pages/Dashboard.tsx) (widget slot), [`web/src/api.ts`](../web/src/api.ts) (HTTP client).

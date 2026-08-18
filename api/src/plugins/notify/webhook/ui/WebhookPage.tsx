@@ -1,8 +1,21 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import type { DashboardWidgetProps } from '@umpire/plugin-ui'
 
+const METHODS = [
+  'GET',
+  'HEAD',
+  'POST',
+  'PUT',
+  'PATCH',
+  'DELETE',
+  'OPTIONS',
+] as const
+
+type WebhookMethod = (typeof METHODS)[number]
+
 export interface WebhookConfig {
   url: string
+  method: WebhookMethod
   headers: Record<string, string>
 }
 
@@ -47,8 +60,24 @@ function parseHeadersText(raw: string): Record<string, string> {
   return out
 }
 
+function asMethod(value: string | undefined): WebhookMethod {
+  const next = (value ?? 'POST').toUpperCase()
+  return (METHODS as readonly string[]).includes(next)
+    ? (next as WebhookMethod)
+    : 'POST'
+}
+
+function configBody(url: string, method: WebhookMethod, headersText: string) {
+  return JSON.stringify({
+    url: url.trim(),
+    method,
+    headers: parseHeadersText(headersText),
+  })
+}
+
 export default function WebhookPage() {
   const [url, setUrl] = useState('')
+  const [method, setMethod] = useState<WebhookMethod>('POST')
   const [headersText, setHeadersText] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -62,6 +91,7 @@ export default function WebhookPage() {
       '/api/plugins/notify/webhook/config',
     )
     setUrl(config.url)
+    setMethod(asMethod(config.method))
     setHeadersText(headersToText(config.headers))
     setLoaded(true)
   }, [])
@@ -83,13 +113,11 @@ export default function WebhookPage() {
         '/api/plugins/notify/webhook/config',
         {
           method: 'PUT',
-          body: JSON.stringify({
-            url: url.trim(),
-            headers: parseHeadersText(headersText),
-          }),
+          body: configBody(url, method, headersText),
         },
       )
       setUrl(saved.url)
+      setMethod(asMethod(saved.method))
       setHeadersText(headersToText(saved.headers))
       setMessage(saved.url ? 'Saved' : 'Saved (empty URL — notifier off)')
     } catch (err) {
@@ -108,13 +136,11 @@ export default function WebhookPage() {
         '/api/plugins/notify/webhook/config',
         {
           method: 'PUT',
-          body: JSON.stringify({
-            url: url.trim(),
-            headers: parseHeadersText(headersText),
-          }),
+          body: configBody(url, method, headersText),
         },
       )
       setUrl(saved.url)
+      setMethod(asMethod(saved.method))
       setHeadersText(headersToText(saved.headers))
       const result = await request<WebhookTestResult>(
         '/api/plugins/notify/webhook/test',
@@ -138,12 +164,27 @@ export default function WebhookPage() {
       <section className="panel">
         <h2>Webhook</h2>
         <p className="muted">
-          On alert, core already decided to notify. This plugin POSTs the{' '}
-          <code>AlertEvent</code> JSON to one URL. Config is plugin-owned (
-          <code>data/webhook.json</code>), not core SQLite and not{' '}
-          <code>.env</code>.
+          On alert, core already decided to notify. This plugin sends the{' '}
+          <code>AlertEvent</code> with the HTTP method you choose. POST, PUT,
+          PATCH, and DELETE send JSON in the body. GET, HEAD, and OPTIONS put
+          the event on the query string (<code>payload</code> plus title, body,
+          status). Config is plugin-owned (<code>data/webhook.json</code>), not
+          core SQLite and not <code>.env</code>.
         </p>
         <form className="form-col" onSubmit={onSave}>
+          <label>
+            Method
+            <select
+              value={method}
+              onChange={(e) => setMethod(asMethod(e.target.value))}
+            >
+              {METHODS.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="grow">
             URL
             <input
@@ -181,7 +222,7 @@ export default function WebhookPage() {
         {test && (
           <p className={test.ok ? 'ok-text' : 'error'}>
             {test.ok
-              ? 'Test POST succeeded'
+              ? `Test ${method} succeeded`
               : `Test failed: ${test.error ?? 'unknown error'}`}
           </p>
         )}
@@ -195,7 +236,7 @@ export function WebhookWidget({ status }: DashboardWidgetProps) {
   return (
     <p className="muted">
       {ready
-        ? 'POSTs AlertEvent JSON to the configured URL.'
+        ? 'Sends AlertEvent to the configured URL using the selected HTTP method.'
         : 'Set a webhook URL to enable delivery.'}
     </p>
   )

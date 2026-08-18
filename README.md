@@ -33,7 +33,7 @@ Enabled out of the box by [`api/plugins.json`](api/plugins.json) (override with 
 |------|-------------|---------|--------------|
 | **Check** | One or more | `http` | HTTP GET; **200 = healthy** (`CHECK_TIMEOUT_MS`, default 10s) |
 | **Scheduler** | **Exactly one** | `interval` | Per-target `interval_seconds` timers; honors Pause |
-| **Notifier** | Zero or more | `fcm`, `webhook` | FCM to stored FIDs; POST `AlertEvent` JSON to a URL |
+| **Notifier** | Zero or more | `fcm`, `webhook` | FCM to stored FIDs; HTTP call (GET/POST/PUT/PATCH/…) with `AlertEvent` |
 
 The scheduler is a plugin so timing *can* be replaced, but **leave `interval` in place for almost every deployment**. Per-target frequency is already a core field (`interval_seconds` on each target, including Pause). Write a different scheduler only if you need a different *kind* of clock (cron, business hours, a global tick). You cannot load two schedulers.
 
@@ -97,6 +97,12 @@ In another terminal:
 cd web && npm install && npm run dev
 ```
 
+API unit tests:
+
+```bash
+cd api && npm test
+```
+
 Or run with Docker Compose (optional deploy path):
 
 ```bash
@@ -128,8 +134,8 @@ Swagger UI: [http://localhost:8089/documentation](http://localhost:8089/document
 - `POST /api/plugins/notify/fcm/tokens/test` — send a test push to a raw FID or legacy token
 - `POST /api/plugins/notify/fcm/tokens/:id/test` — send a test push; FCM success is stored as `sent`, not `ok`
 - `POST /api/plugins/notify/fcm/tokens/:id/received` — `{ received: true|false }` confirms on-device result (`false` disables the token)
-- `GET/PUT /api/plugins/notify/webhook/config` — webhook URL + headers
-- `POST /api/plugins/notify/webhook/test` — POST a sample `AlertEvent` to the saved URL
+- `GET/PUT /api/plugins/notify/webhook/config` — webhook URL, HTTP method, and headers
+- `POST /api/plugins/notify/webhook/test` — send a sample `AlertEvent` using the saved URL and method
 - `GET/PUT /api/settings`
 - `GET /api/status`
 - `GET /api/schema`
