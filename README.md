@@ -2,7 +2,7 @@
 
 **Universal Monitoring Plugin & Incident Reporter** is a **plugin architecture** for monitoring. Core is the host: it stores data, runs the pipeline, and enforces contracts. **Check**, **scheduler**, and **notifier** plugins do the actual probing, timing, and delivery. Swap or add plugins without changing core.
 
-Default process-wide set in [`api/plugins.json`](api/plugins.json): **`http`** check, **`interval`** scheduler, **`fcm`** notifier.
+Default process-wide set in [`api/plugins.json`](api/plugins.json): **`http`** check, **`interval`** scheduler, **`fcm`** and **`webhook`** notifiers.
 
 ## Plugin architecture
 
@@ -25,21 +25,19 @@ Enabled out of the box by [`api/plugins.json`](api/plugins.json) (override with 
 {
   "checks": ["http"],
   "scheduler": "interval",
-  "notifiers": ["fcm"]
+  "notifiers": ["fcm", "webhook"]
 }
 ```
 
-| Kind | Cardinality | Default (enabled) | Also shipped | What the default does |
-|------|-------------|-------------------|--------------|------------------------|
-| **Check** | One or more | `http` | — | HTTP GET; **200 = healthy** (`CHECK_TIMEOUT_MS`, default 10s) |
-| **Scheduler** | **Exactly one** | `interval` | — | Per-target `interval_seconds` timers; honors Pause |
-| **Notifier** | Zero or more | `fcm` | `webhook` | Firebase Cloud Messaging to stored FIDs |
+| Kind | Cardinality | Default | What it does |
+|------|-------------|---------|--------------|
+| **Check** | One or more | `http` | HTTP GET; **200 = healthy** (`CHECK_TIMEOUT_MS`, default 10s) |
+| **Scheduler** | **Exactly one** | `interval` | Per-target `interval_seconds` timers; honors Pause |
+| **Notifier** | Zero or more | `fcm`, `webhook` | FCM to stored FIDs; POST `AlertEvent` JSON to a URL |
 
 The scheduler is a plugin so timing *can* be replaced, but **leave `interval` in place for almost every deployment**. Per-target frequency is already a core field (`interval_seconds` on each target, including Pause). Write a different scheduler only if you need a different *kind* of clock (cron, business hours, a global tick). You cannot load two schedulers.
 
-`webhook` is in the repo but **not** in the default `notifiers` list. To use it: add `"webhook"` to `notifiers`, restart, then set the URL on the **Webhook** page in the UI (or `PUT /api/plugins/notify/webhook/config`). You can run `fcm` and `webhook` together.
-
-On each target, leave check/notifier boxes unchecked to use **all** loaded plugins of that kind, or tick a subset. Empty allowlists are stored as `[]`.
+Both notifiers load together. Each reports `ready: false` until it is configured in its own UI (FCM FIDs + Firebase credentials; Webhook URL). An unready notifier is skipped on send. On each target, leave check/notifier boxes unchecked to use **all** loaded plugins of that kind, or tick a subset. Empty allowlists are stored as `[]`.
 
 **Writing plugins** (contracts, HTTP APIs, UI, dashboard widgets, cookbooks): **[Plugin developer guide](docs/plugins.md)**.
 
@@ -105,9 +103,9 @@ Or run with Docker Compose (optional deploy path):
 docker compose up --build -d
 ```
 
-Open the UI, add a target URL + interval, add an FCM FID (if using the `fcm` notifier), pick an alert policy.
+Open the UI, add a target URL + interval, add an FCM FID and/or a webhook URL, pick an alert policy.
 
-Without valid Firebase credentials the API still runs and checks targets; the FCM notifier reports `ready: false` on the dashboard.
+Without Firebase credentials the API still runs and checks targets; FCM reports `ready: false`. Webhook stays `ready: false` until you set a URL on the **Webhook** page.
 
 ## Alert policies
 
@@ -125,12 +123,12 @@ Swagger UI: [http://localhost:8089/documentation](http://localhost:8089/document
 - `GET /api/checks` — loaded check plugins `{ id }`
 - `GET /api/notifiers` — loaded notifier plugins `{ id, ready }`
 - `GET /api/plugins` — loaded plugins + namespaced HTTP routes
-- `GET/POST/PATCH/DELETE /api/plugins/notify/fcm/tokens` — FCM destinations (FID preferred; `target_ids` / `check_ids`); only when `fcm` is enabled
+- `GET/POST/PATCH/DELETE /api/plugins/notify/fcm/tokens` — FCM destinations (FID preferred; `target_ids` / `check_ids`)
 - `POST /api/plugins/notify/fcm/tokens/import` — import `{ fids: [...] }` (or `{ tokens: [...] }`); duplicates skipped
 - `POST /api/plugins/notify/fcm/tokens/test` — send a test push to a raw FID or legacy token
 - `POST /api/plugins/notify/fcm/tokens/:id/test` — send a test push; FCM success is stored as `sent`, not `ok`
 - `POST /api/plugins/notify/fcm/tokens/:id/received` — `{ received: true|false }` confirms on-device result (`false` disables the token)
-- `GET/PUT /api/plugins/notify/webhook/config` — webhook URL + headers; only when `webhook` is enabled
+- `GET/PUT /api/plugins/notify/webhook/config` — webhook URL + headers
 - `POST /api/plugins/notify/webhook/test` — POST a sample `AlertEvent` to the saved URL
 - `GET/PUT /api/settings`
 - `GET /api/status`

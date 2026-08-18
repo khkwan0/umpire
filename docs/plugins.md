@@ -78,7 +78,7 @@ Optional for every kind:
 - `ui/index.tsx` — nav item + page in the web shell
 - `Dashboard` on that UI module — optional panel on the **core** home page (does not replace the dashboard)
 
-**Default shipped set:** `http` check, `interval` scheduler, `fcm` notifier.
+**Default shipped set:** `http` check, `interval` scheduler, `fcm` and `webhook` notifiers.
 
 Most plugin work is **checks** and **notifiers**. The scheduler is a plugin so a different clock is possible, but **do not replace `interval` for ordinary use**. Change how often a target runs with its `interval_seconds` (and Pause) in the UI. Write a scheduler only if you need a different *when* (cron, business hours, one global tick). Hello-world schedulers below are for learning; they replace `interval` process-wide.
 
@@ -550,7 +550,7 @@ export default {
 {
   "checks": ["http", "hello"],
   "scheduler": "interval",
-  "notifiers": ["fcm"]
+  "notifiers": ["fcm", "webhook"]
 }
 ```
 
@@ -588,7 +588,7 @@ export default helloNotifier
 `plugins.json`:
 
 ```json
-"notifiers": ["fcm", "hello"]
+"notifiers": ["fcm", "webhook", "hello"]
 ```
 
 Trigger an alert (or temporarily use policy `every_fail`) and watch API logs for `[notify:hello]`.

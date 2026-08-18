@@ -1,5 +1,5 @@
 {
   "checks": ["http"],
   "scheduler": "interval",
-  "notifiers": ["fcm"]
+  "notifiers": ["fcm", "webhook"]
 }
