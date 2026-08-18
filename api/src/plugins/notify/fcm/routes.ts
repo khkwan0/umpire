@@ -10,7 +10,7 @@ import {
   recordTokenTest,
   updateToken,
 } from './tokens.js'
-import { isUnregisteredTokenError, sendToDevice } from './send.js'
+import { isUnregisteredTokenError, sendToMany, testPushCopy } from './send.js'
 
 const errorResponse = {
   type: 'object',
@@ -169,7 +169,12 @@ export async function registerFcmRoutes(app: FastifyInstance): Promise<void> {
       if (!destination) {
         return reply.code(400).send({ error: 'fid or token required' })
       }
-      return sendToDevice(destination)
+      const copy = testPushCopy(destination)
+      const res = await sendToMany([destination], copy.title, copy.body)
+      return {
+        ok: res.successCount > 0,
+        error: res.errors[0] ?? null,
+      }
     },
   )
 
@@ -198,13 +203,14 @@ export async function registerFcmRoutes(app: FastifyInstance): Promise<void> {
       }
       const row = getToken(id)
       if (!row) return reply.code(404).send({ error: 'not found' })
-      const result = await sendToDevice(row.token)
-      const updated = result.ok
+      const copy = testPushCopy(row.token)
+      const result = await sendToMany([row.token], copy.title, copy.body)
+      const ok = result.successCount > 0
+      const error = result.errors[0] ?? null
+      const updated = ok
         ? recordTokenTest(id, 'sent', null)
-        : recordTokenTest(id, 'error', result.error, {
-            enabled: isUnregisteredTokenError(result.error || '')
-              ? false
-              : undefined,
+        : recordTokenTest(id, 'error', error, {
+            enabled: isUnregisteredTokenError(error || '') ? false : undefined,
           })
       if (!updated) return reply.code(404).send({ error: 'not found' })
       return updated
@@ -306,6 +312,8 @@ export async function registerFcmRoutes(app: FastifyInstance): Promise<void> {
   app.patch<{
     Params: { id: string }
     Body: {
+      fid?: string
+      token?: string
       label?: string
       enabled?: boolean
       target_ids?: number[]
@@ -316,7 +324,7 @@ export async function registerFcmRoutes(app: FastifyInstance): Promise<void> {
     {
       schema: {
         tags: ['tokens'],
-        summary: 'Update FCM token',
+        summary: 'Update FCM destination (label, FID/token, enabled, filters)',
         params: {
           type: 'object',
           required: ['id'],
@@ -325,6 +333,8 @@ export async function registerFcmRoutes(app: FastifyInstance): Promise<void> {
         body: {
           type: 'object',
           properties: {
+            fid: { type: 'string' },
+            token: { type: 'string' },
             label: { type: 'string' },
             enabled: { type: 'boolean' },
             target_ids: targetIdsSchema,
@@ -335,6 +345,7 @@ export async function registerFcmRoutes(app: FastifyInstance): Promise<void> {
           200: { $ref: 'FcmToken#' },
           400: errorResponse,
           404: errorResponse,
+          409: errorResponse,
         },
       },
     },
@@ -345,11 +356,19 @@ export async function registerFcmRoutes(app: FastifyInstance): Promise<void> {
       }
       try {
         const patch: {
+          token?: string
           label?: string
           enabled?: boolean
           target_ids?: number[]
           check_ids?: string[]
         } = {}
+        if (req.body?.fid !== undefined || req.body?.token !== undefined) {
+          const destination = destinationFromBody(req.body)
+          if (!destination) {
+            return reply.code(400).send({ error: 'fid or token required' })
+          }
+          patch.token = destination
+        }
         if (req.body?.label !== undefined) patch.label = req.body.label
         if (req.body?.enabled !== undefined) patch.enabled = req.body.enabled
         if (req.body?.target_ids !== undefined) {
@@ -362,9 +381,11 @@ export async function registerFcmRoutes(app: FastifyInstance): Promise<void> {
         if (!updated) return reply.code(404).send({ error: 'not found' })
         return updated
       } catch (err) {
-        return reply
-          .code(400)
-          .send({ error: err instanceof Error ? err.message : String(err) })
+        const message = err instanceof Error ? err.message : String(err)
+        if (message.includes('UNIQUE') || message.includes('already exists')) {
+          return reply.code(409).send({ error: 'token already exists' })
+        }
+        return reply.code(400).send({ error: message })
       }
     },
   )

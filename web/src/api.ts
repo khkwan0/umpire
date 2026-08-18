@@ -203,6 +203,8 @@ export const api = {
     update: (
       id: number,
       data: Partial<{
+        fid: string
+        token: string
         label: string
         enabled: boolean
         target_ids: number[]

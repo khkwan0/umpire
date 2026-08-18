@@ -12,6 +12,64 @@ function toggleId<T extends string | number>(list: T[], id: T): T[] {
   return list.includes(id) ? list.filter((x) => x !== id) : [...list, id]
 }
 
+function DestinationField({
+  value,
+  ariaLabel,
+  className,
+  required,
+  onSave,
+}: {
+  value: string
+  ariaLabel: string
+  className?: string
+  required?: boolean
+  onSave: (next: string) => Promise<void>
+}) {
+  const [draft, setDraft] = useState(value)
+  useEffect(() => {
+    setDraft(value)
+  }, [value])
+
+  async function commit() {
+    const next = draft.trim()
+    if (required && !next) {
+      setDraft(value)
+      return
+    }
+    if (next === value.trim()) {
+      setDraft(value)
+      return
+    }
+    try {
+      await onSave(next)
+    } catch {
+      setDraft(value)
+    }
+  }
+
+  return (
+    <input
+      className={className}
+      aria-label={ariaLabel}
+      title={draft}
+      value={draft}
+      spellCheck={false}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => void commit()}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          e.currentTarget.blur()
+        }
+        if (e.key === 'Escape') {
+          setDraft(value)
+          e.currentTarget.blur()
+        }
+      }}
+    />
+  )
+}
+
 export default function TokensPage() {
   const [tokens, setTokens] = useState<FcmToken[]>([])
   const [targets, setTargets] = useState<Target[]>([])
@@ -79,6 +137,31 @@ export default function TokensPage() {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function changeLabel(t: FcmToken, next: string) {
+    setError(null)
+    try {
+      await api.tokens.update(t.id, { label: next })
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+      throw err
+    }
+  }
+
+  async function changeDestination(t: FcmToken, next: string) {
+    setError(null)
+    try {
+      await api.tokens.update(
+        t.id,
+        /:APA91/i.test(next) ? { token: next } : { fid: next },
+      )
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+      throw err
     }
   }
 
@@ -379,7 +462,9 @@ export default function TokensPage() {
           <ul className="muted small">
             {importResult.skipped.map((row, i) => (
               <li key={`${row.token}-${i}`}>
-                <span className="mono">{row.token}</span> — {row.reason}
+                <span className="mono" title={row.token}>
+                  {row.token}
+                </span> — {row.reason}
               </li>
             ))}
           </ul>
@@ -390,9 +475,11 @@ export default function TokensPage() {
       <section className="panel">
         <h2>Destinations</h2>
         <p className="muted small">
-          Test asks FCM to send. Values without <span className="mono">:APA91</span>{' '}
-          go out as <strong>fid</strong> (recommended). Legacy registration
-          tokens still use the deprecated <strong>token</strong> field.{' '}
+          Click a label or FID to edit it. Enter or blur saves; Escape
+          cancels. Changing the FID/token clears the last test result.
+          Values without <span className="mono">:APA91</span> go out as{' '}
+          <strong>fid</strong> (recommended). Legacy registration tokens still
+          use the deprecated <strong>token</strong> field.{' '}
           <strong>sent</strong> means FCM accepted it — not that a banner
           appeared. Use <strong>Got it</strong> or <strong>Not received</strong>{' '}
           after each test.
@@ -418,8 +505,23 @@ export default function TokensPage() {
                 const checkIds = t.check_ids ?? []
                 return (
                   <tr key={t.id}>
-                    <td>{t.label || '—'}</td>
-                    <td className="mono truncate">{t.token}</td>
+                    <td>
+                      <DestinationField
+                        value={t.label}
+                        ariaLabel={`Label for destination ${t.id}`}
+                        className="cell-input"
+                        onSave={(next) => changeLabel(t, next)}
+                      />
+                    </td>
+                    <td>
+                      <DestinationField
+                        value={t.token}
+                        ariaLabel={`FID or token for destination ${t.id}`}
+                        className="cell-input mono truncate"
+                        required
+                        onSave={(next) => changeDestination(t, next)}
+                      />
+                    </td>
                     <td>
                       {targets.length === 0 ? (
                         <span className="muted">all</span>
@@ -483,16 +585,14 @@ export default function TokensPage() {
                           t.last_test_ok ?? null,
                           t.last_test_error ?? null,
                         )}
-                        {(t.last_test_ok === 1 || t.last_test_ok === 2) && (
+                        {t.last_test_ok === 2 && (
                           <div className="actions">
-                            {t.last_test_ok === 2 && (
-                              <button
-                                type="button"
-                                onClick={() => void markReceived(t, true)}
-                              >
-                                Got it
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => void markReceived(t, true)}
+                            >
+                              Got it
+                            </button>
                             <button
                               type="button"
                               className="danger"

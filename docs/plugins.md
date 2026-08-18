@@ -1,0 +1,783 @@
+# Plugin developer guide
+
+Cookbook for writing UMPIRE **check**, **scheduler**, and **notifier** plugins — including optional HTTP APIs and React UI. Written so a developer or LLM can add a working plugin without reverse-engineering the repo.
+
+Operator setup (run the app, shipped plugins, core HTTP API) lives in [`README.md`](../README.md).
+
+## Contents
+
+1. [Start here](#start-here)
+2. [Mental model](#mental-model)
+3. [File layout](#file-layout)
+4. [Contracts](#contracts)
+5. [Enable loop](#enable-loop)
+6. [Plugin HTTP APIs](#plugin-http-apis)
+7. [Plugin UIs](#plugin-uis)
+8. [Allowlists](#allowlists)
+9. [Hello world](#hello-world) — copy-paste wiring for all three kinds
+10. [Real-world examples](#real-world-examples)
+11. [Do / don’t](#do--dont)
+12. [Verify](#verify)
+13. [Shipped references](#shipped-references)
+
+---
+
+## Start here
+
+| You want to… | Kind | Cardinality | Minimum hook |
+|--------------|------|-------------|--------------|
+| Probe a URL (HTTP, TLS, DNS, keyword, …) | `check` | One or more | `check(url)` |
+| Decide *when* targets run | `scheduler` | **Exactly one** process-wide | `start` / `stop` / `reschedule` |
+| Deliver an alert (FCM, webhook, ntfy, email, …) | `notify` | Zero or more | `isReady` + `notify(event)` |
+
+Optional for every kind:
+
+- `registerRoutes(app)` — plugin-owned HTTP under `/api/plugins/<kind>/<id>/…`
+- `ui/index.tsx` — nav item + page in the web shell
+
+**Default shipped set:** `http` check, `interval` scheduler, `fcm` notifier. Do not replace `interval` unless you intend to own scheduling. Hello-world schedulers below are for learning.
+
+**Id rule (must all match):** folder name, `plugins.json` entry, `plugin.id`, and UI `id`.
+
+---
+
+## Mental model
+
+```text
+plugins.json            → which modules load (process-wide pool)
+targets[]               → what to watch (url, interval, enabled, group)
+target.check_ids        → which loaded checks run for that target ([] = all)
+target.notifier_ids     → which loaded notifiers get alerts ([] = all)
+scheduler               → when to call core run(targetId)
+core pipeline           → checks → record SQLite → alert policy → notifiers
+alert policy            → whether notify() is called (not the notifier’s job)
+```
+
+Core owns SQLite (`groups`, `targets`, `settings`, `check_results`, `target_state`). Plugins **must not** `ALTER` those tables. Plugin-owned data (destinations, extra config) lives in env vars and/or files next to the DB (see `notify/fcm` → `data/fcm-tokens.json`).
+
+Plugins run **in-process** with API privileges. Only load code you trust. Extra npm deps go in [`api/package.json`](../api/package.json).
+
+Source of truth for TypeScript contracts: [`api/src/plugins/types.ts`](../api/src/plugins/types.ts). UI contract: [`web/src/plugin-ui.ts`](../web/src/plugin-ui.ts).
+
+---
+
+## File layout
+
+```text
+api/src/plugins/<kind>/<id>/
+  index.ts          # required — export default (or `plugin`)
+  routes.ts         # optional — Fastify routes
+  storage.ts        # optional — plugin-owned JSON/SQLite/etc.
+  ui/
+    index.tsx       # optional — PluginUiModule (nav + route)
+    Page.tsx        # optional — React page
+```
+
+Single-file plugins also work: `api/src/plugins/<kind>/<id>.ts`.
+
+Loader: [`api/src/plugins/registry.ts`](../api/src/plugins/registry.ts) resolves `<id>/index.ts` then `<id>.ts`. The exported `id` **must** equal the `plugins.json` id.
+
+Example (shipped FCM):
+
+```text
+api/src/plugins/notify/fcm/
+  index.ts
+  send.ts
+  tokens.ts
+  routes.ts
+  ui/index.tsx
+  ui/TokensPage.tsx
+```
+
+The API TypeScript build **excludes** `**/ui/**` ([`api/tsconfig.json`](../api/tsconfig.json)). The web build typechecks UI files.
+
+---
+
+## Contracts
+
+### Check
+
+```ts
+interface CheckOutcome {
+  ok: boolean
+  statusCode: number | null
+  error: string | null
+  latencyMs: number
+}
+
+interface CheckPlugin {
+  id: string
+  check(url: string): Promise<CheckOutcome>
+  registerRoutes?(app: FastifyInstance): void | Promise<void>
+}
+```
+
+- Receives **only** the target `url` — not the full row, settings, or store writes.
+- Always return a complete `CheckOutcome` (including `latencyMs`). Never throw for a failed probe; return `ok: false`.
+- Optional `registerRoutes` is for **config**, not for running the probe. Core calls `check(url)` on a schedule.
+
+Aggregation (after selected checks finish):
+
+| Outcomes | Status |
+|----------|--------|
+| All `ok: true` | `up` |
+| All `ok: false` | `down` |
+| Mix | `partial` |
+
+Recorded `latency_ms` is the **max** of `latencyMs`. Failures are prefixed with `[pluginId]` and joined with `; `. DB encoding: `1` = up, `0` = down, `2` = partial.
+
+### Notifier
+
+```ts
+interface AlertEvent {
+  target: { id: number; url: string }
+  status: 'down' | 'up' | 'partial'
+  previousStatus: 'down' | 'up' | 'partial' | 'unknown'
+  error: string | null
+  statusCode: number | null
+  checkedAt: string
+  title: string
+  body: string
+  checks: Array<{
+    id: string
+    ok: boolean
+    statusCode: number | null
+    error: string | null
+    latencyMs: number
+  }>
+}
+
+interface NotifierPlugin {
+  id: string
+  init?(): void | Promise<void>
+  isReady(): boolean
+  notify(event: AlertEvent): Promise<void>
+  registerRoutes?(app: FastifyInstance): void | Promise<void>
+}
+```
+
+- Core already decided *whether* to alert. You only **deliver** `title` / `body` (and anything else you need from `AlertEvent`).
+- Route per-check using `event.checks[].id` — do not parse `error` / `body` for plugin ids.
+- `isReady()` is shown on the dashboard. Core **still calls** `notify` when `ready` is false; no-op or warn inside `notify`.
+- Throw only on hard failure (counts against `markAlertSent`). Soft skip (not configured / no destinations) → `return` without throwing.
+- `init()` failures are logged; other notifiers still load.
+
+### Scheduler
+
+```ts
+interface SchedulerContext {
+  getTargets(): Array<{ id: number; intervalSeconds: number; enabled: boolean }>
+  run(targetId: number): Promise<void> // full check → record → maybe notify
+}
+
+interface SchedulerPlugin {
+  id: string
+  init?(ctx: SchedulerContext): void
+  start(): void
+  stop(): void
+  reschedule(): void
+  registerRoutes?(app: FastifyInstance): void | Promise<void>
+}
+```
+
+- Exactly **one** scheduler. Core calls `init` (if present), then `start()` after HTTP listen, then `reschedule()` after every target create/update/delete (including Pause).
+- Only `run` enabled targets. Re-check `enabled` from `getTargets()` before each `run` (DB can change while a timer is pending).
+- In-flight `run` is **not** cancelled on Pause. Do not schedule another tick if the target is now disabled.
+- `reschedule` must start/stop/update work to match `getTargets()`. Differential updates (keep remaining delays) are preferred; a full rebuild is valid.
+- Do **not** import the pipeline or core write APIs. Use only `ctx.getTargets()` / `ctx.run(id)`.
+
+---
+
+## Enable loop
+
+1. Create `api/src/plugins/<kind>/<id>/index.ts` exporting `default` (or `plugin`).
+2. If you need a package: `cd api && npm install <pkg>`.
+3. Edit [`api/plugins.json`](../api/plugins.json):
+   - checks: append to `"checks"`
+   - notifier: append to `"notifiers"`
+   - scheduler: set `"scheduler"` to your id (**replaces** `interval`)
+4. Set any env your plugin needs.
+5. Optional: `registerRoutes` + `ui/index.tsx`.
+6. Restart API (`tsx watch` reloads on save). Restart/rebuild **web** if you added UI.
+
+Docker: plugin UI is globbed at Vite build time from `api/src/plugins/*/*/ui/index.tsx`. Rebuild the web image after adding UI ([`web/Dockerfile`](../web/Dockerfile) copies `api/src/plugins`). Prefer host `npm run dev` while iterating.
+
+Config path override: `PLUGINS_CONFIG`.
+
+---
+
+## Plugin HTTP APIs
+
+Host module: [`api/src/plugins/routes.ts`](../api/src/plugins/routes.ts).
+
+Every loaded plugin is mounted at:
+
+```text
+/api/plugins/<kind>/<id>
+```
+
+`kind` ∈ `check` | `scheduler` | `notify`. Register **relative** paths only:
+
+```ts
+app.get('/ping', async () => ({ ok: true }))
+// becomes GET /api/plugins/notify/hello/ping
+```
+
+Do **not** register `/api/targets` or other core paths.
+
+`GET /api/plugins` returns the catalog (`id`, `kind`, fully qualified `routes`). Plugins with no `registerRoutes` still appear with `routes: []`. Duplicate method+path *within* one plugin fails Fastify at startup.
+
+Add Fastify `schema` so the route shows up in Swagger (`/documentation`). Shared component schemas live in [`api/src/openapi.ts`](../api/src/openapi.ts); plugin-local schemas can stay in `routes.ts` (see FCM).
+
+UI pages may:
+
+- `fetch('/api/plugins/...')` directly (no core web change), or
+- add a typed helper on [`web/src/api.ts`](../web/src/api.ts) (what FCM does: `api.tokens.*`).
+
+There is **no auth** on the UI/API. Treat plugin routes as as trusted as the rest of the dashboard.
+
+---
+
+## Plugin UIs
+
+Plugin screens belong **next to the plugin**, not under `web/src/pages`.
+
+1. Add `api/src/plugins/<kind>/<id>/ui/index.tsx` that **default-exports** a `PluginUiModule`:
+
+```ts
+import type { PluginUiModule } from '@umpire/plugin-ui'
+import HelloPage from './HelloPage'
+
+export default {
+  id: 'hello',           // must match plugin id
+  kind: 'notify',        // 'check' | 'scheduler' | 'notify'
+  path: '/plugins/notify/hello',
+  label: 'Hello',
+  Component: HelloPage,
+} satisfies PluginUiModule
+```
+
+2. [`web/src/App.tsx`](../web/src/App.tsx) globs `../../api/src/plugins/*/*/ui/index.tsx`, then shows nav + routes only for plugins returned by **`GET /api/plugins`** (enabled and loaded).
+3. Import the shared client as `@umpire/web-api` (alias to `web/src/api.ts`). Types: `@umpire/plugin-ui`.
+4. Reuse existing CSS classes from [`web/src/styles.css`](../web/src/styles.css) (`panel`, `stack`, `form-row`, `muted`, `error`, `mono`, …). Add plugin-specific rules there if needed (FCM’s table styles live in the core stylesheet today).
+
+Glob is exactly one directory of UI under `plugins/<kind>/<id>/ui/index.tsx`. Deeper nesting is not discovered.
+
+---
+
+## Allowlists
+
+Both `check_ids` and `notifier_ids` are JSON arrays of plugin id strings on each target.
+
+| Value | Checks | Notifiers |
+|-------|--------|-----------|
+| `[]` | Run **all** loaded checks | Notify via **all** loaded notifiers |
+| `["http"]` / `["fcm"]` | Only that check if loaded | Only that notifier if loaded |
+
+- Ids that are not loaded stay in the DB but are skipped this run.
+- Non-empty allowlist ∩ loaded = empty: **checks** → `down` with `no loaded checks match allowlist [...]`. **notifiers** → warn, no send, do not `markAlertSent`.
+- Targets UI: all unchecked = `[]` (all). API: `POST`/`PATCH /api/targets` with `check_ids` / `notifier_ids`.
+- `GET /api/checks` and `GET /api/notifiers` list loaded plugins (`notifiers` include `{ id, ready }`).
+
+Example: `checks: ["http", "tls"]`, `notifiers: ["fcm", "webhook"]`.
+
+| Target | `check_ids` | `notifier_ids` | Run | Alert |
+|--------|-------------|----------------|-----|-------|
+| A | `[]` | `[]` | http + tls | FCM + webhook |
+| B | `["http"]` | `["fcm"]` | http | FCM |
+| C | `["tls", "dns"]` | `["webhook"]` | tls (`dns` skipped) | webhook |
+| D | `["dns"]` | `["pager"]` | none → down | none → warn |
+
+---
+
+## Hello world
+
+Copy these as `hello` plugins to prove **plugin + API + UI** wiring. They are not shipped. Remove them from `plugins.json` when you are done.
+
+Shared UI page (adapt `kind` / fetch URL per plugin):
+
+```tsx
+// ui/HelloPage.tsx
+import { useEffect, useState } from 'react'
+
+export default function HelloPage() {
+  const [text, setText] = useState('loading…')
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    void fetch('/api/plugins/notify/hello/ping')
+      .then(async (res) => {
+        const body = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error((body as { error?: string }).error || res.statusText)
+        setText(JSON.stringify(body))
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : String(err)))
+  }, [])
+
+  return (
+    <div className="stack">
+      <section className="panel">
+        <h2>Hello</h2>
+        {error ? <p className="error">{error}</p> : <p className="mono">{text}</p>}
+      </section>
+    </div>
+  )
+}
+```
+
+Change the `fetch` path to `/api/plugins/check/hello/ping` or `/api/plugins/scheduler/hello/ping` for the other kinds.
+
+### Check (`hello`)
+
+`api/src/plugins/check/hello/index.ts`
+
+```ts
+import type { CheckOutcome, CheckPlugin } from '../../types.js'
+import type { FastifyInstance } from 'fastify'
+
+const helloCheck: CheckPlugin = {
+  id: 'hello',
+
+  async check(url: string): Promise<CheckOutcome> {
+    const startedAt = Date.now()
+    try {
+      const res = await fetch(url, {
+        method: 'GET',
+        redirect: 'follow',
+        signal: AbortSignal.timeout(5_000),
+        headers: { 'user-agent': 'umpire-hello/1.0' },
+      })
+      const ok = res.status >= 200 && res.status < 400
+      return {
+        ok,
+        statusCode: res.status,
+        error: ok ? null : `HTTP ${res.status}`,
+        latencyMs: Date.now() - startedAt,
+      }
+    } catch (err) {
+      return {
+        ok: false,
+        statusCode: null,
+        error: err instanceof Error ? err.message : String(err),
+        latencyMs: Date.now() - startedAt,
+      }
+    }
+  },
+
+  async registerRoutes(app: FastifyInstance) {
+    app.get('/ping', async () => ({ ok: true, plugin: 'hello', kind: 'check' }))
+  },
+}
+
+export default helloCheck
+```
+
+`api/src/plugins/check/hello/ui/index.tsx`
+
+```tsx
+import type { PluginUiModule } from '@umpire/plugin-ui'
+import HelloPage from './HelloPage'
+
+export default {
+  id: 'hello',
+  kind: 'check',
+  path: '/plugins/check/hello',
+  label: 'Hello check',
+  Component: HelloPage,
+} satisfies PluginUiModule
+```
+
+`api/plugins.json` — add `"hello"` to `checks` (keep `"http"`):
+
+```json
+{
+  "checks": ["http", "hello"],
+  "scheduler": "interval",
+  "notifiers": ["fcm"]
+}
+```
+
+On a target, leave checks unchecked (all) or tick **hello**. Confirm `GET /api/plugins` lists `{ "id": "hello", "kind": "check", "routes": [{ "method": "GET", "path": "/api/plugins/check/hello/ping" }] }` and the nav link **Hello check** appears after reloading the web UI.
+
+### Notifier (`hello`)
+
+`api/src/plugins/notify/hello/index.ts`
+
+```ts
+import type { AlertEvent, NotifierPlugin } from '../../types.js'
+import type { FastifyInstance } from 'fastify'
+
+const helloNotifier: NotifierPlugin = {
+  id: 'hello',
+
+  isReady() {
+    return true
+  },
+
+  async notify(event: AlertEvent) {
+    console.log('[notify:hello]', event.title, event.body)
+  },
+
+  async registerRoutes(app: FastifyInstance) {
+    app.get('/ping', async () => ({ ok: true, plugin: 'hello', kind: 'notify' }))
+  },
+}
+
+export default helloNotifier
+```
+
+`ui/index.tsx` — same as the check, but `kind: 'notify'`, `path: '/plugins/notify/hello'`, `label: 'Hello notify'`. Point `HelloPage` at `/api/plugins/notify/hello/ping`.
+
+`plugins.json`:
+
+```json
+"notifiers": ["fcm", "hello"]
+```
+
+Trigger an alert (or temporarily use policy `every_fail`) and watch API logs for `[notify:hello]`.
+
+### Scheduler (`hello`)
+
+Learning only. Setting `"scheduler": "hello"` **replaces** `interval`.
+
+`api/src/plugins/scheduler/hello/index.ts`
+
+```ts
+import type { SchedulerContext, SchedulerPlugin } from '../../types.js'
+import type { FastifyInstance } from 'fastify'
+
+let ctx: SchedulerContext | undefined
+let timer: ReturnType<typeof setInterval> | undefined
+const TICK_MS = 30_000
+
+function tick(): void {
+  if (!ctx) return
+  for (const t of ctx.getTargets()) {
+    if (!t.enabled) continue
+    void ctx.run(t.id).catch((err) => {
+      console.error(`[scheduler:hello] target ${t.id}`, err)
+    })
+  }
+}
+
+const helloScheduler: SchedulerPlugin = {
+  id: 'hello',
+
+  init(schedulerCtx) {
+    ctx = schedulerCtx
+  },
+
+  start() {
+    if (timer) return
+    tick()
+    timer = setInterval(tick, TICK_MS)
+  },
+
+  stop() {
+    if (timer) clearInterval(timer)
+    timer = undefined
+  },
+
+  reschedule() {
+    // Global interval: nothing per-target to rebuild.
+    // Still required by the contract (core calls this after target CRUD).
+  },
+
+  async registerRoutes(app: FastifyInstance) {
+    app.get('/ping', async () => ({
+      ok: true,
+      plugin: 'hello',
+      kind: 'scheduler',
+      tickMs: TICK_MS,
+    }))
+  },
+}
+
+export default helloScheduler
+```
+
+UI: `kind: 'scheduler'`, `path: '/plugins/scheduler/hello'`. Then set `"scheduler": "hello"` in `plugins.json`. Switch back to `"interval"` when finished — this hello scheduler ignores per-target `interval_seconds` and runs every 30s.
+
+---
+
+## Real-world examples
+
+Patterns you will actually ship. Prefer env + plugin-owned files over core SQLite.
+
+### 1. Check: TLS certificate expiry
+
+Probe `url`’s hostname, fail if the cert expires within N days (`TLS_WARN_DAYS`, default 14). Runs **alongside** `http` so a target can be `partial` (site up, cert dying).
+
+`api/src/plugins/check/tls/index.ts` (sketch):
+
+```ts
+import tls from 'node:tls'
+import type { CheckOutcome, CheckPlugin } from '../../types.js'
+
+function warnDays(): number {
+  const n = Number(process.env.TLS_WARN_DAYS)
+  return Number.isFinite(n) && n > 0 ? n : 14
+}
+
+const tlsCheck: CheckPlugin = {
+  id: 'tls',
+
+  check(url: string): Promise<CheckOutcome> {
+    const startedAt = Date.now()
+    return new Promise((resolve) => {
+      let hostname: string
+      let port: number
+      try {
+        const u = new URL(url)
+        hostname = u.hostname
+        port = u.port ? Number(u.port) : u.protocol === 'http:' ? 80 : 443
+      } catch {
+        resolve({
+          ok: false,
+          statusCode: null,
+          error: 'invalid url',
+          latencyMs: Date.now() - startedAt,
+        })
+        return
+      }
+      if (port === 80) {
+        resolve({
+          ok: false,
+          statusCode: null,
+          error: 'no TLS on port 80',
+          latencyMs: Date.now() - startedAt,
+        })
+        return
+      }
+      const socket = tls.connect(
+        { host: hostname, port, servername: hostname, timeout: 10_000 },
+        () => {
+          const cert = socket.getPeerCertificate()
+          socket.end()
+          const notAfter = cert.valid_to ? Date.parse(cert.valid_to) : NaN
+          const daysLeft = (notAfter - Date.now()) / 86_400_000
+          const ok = Number.isFinite(daysLeft) && daysLeft >= warnDays()
+          resolve({
+            ok,
+            statusCode: null,
+            error: ok ? null : `certificate expires in ${Math.floor(daysLeft)}d`,
+            latencyMs: Date.now() - startedAt,
+          })
+        },
+      )
+      socket.on('error', (err) => {
+        resolve({
+          ok: false,
+          statusCode: null,
+          error: err.message,
+          latencyMs: Date.now() - startedAt,
+        })
+      })
+    })
+  },
+}
+
+export default tlsCheck
+```
+
+Enable: `"checks": ["http", "tls"]`. Per-target: tick both, or only `tls` for cert-only hosts.
+
+### 2. Check: keyword in response body (plugin config API + UI)
+
+When the probe needs **settings** (needle string, JSON path), store them in a plugin file and expose CRUD. `check(url)` still receives only `url` — look up config by URL or use one global needle.
+
+Shape:
+
+```text
+check/keyword/
+  index.ts      # check() + registerRoutes → routes.ts
+  config.ts     # read/write data/keyword.json
+  ui/index.tsx + SettingsPage.tsx
+```
+
+`GET/PUT /api/plugins/check/keyword/config` with `{ needle: string, minStatus?: number }`. In `check()`:
+
+1. `GET` the URL (timeout, user-agent).
+2. Fail if status is not 2xx.
+3. `text = await res.text()`; `ok = text.includes(config.needle)`.
+4. Return `error: 'needle not found'` when missing.
+
+UI: one panel, input for needle, Save → `PUT`. Use `api` helpers if you add them to `web/src/api.ts`, otherwise `fetch`.
+
+This is the usual “check plugin with a settings page” pattern.
+
+### 3. Notifier: ntfy (env-only, no UI)
+
+Phone notifications without FCM. Client installs [ntfy](https://ntfy.sh); UMPIRE POSTs to a topic.
+
+```ts
+import type { AlertEvent, NotifierPlugin } from '../../types.js'
+
+let url = ''
+
+const ntfy: NotifierPlugin = {
+  id: 'ntfy',
+
+  init() {
+    url = (process.env.NTFY_URL ?? '').trim()
+    if (!url) console.warn('[notify:ntfy] NTFY_URL not set')
+  },
+
+  isReady() {
+    return Boolean(url)
+  },
+
+  async notify(event: AlertEvent) {
+    if (!url) {
+      console.warn('[notify:ntfy] skip — not configured')
+      return
+    }
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        title: event.title,
+        'content-type': 'text/plain',
+      },
+      body: event.body,
+    })
+    if (!res.ok) {
+      throw new Error(`ntfy HTTP ${res.status}`)
+    }
+  },
+}
+
+export default ntfy
+```
+
+`NTFY_URL=https://ntfy.sh/your-secret-topic`. Same idea as shipped [`notify/webhook`](../api/src/plugins/notify/webhook/index.ts) (`WEBHOOK_URL` + optional `WEBHOOK_HEADERS` JSON, body = full `AlertEvent`).
+
+### 4. Notifier: many destinations + routing + test + UI
+
+Production pattern: **FCM**. Copy this when users manage a list of destinations in the UI.
+
+| Piece | FCM does | You should |
+|-------|----------|------------|
+| Storage | `data/fcm-tokens.json` (`FCM_TOKENS_PATH`) | Sidecar file next to `DATABASE_PATH`, not a core table |
+| CRUD | `GET/POST/PATCH/DELETE /tokens` | Relative paths on `registerRoutes` |
+| Routing | `target_ids` / `check_ids` / `enabled` | Filter in `notify` from `event.target.id` and `event.checks` |
+| Test | `POST /tokens/:id/test` | Optional; record last error on the row |
+| Send | Admin SDK `sendEachForMulticast` | Your provider; throw only if *all* sends fail |
+| UI | `ui/TokensPage.tsx` + `api.tokens` in `web/src/api.ts` | Nav via `PluginUiModule`; typed client optional |
+| OpenAPI | Fastify `schema` + `FcmToken` component | Add schemas so Swagger lists your routes |
+
+Destination matching (FCM):
+
+| Field | Empty | Non-empty |
+|-------|--------|-----------|
+| `target_ids` | all targets | only those ids |
+| `check_ids` | any alert including recovery | only when a listed check **failed**; recoveries skipped |
+| `enabled` | — | `0` never receives |
+
+No matching destinations → return without throwing (soft skip).
+
+Read: [`api/src/plugins/notify/fcm/`](../api/src/plugins/notify/fcm/) (`index.ts`, `tokens.ts`, `routes.ts`, `send.ts`, `ui/`).
+
+### 5. Scheduler: keep `interval`, or replace it
+
+Shipped [`scheduler/interval`](../api/src/plugins/scheduler/interval/index.ts):
+
+- One `setTimeout` chain per enabled target.
+- First fire staggered by id.
+- `reschedule()` only restarts timers that were added, removed, enabled/disabled, or whose `intervalSeconds` changed — others keep remaining delay.
+- Before `run`, re-reads `enabled`. After Pause, core calls `reschedule()` so that target stops.
+
+Write a new scheduler only if you need a different *when* (cron wall clock, global tick, jitter, “business hours”). You cannot load two schedulers. Vary frequency with per-target `interval_seconds`, not extra schedulers.
+
+Cron-shaped `reschedule` sketch:
+
+```ts
+// For each enabled target, compute ms until next wall-clock slot from
+// intervalSeconds (or a plugin-owned cron string). clearTimeout + setTimeout.
+// On reschedule: diff ids / expressions; do not reset unrelated timers.
+```
+
+Optional `GET /api/plugins/scheduler/<id>/timers` that returns `{ id, nextRunAt }[]` for a debug UI.
+
+### 6. Typed web client (when the UI grows)
+
+Hello world can `fetch`. Once you have several endpoints, add a namespace on [`web/src/api.ts`](../web/src/api.ts) next to `tokens`:
+
+```ts
+keyword: {
+  get: () => request<{ needle: string }>('/api/plugins/check/keyword/config'),
+  put: (data: { needle: string }) =>
+    request<{ needle: string }>('/api/plugins/check/keyword/config', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+},
+```
+
+Plugin pages import `{ api } from '@umpire/web-api'`. Reuse the existing `request()` helper (JSON, `204`, `error` field).
+
+---
+
+## Do / don’t
+
+### Checks
+
+| Do | Don’t |
+|----|--------|
+| Return a full `CheckOutcome` | Call notifiers or write `check_results` |
+| Timeouts via env (`CHECK_TIMEOUT_MS` pattern) | Expect more than `url` from core |
+| `statusCode` when it applies, else `null` | Mutate core tables |
+| Config via plugin routes/files if you need more than `url` | Throw on probe failure |
+
+### Notifiers
+
+| Do | Don’t |
+|----|--------|
+| Deliver `title` / `body` | Decide alert policy |
+| Own destinations under `/api/plugins/notify/<id>` | Write `check_results` / `target_state` |
+| Honest `isReady()` | Assume you are the only notifier |
+| Secrets in env or plugin files | Put notifier tables into core SQLite |
+| Relative paths (`/tokens`) | Absolute core paths (`/api/targets`) |
+| Filter with `event.checks[].id` | Parse `error` / `body` for check ids |
+
+### Schedulers
+
+| Do | Don’t |
+|----|--------|
+| `ctx.run(id)` when due | Implement HTTP checks or alerts |
+| Honor `enabled` and `intervalSeconds` | Assume rows never change without `reschedule` |
+| Clear work in `stop()` | Enable more than one scheduler |
+| Real `reschedule()` | Use extra schedulers just to vary frequency |
+
+### Core schema
+
+Frozen tables: `groups`, `targets` (includes `check_ids`, `notifier_ids`), `settings`, `check_results`, `target_state`.
+
+`GET /api/schema` publishes the schema; `?data=1` dumps those tables. Plugins may **read** via `getCore()`; they should not rely on mutating core tables.
+
+---
+
+## Verify
+
+After enabling a plugin:
+
+1. API log line: `[plugins] check=…` / `notifier=… ready=…` / `scheduler=…`
+2. `GET /api/status` includes the id (`notifiers[].ready` for notifiers)
+3. `GET /api/plugins` includes the id and any routes
+4. Swagger `/documentation` lists routes that have `schema`
+5. Web nav shows the UI label **only if** `ui/index.tsx` exists **and** the plugin is loaded
+6. Docker: rebuild `web` after adding UI; Vite glob is build-time
+7. Target checkboxes show the new check/notifier id
+8. For notifiers: fire a test alert; confirm delivery or an honest log skip
+
+---
+
+## Shipped references
+
+| Plugin | Path | Why read it |
+|--------|------|-------------|
+| HTTP check | [`api/src/plugins/check/http/index.ts`](../api/src/plugins/check/http/index.ts) | Minimal check, timeout env, no UI |
+| Interval scheduler | [`api/src/plugins/scheduler/interval/index.ts`](../api/src/plugins/scheduler/interval/index.ts) | Differential `reschedule`, Pause, stagger |
+| Webhook notifier | [`api/src/plugins/notify/webhook/index.ts`](../api/src/plugins/notify/webhook/index.ts) | Env-only notifier, JSON `AlertEvent` POST |
+| FCM notifier | [`api/src/plugins/notify/fcm/`](../api/src/plugins/notify/fcm/) | Storage, CRUD, OpenAPI, test sends, full UI |
+
+Host pieces: [`registry.ts`](../api/src/plugins/registry.ts) (load), [`routes.ts`](../api/src/plugins/routes.ts) (mount + catalog), [`web/src/App.tsx`](../web/src/App.tsx) (UI glob), [`web/src/api.ts`](../web/src/api.ts) (HTTP client).

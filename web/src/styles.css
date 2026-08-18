@@ -296,6 +296,27 @@ label.check-ids-item {
 
 .tokens-table .truncate {
   max-width: none;
+  cursor: help;
+}
+
+.tokens-table .cell-input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.3rem 0.4rem;
+  font-size: 0.85rem;
+  background: transparent;
+  border-color: transparent;
+}
+
+.tokens-table .cell-input.mono {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.78rem;
+}
+
+.tokens-table .cell-input:hover,
+.tokens-table .cell-input:focus {
+  background: #fff;
+  border-color: var(--line);
 }
 
 .token-status {

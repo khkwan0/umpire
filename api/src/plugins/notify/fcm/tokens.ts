@@ -273,6 +273,7 @@ export function createToken(
 export function updateToken(
   id: number,
   patch: Partial<{
+    token: string
     label: string
     enabled: boolean | number
     target_ids: number[]
@@ -283,9 +284,22 @@ export function updateToken(
   const idx = rows.findIndex((r) => r.id === id)
   if (idx < 0) return undefined
   const existing = rows[idx]!
+  const token =
+    patch.token !== undefined ? patch.token.trim() : existing.token
+  if (!token) {
+    throw new Error('fid or token required')
+  }
+  if (
+    token !== existing.token &&
+    rows.some((r) => r.id !== id && r.token === token)
+  ) {
+    throw new Error('UNIQUE constraint failed: token already exists')
+  }
+  const tokenChanged = token !== existing.token
   const next: FcmToken = {
     ...existing,
-    label: patch.label !== undefined ? patch.label : existing.label,
+    token,
+    label: patch.label !== undefined ? patch.label.trim() : existing.label,
     enabled:
       patch.enabled !== undefined
         ? patch.enabled === true || patch.enabled === 1
@@ -300,6 +314,9 @@ export function updateToken(
       patch.check_ids !== undefined
         ? normalizeCheckIds(patch.check_ids)
         : existing.check_ids,
+    last_test_ok: tokenChanged ? null : existing.last_test_ok,
+    last_test_error: tokenChanged ? null : existing.last_test_error,
+    last_tested_at: tokenChanged ? null : existing.last_tested_at,
   }
   rows[idx] = next
   writeAll(rows)

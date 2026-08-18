@@ -5,10 +5,18 @@ import {
   type ServiceAccount,
 } from 'firebase-admin/app'
 import { getMessaging } from 'firebase-admin/messaging'
-import type { BaseMessage, FidMessage, TokenMessage } from 'firebase-admin/messaging'
+import type { BaseMessage } from 'firebase-admin/messaging'
 
 const TEST_TITLE = 'UMPIRE test'
 const TEST_BODY = 'This device is registered for FCM alerts.'
+
+export function testPushCopy(destination: string): { title: string; body: string } {
+  const kind = isLegacyRegistrationToken(destination) ? 'token' : 'fid'
+  return {
+    title: TEST_TITLE,
+    body: `${TEST_BODY}\n${kind}: ${destination}`,
+  }
+}
 
 export function isMessagingReady(): boolean {
   return getApps().length > 0
@@ -66,23 +74,22 @@ export function fcmContent(title: string, body: string): BaseMessage {
   }
 }
 
-export function deviceMessage(
-  destination: string,
-  title: string,
-  body: string,
-): FidMessage | TokenMessage {
-  const content = fcmContent(title, body)
-  if (isLegacyRegistrationToken(destination)) {
-    return { token: destination, ...content }
-  }
-  return { fid: destination, ...content }
-}
-
 export async function sendToMany(
   destinations: string[],
-  title: string,
-  body: string,
+  title = TEST_TITLE,
+  body = TEST_BODY,
 ): Promise<{ successCount: number; failureCount: number; errors: string[] }> {
+  if (!isMessagingReady()) {
+    return {
+      successCount: 0,
+      failureCount: destinations.length,
+      errors: destinations.map(() => 'FCM not initialized'),
+    }
+  }
+  if (destinations.length === 0) {
+    return { successCount: 0, failureCount: 0, errors: [] }
+  }
+
   const content = fcmContent(title, body)
   const fids = destinations.filter((id) => !isLegacyRegistrationToken(id))
   const tokens = destinations.filter((id) => isLegacyRegistrationToken(id))
@@ -93,6 +100,7 @@ export async function sendToMany(
 
   if (fids.length > 0) {
     const res = await messaging.sendEachForMulticast({ fids, ...content })
+    console.log('FCM send result:', res)
     successCount += res.successCount
     failureCount += res.failureCount
     for (const r of res.responses) {
@@ -101,6 +109,7 @@ export async function sendToMany(
   }
   if (tokens.length > 0) {
     const res = await messaging.sendEachForMulticast({ tokens, ...content })
+    console.log('FCM send result:', res)
     successCount += res.successCount
     failureCount += res.failureCount
     for (const r of res.responses) {
@@ -135,20 +144,4 @@ export function isUnregisteredTokenError(message: string): boolean {
     lower.includes('invalid-registration-token') ||
     lower.includes('not a valid fcm registration token')
   )
-}
-
-export async function sendToDevice(
-  destination: string,
-  title = TEST_TITLE,
-  body = TEST_BODY,
-): Promise<{ ok: boolean; error: string | null }> {
-  if (!isMessagingReady()) {
-    return { ok: false, error: 'FCM not initialized' }
-  }
-  try {
-    await getMessaging().send(deviceMessage(destination, title, body))
-    return { ok: true, error: null }
-  } catch (err) {
-    return { ok: false, error: fcmErrorMessage(err) }
-  }
 }
