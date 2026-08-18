@@ -11,7 +11,7 @@ Operator setup (run the app, shipped plugins, core HTTP API) lives in [`README.m
 3. [File layout](#file-layout)
 4. [Contracts](#contracts)
 5. [Enable loop](#enable-loop)
-6. [Plugin HTTP APIs](#plugin-http-apis)
+6. [`registerRoutes` (plugin HTTP)](#plugin-http-apis)
 7. [Plugin UIs](#plugin-uis)
 8. [Dashboard widgets](#dashboard-widgets)
 9. [Allowlists](#allowlists)
@@ -33,7 +33,7 @@ Operator setup (run the app, shipped plugins, core HTTP API) lives in [`README.m
 
 Optional for every kind:
 
-- `registerRoutes(app)` — plugin-owned HTTP under `/api/plugins/<kind>/<id>/…`
+- `registerRoutes(app)` — plugin-owned HTTP under `/api/plugins/<kind>/<id>/…` (skip it if env + core fields are enough; [why](#plugin-http-apis))
 - `ui/index.tsx` — nav item + page in the web shell
 - `Dashboard` on that UI module — optional panel on the **core** home page (does not replace the dashboard)
 
@@ -117,7 +117,7 @@ interface CheckPlugin {
 
 - Receives **only** the target `url` — not the full row, settings, or store writes.
 - Always return a complete `CheckOutcome` (including `latencyMs`). Never throw for a failed probe; return `ok: false`.
-- Optional `registerRoutes` is for **config**, not for running the probe. Core calls `check(url)` on a schedule.
+- Optional `registerRoutes` is for **plugin config/CRUD**, not for running the probe. Core calls `check(url)` on a schedule. Omit it if `url` is enough (shipped `http`).
 
 Aggregation (after selected checks finish):
 
@@ -164,6 +164,7 @@ interface NotifierPlugin {
 - `isReady()` is shown on the dashboard. Core **still calls** `notify` when `ready` is false; no-op or warn inside `notify`.
 - Throw only on hard failure (counts against `markAlertSent`). Soft skip (not configured / no destinations) → `return` without throwing.
 - `init()` failures are logged; other notifiers still load.
+- Optional `registerRoutes` is for destinations/settings you own (FCM tokens). Omit it if env is enough (shipped `webhook`).
 
 ### Scheduler
 
@@ -188,6 +189,7 @@ interface SchedulerPlugin {
 - In-flight `run` is **not** cancelled on Pause. Do not schedule another tick if the target is now disabled.
 - `reschedule` must start/stop/update work to match `getTargets()`. Differential updates (keep remaining delays) are preferred; a full rebuild is valid.
 - Do **not** import the pipeline or core write APIs. Use only `ctx.getTargets()` / `ctx.run(id)`.
+- Optional `registerRoutes` is rare for schedulers (debug/status at most). Timing stays in `start` / `reschedule`.
 
 ---
 
@@ -211,24 +213,79 @@ Config path override: `PLUGINS_CONFIG`.
 
 ## Plugin HTTP APIs
 
+`registerRoutes(app)` is how a plugin exposes **its own** HTTP API. It is optional. Core already has `/api/targets`, `/api/groups`, `/api/settings`, history, and status — do not recreate those. Use `registerRoutes` only for data and actions that belong to **this plugin**.
+
 Host module: [`api/src/plugins/routes.ts`](../api/src/plugins/routes.ts).
 
-Every loaded plugin is mounted at:
+### What `registerRoutes(app)` does
+
+At startup, after core routes are registered, the host calls `registerRoutes` (if present) with a **scoped** Fastify instance already prefixed:
 
 ```text
 /api/plugins/<kind>/<id>
 ```
 
-`kind` ∈ `check` | `scheduler` | `notify`. Register **relative** paths only:
+`kind` ∈ `check` | `scheduler` | `notify`. You register **relative** paths on that scoped `app`. The host applies the prefix and records every route in the catalog (`GET /api/plugins`).
 
 ```ts
-app.get('/ping', async () => ({ ok: true }))
+async registerRoutes(app: FastifyInstance) {
+  app.get('/ping', async () => ({ ok: true }))
+}
 // becomes GET /api/plugins/notify/hello/ping
 ```
 
+That is the whole job: attach plugin HTTP under a namespace so it cannot collide with core (`/api/targets`) or another plugin. It is **not** how probes run, how the scheduler ticks, or how alerts fire. Those stay `check(url)`, `ctx.run(id)`, and `notify(event)`.
+
+If you omit `registerRoutes`, the plugin still loads and still appears in `GET /api/plugins` with `routes: []`. Duplicate method+path *within* one plugin fails Fastify at startup.
+
 Do **not** register `/api/targets` or other core paths.
 
-`GET /api/plugins` returns the catalog (`id`, `kind`, fully qualified `routes`). Plugins with no `registerRoutes` still appear with `routes: []`. Duplicate method+path *within* one plugin fails Fastify at startup.
+### When you need it — and when you don’t
+
+Skip it when operators can configure the plugin from **env**, `plugins.json`, and core target fields (`url`, `interval_seconds`, allowlists). The pipeline never needs an extra HTTP endpoint to call your hooks.
+
+Add it when the plugin owns **runtime data or actions** that do not belong in frozen core SQLite: destination lists, extra settings, test-send buttons, import, health of *your* sidecar.
+
+| `registerRoutes`? | Plugin | Why |
+|-------------------|--------|-----|
+| **No** | Shipped `http` check | Probe uses only the target `url` |
+| **No** | Shipped `interval` scheduler | Timing uses core `interval_seconds` |
+| **No** | Shipped `webhook` notifier | `WEBHOOK_URL` (+ optional `WEBHOOK_HEADERS`) in env; `notify()` POSTs `AlertEvent` |
+| **Yes** | Shipped `fcm` notifier | Many device FIDs, enable/disable, per-token filters, test push — operators manage that in the UI |
+| **Yes** | Keyword check (cookbook below) | Needle string is plugin config, not a core column |
+
+UI (`ui/index.tsx`) and routes are independent: a help page needs no API; curl/Swagger CRUD needs no UI. Together they are the usual pair when humans edit plugin-owned data.
+
+There is **no auth** on the UI/API. Treat plugin routes as as trusted as the rest of the dashboard.
+
+### Use case: FCM destinations
+
+`notify(event)` delivers one alert. FCM still needs a list of phones. Those are not monitoring targets — they are **plugin-owned**. Core will not add a `tokens` table (frozen schema).
+
+So the `fcm` notifier implements `registerRoutes` and keeps tokens in `data/fcm-tokens.json`:
+
+```ts
+// api/src/plugins/notify/fcm/index.ts
+async registerRoutes(app) {
+  await registerFcmRoutes(app)
+}
+```
+
+Relative routes in [`routes.ts`](../api/src/plugins/notify/fcm/routes.ts) become:
+
+| You register | Operators call |
+|--------------|----------------|
+| `GET /tokens` | `GET /api/plugins/notify/fcm/tokens` |
+| `POST /tokens` | create a FID |
+| `POST /tokens/:id/test` | send a test push |
+
+The plugin UI (`ui/TokensPage.tsx`) `fetch`es those URLs. `notify()` reads the sidecar and sends. Without `registerRoutes`, operators would edit `fcm-tokens.json` by hand and could not test a device from the dashboard.
+
+Contrast shipped [`notify/webhook`](../api/src/plugins/notify/webhook/index.ts): one URL in env, no list to manage, **no** `registerRoutes`.
+
+A smaller check-plugin pattern is the same idea: `GET/PUT /config` for a keyword needle (see [keyword example](#2-check-keyword-in-response-body-plugin-config-api--ui)).
+
+### Mechanics
 
 Add Fastify `schema` so the route shows up in Swagger (`/documentation`). Shared component schemas live in [`api/src/openapi.ts`](../api/src/openapi.ts); plugin-local schemas can stay in `routes.ts` (see FCM).
 
@@ -236,8 +293,6 @@ UI pages may:
 
 - `fetch('/api/plugins/...')` directly (no core web change), or
 - add a typed helper on [`web/src/api.ts`](../web/src/api.ts) (what FCM does: `api.tokens.*`).
-
-There is **no auth** on the UI/API. Treat plugin routes as as trusted as the rest of the dashboard.
 
 ---
 
