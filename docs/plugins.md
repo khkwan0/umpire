@@ -44,7 +44,7 @@ Three kinds. Each does one job:
 | Kind | Job in one phrase |
 |------|-------------------|
 | **Check** | Probe the target (HTTP, TLS, DNS, …) and return ok or fail. Core records it. |
-| **Scheduler** | Decide *when* a target is due, then ask core to run it. Exactly one process-wide. |
+| **Scheduler** | Decide *when* a target is due, then ask core to run it. Exactly one process-wide. Keep shipped `interval` unless you need a different kind of clock. |
 | **Notifier** | Deliver an alert core already decided to send (FCM, webhook, email, …). |
 
 Optional extras (any kind): plugin-owned HTTP under `/api/plugins/…`, a nav page, a dashboard panel. Those are for *your* data (token lists, extra settings). Store that data in a sidecar file and edit it in the UI — not `.env`. They do not replace core screens or drive the pipeline.
@@ -69,7 +69,7 @@ Plugin HTTP and UI are a side channel for plugin-owned data. They are not how pr
 | You want to… | Kind | Cardinality | Minimum hook |
 |--------------|------|-------------|--------------|
 | Probe a URL (HTTP, TLS, DNS, keyword, …) | `check` | One or more | `check(url)` |
-| Decide *when* targets run | `scheduler` | **Exactly one** process-wide | `start` / `stop` / `reschedule` |
+| Decide *when* targets run (rarely: keep `interval`) | `scheduler` | **Exactly one** process-wide | `start` / `stop` / `reschedule` |
 | Deliver an alert (FCM, webhook, ntfy, email, …) | `notify` | Zero or more | `isReady` + `notify(event)` |
 
 Optional for every kind:
@@ -78,7 +78,9 @@ Optional for every kind:
 - `ui/index.tsx` — nav item + page in the web shell
 - `Dashboard` on that UI module — optional panel on the **core** home page (does not replace the dashboard)
 
-**Default shipped set:** `http` check, `interval` scheduler, `fcm` notifier. Do not replace `interval` unless you intend to own scheduling. Hello-world schedulers below are for learning.
+**Default shipped set:** `http` check, `interval` scheduler, `fcm` notifier.
+
+Most plugin work is **checks** and **notifiers**. The scheduler is a plugin so a different clock is possible, but **do not replace `interval` for ordinary use**. Change how often a target runs with its `interval_seconds` (and Pause) in the UI. Write a scheduler only if you need a different *when* (cron, business hours, one global tick). Hello-world schedulers below are for learning; they replace `interval` process-wide.
 
 **Id rule (must all match):** folder name, `plugins.json` entry, `plugin.id`, and UI `id`.
 
@@ -224,6 +226,8 @@ interface NotifierPlugin {
 - Optional `registerRoutes` is for destinations/settings you own (FCM tokens, webhook URL). Omit it only when core fields (`url`, intervals, allowlists) are enough.
 
 ### Scheduler
+
+The shipped `interval` plugin is the right scheduler for most installs. It already honors per-target `interval_seconds` and Pause. Replacing it is an advanced, process-wide swap (exactly one scheduler). Skip this contract unless you need a different kind of clock.
 
 ```ts
 interface SchedulerContext {
@@ -591,7 +595,7 @@ Trigger an alert (or temporarily use policy `every_fail`) and watch API logs for
 
 ### Scheduler (`hello`)
 
-Learning only. Setting `"scheduler": "hello"` **replaces** `interval`.
+Learning only — **do not ship this**. Setting `"scheduler": "hello"` **replaces** `interval` for the whole process.
 
 `api/src/plugins/scheduler/hello/index.ts`
 
@@ -830,7 +834,9 @@ No matching destinations → return without throwing (soft skip).
 
 Read: [`api/src/plugins/notify/fcm/`](../api/src/plugins/notify/fcm/) (`index.ts`, `tokens.ts`, `routes.ts`, `send.ts`, `ui/`).
 
-### 5. Scheduler: keep `interval`, or replace it
+### 5. Scheduler: keep `interval` (usually)
+
+**Leave `interval` enabled.** It already does what most people want: one timer per target, Pause, and frequency via core `interval_seconds`. You cannot load two schedulers; do not write another one just to vary frequency.
 
 Shipped [`scheduler/interval`](../api/src/plugins/scheduler/interval/index.ts):
 
@@ -839,7 +845,7 @@ Shipped [`scheduler/interval`](../api/src/plugins/scheduler/interval/index.ts):
 - `reschedule()` only restarts timers that were added, removed, enabled/disabled, or whose `intervalSeconds` changed — others keep remaining delay.
 - Before `run`, re-reads `enabled`. After Pause, core calls `reschedule()` so that target stops.
 
-Write a new scheduler only if you need a different *when* (cron wall clock, global tick, jitter, “business hours”). You cannot load two schedulers. Vary frequency with per-target `interval_seconds`, not extra schedulers.
+Write a new scheduler only if you need a different *when* (cron wall clock, global tick, jitter, “business hours”).
 
 Cron-shaped `reschedule` sketch:
 

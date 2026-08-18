@@ -35,6 +35,8 @@ Enabled out of the box by [`api/plugins.json`](api/plugins.json) (override with 
 | **Scheduler** | **Exactly one** | `interval` | — | Per-target `interval_seconds` timers; honors Pause |
 | **Notifier** | Zero or more | `fcm` | `webhook` | Firebase Cloud Messaging to stored FIDs |
 
+The scheduler is a plugin so timing *can* be replaced, but **leave `interval` in place for almost every deployment**. Per-target frequency is already a core field (`interval_seconds` on each target, including Pause). Write a different scheduler only if you need a different *kind* of clock (cron, business hours, a global tick). You cannot load two schedulers.
+
 `webhook` is in the repo but **not** in the default `notifiers` list. To use it: add `"webhook"` to `notifiers`, restart, then set the URL on the **Webhook** page in the UI (or `PUT /api/plugins/notify/webhook/config`). You can run `fcm` and `webhook` together.
 
 On each target, leave check/notifier boxes unchecked to use **all** loaded plugins of that kind, or tick a subset. Empty allowlists are stored as `[]`.
@@ -59,7 +61,7 @@ Source of truth: [`api/src/plugins/types.ts`](api/src/plugins/types.ts). Core ca
 | Kind | Core calls | Core guarantees |
 |------|------------|-----------------|
 | **Check** | `check(url)` only | Always records an aggregated result. All ok → `up`; all fail → `down`; mix → `partial`. `latency_ms` is the max. Failures are prefixed `[pluginId]` and joined with `; `. Do not throw on a failed probe — return `ok: false`. |
-| **Scheduler** | `init` (if any), `start()` after listen, `reschedule()` after every target create/update/delete (including Pause) | Exactly one scheduler. `ctx.run(id)` is the full pipeline. Core does not cancel an in-flight `run` on Pause. |
+| **Scheduler** | `init` (if any), `start()` after listen, `reschedule()` after every target create/update/delete (including Pause) | Exactly one scheduler. `ctx.run(id)` is the full pipeline. Core does not cancel an in-flight `run` on Pause. Keep shipped `interval` unless you need a different kind of clock. |
 | **Notifier** | `notify(event)` when the **policy** says to alert | `AlertEvent` includes `title` / `body` plus per-check `event.checks[]`. Core still calls `notify` when `isReady()` is false (plugin should no-op). Soft skip = return; throw only on hard failure. |
 
 Also guaranteed:
