@@ -13,12 +13,13 @@ Operator setup (run the app, shipped plugins, core HTTP API) lives in [`README.m
 5. [Enable loop](#enable-loop)
 6. [Plugin HTTP APIs](#plugin-http-apis)
 7. [Plugin UIs](#plugin-uis)
-8. [Allowlists](#allowlists)
-9. [Hello world](#hello-world) — copy-paste wiring for all three kinds
-10. [Real-world examples](#real-world-examples)
-11. [Do / don’t](#do--dont)
-12. [Verify](#verify)
-13. [Shipped references](#shipped-references)
+8. [Dashboard widgets](#dashboard-widgets)
+9. [Allowlists](#allowlists)
+10. [Hello world](#hello-world) — copy-paste wiring for all three kinds
+11. [Real-world examples](#real-world-examples)
+12. [Do / don’t](#do--dont)
+13. [Verify](#verify)
+14. [Shipped references](#shipped-references)
 
 ---
 
@@ -34,6 +35,7 @@ Optional for every kind:
 
 - `registerRoutes(app)` — plugin-owned HTTP under `/api/plugins/<kind>/<id>/…`
 - `ui/index.tsx` — nav item + page in the web shell
+- `Dashboard` on that UI module — optional panel on the **core** home page (does not replace the dashboard)
 
 **Default shipped set:** `http` check, `interval` scheduler, `fcm` notifier. Do not replace `interval` unless you intend to own scheduling. Hello-world schedulers below are for learning.
 
@@ -69,8 +71,9 @@ api/src/plugins/<kind>/<id>/
   routes.ts         # optional — Fastify routes
   storage.ts        # optional — plugin-owned JSON/SQLite/etc.
   ui/
-    index.tsx       # optional — PluginUiModule (nav + route)
+    index.tsx       # optional — PluginUiModule (nav + route, optional Dashboard widget)
     Page.tsx        # optional — React page
+    Widget.tsx      # optional — dashboard panel (or inline in index.tsx)
 ```
 
 Single-file plugins also work: `api/src/plugins/<kind>/<id>.ts`.
@@ -254,14 +257,50 @@ export default {
   path: '/plugins/notify/hello',
   label: 'Hello',
   Component: HelloPage,
+  // Dashboard: HelloWidget,  // optional panel on /
 } satisfies PluginUiModule
 ```
 
-2. [`web/src/App.tsx`](../web/src/App.tsx) globs `../../api/src/plugins/*/*/ui/index.tsx`, then shows nav + routes only for plugins returned by **`GET /api/plugins`** (enabled and loaded).
+2. [`web/src/App.tsx`](../web/src/App.tsx) globs `../../api/src/plugins/*/*/ui/index.tsx`, then shows nav + routes only for plugins returned by **`GET /api/plugins`** (enabled and loaded). Optional `Dashboard` widgets on those modules appear on `/` (see [Dashboard widgets](#dashboard-widgets)).
 3. Import the shared client as `@umpire/web-api` (alias to `web/src/api.ts`). Types: `@umpire/plugin-ui`.
 4. Reuse existing CSS classes from [`web/src/styles.css`](../web/src/styles.css) (`panel`, `stack`, `form-row`, `muted`, `error`, `mono`, …). Add plugin-specific rules there if needed (FCM’s table styles live in the core stylesheet today).
 
 Glob is exactly one directory of UI under `plugins/<kind>/<id>/ui/index.tsx`. Deeper nesting is not discovered.
+
+---
+
+## Dashboard widgets
+
+The core Dashboard at `/` is **not** replaceable. Loaded plugins may add a **panel** under the hero stats (before the targets table). If no plugin exports `Dashboard`, the home page looks as it does today.
+
+Same enable gate as pages: the plugin must be in `plugins.json` **and** export `ui/index.tsx`. Widgets do not add extra nav items. Order follows `GET /api/plugins` (checks, then scheduler, then notifiers).
+
+```ts
+import type { DashboardWidgetProps, PluginUiModule } from '@umpire/plugin-ui'
+
+function HelloWidget({ status }: DashboardWidgetProps) {
+  const ready = status.notifiers.find((n) => n.id === 'hello')?.ready
+  return <p className="muted">Notifier ready: {ready ? 'yes' : 'no'}</p>
+}
+
+export default {
+  id: 'hello',
+  kind: 'notify',
+  path: '/plugins/notify/hello',
+  label: 'Hello',
+  Component: HelloPage,
+  Dashboard: HelloWidget,
+} satisfies PluginUiModule
+```
+
+**Paradigms**
+
+- `status` is the same payload the dashboard already polls every 5s (`GET /api/status`). Use it for target counts, `notifiers[].ready`, check ids. Do **not** start another `/api/status` loop.
+- Extra plugin data: `fetch` or `@umpire/web-api` to `/api/plugins/<kind>/<id>/…`.
+- The widget owns **inner** content only. Core wraps it in `<section className="panel">`, uses `label` as the heading, and links **Open** to `path`.
+- Reuse CSS (`muted`, `pill`, `mono`). A widget-only plugin still needs `path` + `Component` (a one-panel stub page) because that is how UI modules are discovered.
+
+A plugin without `ui/index.tsx` cannot show a widget.
 
 ---
 
@@ -384,6 +423,9 @@ export default {
   path: '/plugins/check/hello',
   label: 'Hello check',
   Component: HelloPage,
+  Dashboard: function HelloWidget() {
+    return <p className="muted">Hello check is loaded.</p>
+  },
 } satisfies PluginUiModule
 ```
 
@@ -397,7 +439,7 @@ export default {
 }
 ```
 
-On a target, leave checks unchecked (all) or tick **hello**. Confirm `GET /api/plugins` lists `{ "id": "hello", "kind": "check", "routes": [{ "method": "GET", "path": "/api/plugins/check/hello/ping" }] }` and the nav link **Hello check** appears after reloading the web UI.
+On a target, leave checks unchecked (all) or tick **hello**. Confirm `GET /api/plugins` lists `{ "id": "hello", "kind": "check", "routes": [{ "method": "GET", "path": "/api/plugins/check/hello/ping" }] }`, the nav link **Hello check** appears after reloading the web UI, and `/` shows an **Hello check** panel under the stats.
 
 ### Notifier (`hello`)
 
@@ -715,6 +757,42 @@ keyword: {
 
 Plugin pages import `{ api } from '@umpire/web-api'`. Reuse the existing `request()` helper (JSON, `204`, `error` field).
 
+### 7. Dashboard widget (FCM-style counts)
+
+Add `Dashboard` next to the existing page. Use `status` for ready flags; fetch plugin CRUD for live counts.
+
+```tsx
+import { useEffect, useState } from 'react'
+import { api } from '@umpire/web-api'
+import type { DashboardWidgetProps, PluginUiModule } from '@umpire/plugin-ui'
+import TokensPage from './TokensPage'
+
+function FcmWidget({ status }: DashboardWidgetProps) {
+  const [count, setCount] = useState<number | null>(null)
+  useEffect(() => {
+    void api.tokens.list().then((rows) => setCount(rows.length))
+  }, [status])
+  const ready = status.notifiers.find((n) => n.id === 'fcm')?.ready
+  return (
+    <p>
+      {count == null ? '…' : count} destination{count === 1 ? '' : 's'}
+      {ready === false ? ' (FCM off)' : ''}
+    </p>
+  )
+}
+
+export default {
+  id: 'fcm',
+  kind: 'notify',
+  path: '/plugins/notify/fcm',
+  label: 'FCM FIDs',
+  Component: TokensPage,
+  Dashboard: FcmWidget,
+} satisfies PluginUiModule
+```
+
+`status` in the `useEffect` dependency refreshes the count on each dashboard poll without a second `/api/status` loop. Remove the plugin from `notifiers` in `plugins.json` and the widget disappears.
+
 ---
 
 ## Do / don’t
@@ -765,9 +843,10 @@ After enabling a plugin:
 3. `GET /api/plugins` includes the id and any routes
 4. Swagger `/documentation` lists routes that have `schema`
 5. Web nav shows the UI label **only if** `ui/index.tsx` exists **and** the plugin is loaded
-6. Docker: rebuild `web` after adding UI; Vite glob is build-time
-7. Target checkboxes show the new check/notifier id
-8. For notifiers: fire a test alert; confirm delivery or an honest log skip
+6. If the UI module exports `Dashboard`, `/` shows a panel titled with `label` (under the stats, before Targets)
+7. Docker: rebuild `web` after adding UI; Vite glob is build-time
+8. Target checkboxes show the new check/notifier id
+9. For notifiers: fire a test alert; confirm delivery or an honest log skip
 
 ---
 
@@ -780,4 +859,4 @@ After enabling a plugin:
 | Webhook notifier | [`api/src/plugins/notify/webhook/index.ts`](../api/src/plugins/notify/webhook/index.ts) | Env-only notifier, JSON `AlertEvent` POST |
 | FCM notifier | [`api/src/plugins/notify/fcm/`](../api/src/plugins/notify/fcm/) | Storage, CRUD, OpenAPI, test sends, full UI |
 
-Host pieces: [`registry.ts`](../api/src/plugins/registry.ts) (load), [`routes.ts`](../api/src/plugins/routes.ts) (mount + catalog), [`web/src/App.tsx`](../web/src/App.tsx) (UI glob), [`web/src/api.ts`](../web/src/api.ts) (HTTP client).
+Host pieces: [`registry.ts`](../api/src/plugins/registry.ts) (load), [`routes.ts`](../api/src/plugins/routes.ts) (mount + catalog), [`web/src/App.tsx`](../web/src/App.tsx) (UI glob + dashboard widgets), [`web/src/plugin-ui.ts`](../web/src/plugin-ui.ts) (`PluginUiModule` / `Dashboard`), [`web/src/pages/Dashboard.tsx`](../web/src/pages/Dashboard.tsx) (widget slot), [`web/src/api.ts`](../web/src/api.ts) (HTTP client).

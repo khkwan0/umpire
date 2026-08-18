@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, type StatusResponse } from '../api'
+import type { DashboardWidgetModule } from '../plugin-ui'
 
 function statusLabel(isUp: number | null, enabled: number): string {
   if (!enabled) return 'paused'
@@ -10,7 +11,11 @@ function statusLabel(isUp: number | null, enabled: number): string {
   return 'down'
 }
 
-export default function Dashboard() {
+export default function Dashboard({
+  widgets = [],
+}: {
+  widgets?: DashboardWidgetModule[]
+}) {
   const [data, setData] = useState<StatusResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -72,6 +77,16 @@ export default function Dashboard() {
           ))
         )}
       </section>
+
+      {widgets.map((ui) => (
+        <section key={`${ui.kind}:${ui.id}`} className="panel">
+          <div className="panel-head">
+            <h2>{ui.label}</h2>
+            <Link to={ui.path}>Open</Link>
+          </div>
+          <ui.Dashboard status={data} />
+        </section>
+      ))}
 
       <section className="panel">
         <div className="panel-head">

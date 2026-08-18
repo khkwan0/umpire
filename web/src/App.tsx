@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { NavLink, Route, Routes } from 'react-router-dom'
 import { api, type PluginCatalogEntry } from './api'
-import { isPluginUiModule, type PluginUiModule } from './plugin-ui'
+import {
+  hasDashboardWidget,
+  isPluginUiModule,
+  type DashboardWidgetModule,
+  type PluginUiModule,
+} from './plugin-ui'
 import Dashboard from './pages/Dashboard'
 import Groups from './pages/Groups'
 import Targets from './pages/Targets'
@@ -37,6 +42,16 @@ export default function App() {
     return uiModules.filter((ui) => catalog.some((e) => isLoaded(e, ui)))
   }, [catalog])
 
+  const dashboardWidgets = useMemo(() => {
+    if (!catalog) return []
+    const out: DashboardWidgetModule[] = []
+    for (const entry of catalog) {
+      const ui = uiModules.find((m) => isLoaded(entry, m))
+      if (ui && hasDashboardWidget(ui)) out.push(ui)
+    }
+    return out
+  }, [catalog])
+
   return (
     <div className="shell">
       <header className="top">
@@ -69,7 +84,7 @@ export default function App() {
       </header>
       <main>
         <Routes>
-          <Route path="/" element={<Dashboard />} />
+          <Route path="/" element={<Dashboard widgets={dashboardWidgets} />} />
           <Route path="/groups" element={<Groups />} />
           <Route path="/targets" element={<Targets />} />
           {activeUi.map((ui) => (

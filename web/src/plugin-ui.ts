@@ -1,4 +1,10 @@
 import type { ComponentType } from 'react'
+import type { StatusResponse } from './api'
+
+/** Props passed to an optional plugin panel on the core Dashboard. */
+export interface DashboardWidgetProps {
+  status: StatusResponse
+}
 
 /** Contract for optional React pages co-located with a plugin under `ui/`. */
 export interface PluginUiModule {
@@ -7,9 +13,21 @@ export interface PluginUiModule {
   kind: 'check' | 'scheduler' | 'notify'
   /** App route path (e.g. "/plugins/notify/fcm"). */
   path: string
-  /** Nav label. */
+  /** Nav label (also used as the dashboard widget heading). */
   label: string
   Component: ComponentType
+  /** Optional panel on the core Dashboard. Does not add a nav item. */
+  Dashboard?: ComponentType<DashboardWidgetProps>
+}
+
+export type DashboardWidgetModule = PluginUiModule & {
+  Dashboard: ComponentType<DashboardWidgetProps>
+}
+
+export function hasDashboardWidget(
+  ui: PluginUiModule,
+): ui is DashboardWidgetModule {
+  return typeof ui.Dashboard === 'function'
 }
 
 export function isPluginUiModule(value: unknown): value is PluginUiModule {

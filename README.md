@@ -1,14 +1,73 @@
 # UMPIRE
 
-**Universal Monitoring Plugin & Incident Reporter** — standalone monitoring with a config UI and pluggable checks, scheduling, and alerts. Core stores monitoring data in SQLite. Ships with an HTTP uptime checker by default; check plugins can probe anything.
+**Universal Monitoring Plugin & Incident Reporter** is a **plugin architecture** for monitoring. Core is the host: it stores data, runs the pipeline, and enforces contracts. **Check**, **scheduler**, and **notifier** plugins do the actual probing, timing, and delivery. Swap or add plugins without changing core.
 
-## What it does
+Default process-wide set in [`api/plugins.json`](api/plugins.json): **`http`** check, **`interval`** scheduler, **`fcm`** notifier.
 
-- Periodically runs one or more **check plugins** against each target (default: HTTP GET, 200 = healthy)
-- Sends alerts according to a configurable policy via one or more **notifier plugins**
-- Stores targets, groups, settings, and check history in **core SQLite** (frozen schema)
-- Times checks via a **scheduler plugin** (default: per-target intervals)
-- Plugin-specific data (e.g. FCM tokens) is owned by that plugin, not core
+## Plugin architecture
+
+```text
+plugins.json     → which modules load (process-wide pool)
+targets[]        → what to watch (url, interval, enabled, group)
+check_ids        → which loaded checks run for that target ([] = all)
+notifier_ids     → which loaded notifiers get alerts ([] = all)
+scheduler        → when to call core run(targetId)
+core pipeline    → checks → record SQLite → alert policy → notifiers
+```
+
+Everything that probes a target, decides *when* to run, or delivers an alert is a plugin. Core never HTTP-checks a URL or sends a push itself.
+
+### Default plugins (by kind)
+
+Enabled out of the box by [`api/plugins.json`](api/plugins.json) (override with `PLUGINS_CONFIG`):
+
+```json
+{
+  "checks": ["http"],
+  "scheduler": "interval",
+  "notifiers": ["fcm"]
+}
+```
+
+| Kind | Cardinality | Default (enabled) | Also shipped | What the default does |
+|------|-------------|-------------------|--------------|------------------------|
+| **Check** | One or more | `http` | — | HTTP GET; **200 = healthy** (`CHECK_TIMEOUT_MS`, default 10s) |
+| **Scheduler** | **Exactly one** | `interval` | — | Per-target `interval_seconds` timers; honors Pause |
+| **Notifier** | Zero or more | `fcm` | `webhook` | Firebase Cloud Messaging to stored FIDs |
+
+`webhook` is in the repo but **not** in the default `notifiers` list. To use it: add `"webhook"` to `notifiers`, set `WEBHOOK_URL` (optional `WEBHOOK_HEADERS` JSON), restart. You can run `fcm` and `webhook` together.
+
+On each target, leave check/notifier boxes unchecked to use **all** loaded plugins of that kind, or tick a subset. Empty allowlists are stored as `[]`.
+
+**Writing plugins** (contracts, HTTP APIs, UI, dashboard widgets, cookbooks): **[Plugin developer guide](docs/plugins.md)**.
+
+### What core does
+
+Core owns the monitoring **host**, not the implementations:
+
+- **Pipeline** — `run(targetId)`: selected checks → aggregate health → write SQLite → apply alert policy → call selected notifiers
+- **Frozen SQLite** — `groups`, `targets` (including `check_ids` / `notifier_ids`), `settings`, `check_results`, `target_state`. Plugins must not `ALTER` these tables. Plugin-owned data (e.g. FCM tokens) lives in env and/or files next to the DB (`data/fcm-tokens.json`)
+- **HTTP API + UI shell** — CRUD for groups, targets, settings, history, status; dashboard and nav. Plugin screens, dashboard widgets, and routes are optional add-ons
+- **Plugin host** — loads `plugins.json`, mounts plugin HTTP under `/api/plugins/<kind>/<id>/…`, catalogs them at `GET /api/plugins`
+- **Alert policy** — decides *whether* to notify (`state_change`, `every_fail`, `throttle`). Notifiers only deliver
+- **Allowlists** — empty `check_ids` / `notifier_ids` = all loaded plugins of that kind
+
+### Contracts core guarantees
+
+Source of truth: [`api/src/plugins/types.ts`](api/src/plugins/types.ts). Core calls these hooks; plugins must not import the pipeline or write core tables.
+
+| Kind | Core calls | Core guarantees |
+|------|------------|-----------------|
+| **Check** | `check(url)` only | Always records an aggregated result. All ok → `up`; all fail → `down`; mix → `partial`. `latency_ms` is the max. Failures are prefixed `[pluginId]` and joined with `; `. Do not throw on a failed probe — return `ok: false`. |
+| **Scheduler** | `init` (if any), `start()` after listen, `reschedule()` after every target create/update/delete (including Pause) | Exactly one scheduler. `ctx.run(id)` is the full pipeline. Core does not cancel an in-flight `run` on Pause. |
+| **Notifier** | `notify(event)` when the **policy** says to alert | `AlertEvent` includes `title` / `body` plus per-check `event.checks[]`. Core still calls `notify` when `isReady()` is false (plugin should no-op). Soft skip = return; throw only on hard failure. |
+
+Also guaranteed:
+
+- Plugin HTTP is namespaced; it cannot register core paths like `/api/targets`
+- `GET /api/schema` publishes the frozen tables (`?data=1` dumps rows)
+- Plugins may **read** core via `getCore()`; they should not mutate core tables
+- Only load plugins you trust — they run in-process with API privileges
 
 ## Services
 
@@ -47,32 +106,6 @@ docker compose up --build -d
 Open the UI, add a target URL + interval, add an FCM FID (if using the `fcm` notifier), pick an alert policy.
 
 Without valid Firebase credentials the API still runs and checks targets; the FCM notifier reports `ready: false` on the dashboard.
-
-## Plugins
-
-Core owns the check → record → alert-policy → notify pipeline and the frozen SQLite tables. Plugins implement contracts; core calls their hooks.
-
-Enable shipped plugins in [`api/plugins.json`](api/plugins.json) (or set `PLUGINS_CONFIG`):
-
-```json
-{
-  "checks": ["http"],
-  "scheduler": "interval",
-  "notifiers": ["fcm"]
-}
-```
-
-| Kind | Shipped | Cardinality |
-|------|---------|-------------|
-| Checks | `http` | One or more |
-| Scheduler | `interval` | Exactly one |
-| Notifiers | `fcm`, `webhook` | Zero or more |
-
-On each target, leave check/notifier boxes unchecked to use **all** loaded plugins of that kind, or tick a subset. Empty allowlists are stored as `[]`.
-
-To enable **webhook** (no FCM): add `"webhook"` to `notifiers`, set `WEBHOOK_URL` (optional `WEBHOOK_HEADERS` JSON), restart.
-
-**Writing plugins** (contracts, HTTP APIs, UI, hello-world and real-world cookbooks): **[Plugin developer guide](docs/plugins.md)**.
 
 ## Alert policies
 
@@ -118,4 +151,4 @@ SQLite file: `./data/monitor.sqlite` (bind-mounted in Compose at `/data/monitor.
 - No auth on the UI — bind to localhost or put it behind a VPN/firewall
 - Default branch for this repo is `master`
 - Docker Compose is optional; prefer host `npm run dev` when writing plugins
-- Plugin authoring (API + UI cookbook): [docs/plugins.md](docs/plugins.md)
+- Plugin authoring (API + UI + dashboard widgets): [docs/plugins.md](docs/plugins.md)
