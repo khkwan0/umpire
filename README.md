@@ -183,6 +183,10 @@ Swagger UI: [http://localhost:8089/documentation](http://localhost:8089/document
 - `POST /api/plugins/notify/fcm/tokens/:id/received` — `{ received: true|false }` confirms on-device result (`false` disables the token)
 - `GET/PUT /api/plugins/notify/webhook/config` — webhook URL, HTTP method, and headers
 - `POST /api/plugins/notify/webhook/test` — send a sample `AlertEvent` using the saved URL and method
+- `GET/PUT /api/plugins/notify/slack/config`, `POST /api/plugins/notify/slack/test` — Slack incoming webhook notifier
+- `GET/PUT /api/plugins/notify/discord/config`, `POST /api/plugins/notify/discord/test` — Discord webhook notifier
+- `GET/PUT /api/plugins/notify/telegram/config`, `POST /api/plugins/notify/telegram/test` — Telegram bot notifier
+- `GET/PUT /api/plugins/notify/email/config`, `POST /api/plugins/notify/email/test` — Email notifier via local `sendmail`
 - `GET/PUT /api/settings`
 - `GET /api/status`
 - `GET /api/schema`
