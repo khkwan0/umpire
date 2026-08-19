@@ -13,7 +13,12 @@ export interface PluginUiModule {
   kind: 'check' | 'scheduler' | 'notify'
   /** App route path (e.g. "/plugins/notify/fcm"). */
   path: string
-  /** Nav label (also used as the dashboard widget heading). */
+  /**
+   * UI label.
+   * - `notify` plugins render under the built-in "Notifiers" dropdown.
+   * - other kinds render as top-level nav links.
+   * Also used as the dashboard widget heading.
+   */
   label: string
   Component: ComponentType
   /** Optional panel on the core Dashboard. Does not add a nav item. */

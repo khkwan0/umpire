@@ -1,0 +1,16 @@
+{
+  "check": {
+    "http": true
+  },
+  "notify": {
+    "fcm": true,
+    "webhook": true,
+    "slack": true,
+    "telegram": true,
+    "discord": true,
+    "email": true
+  },
+  "scheduler": {
+    "interval": true
+  }
+}

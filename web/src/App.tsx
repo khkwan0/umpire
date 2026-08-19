@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { NavLink, Route, Routes } from 'react-router-dom'
-import { api, type PluginCatalogEntry } from './api'
+import { useLocation } from 'react-router-dom'
+import { api, type PluginCatalogEntry, type PluginManagerState } from './api'
 import {
   hasDashboardWidget,
   isPluginUiModule,
@@ -28,29 +29,65 @@ function isLoaded(entry: PluginCatalogEntry, ui: PluginUiModule): boolean {
 }
 
 export default function App() {
+  const location = useLocation()
   const [catalog, setCatalog] = useState<PluginCatalogEntry[] | null>(null)
+  const [pluginManager, setPluginManager] = useState<PluginManagerState | null>(
+    null,
+  )
 
   useEffect(() => {
-    void api.plugins
-      .list()
-      .then(setCatalog)
-      .catch(() => setCatalog([]))
+    const load = async () => {
+      try {
+        const [nextCatalog, nextManager] = await Promise.all([
+          api.plugins.list(),
+          api.pluginManager.get(),
+        ])
+        setCatalog(nextCatalog)
+        setPluginManager(nextManager)
+      } catch {
+        setCatalog([])
+      }
+    }
+
+    void load()
+    const id = setInterval(() => void load(), 5000)
+    return () => clearInterval(id)
   }, [])
 
   const activeUi = useMemo(() => {
     if (!catalog) return []
-    return uiModules.filter((ui) => catalog.some((e) => isLoaded(e, ui)))
-  }, [catalog])
+    return uiModules.filter((ui) => {
+      if (!catalog.some((e) => isLoaded(e, ui))) return false
+      if (ui.kind !== 'notify') return true
+      const notifier = pluginManager?.notifiers.find((n) => n.id === ui.id)
+      return notifier ? notifier.enabled : true
+    })
+  }, [catalog, pluginManager])
 
   const dashboardWidgets = useMemo(() => {
     if (!catalog) return []
     const out: DashboardWidgetModule[] = []
     for (const entry of catalog) {
       const ui = uiModules.find((m) => isLoaded(entry, m))
-      if (ui && hasDashboardWidget(ui)) out.push(ui)
+      if (!ui || !hasDashboardWidget(ui)) continue
+      if (ui.kind === 'notify') {
+        const notifier = pluginManager?.notifiers.find((n) => n.id === ui.id)
+        if (notifier && !notifier.enabled) continue
+      }
+      out.push(ui)
     }
     return out
-  }, [catalog])
+  }, [catalog, pluginManager])
+
+  const nonNotifierUi = useMemo(
+    () => activeUi.filter((ui) => ui.kind !== 'notify'),
+    [activeUi],
+  )
+  const notifierUi = useMemo(
+    () => activeUi.filter((ui) => ui.kind === 'notify'),
+    [activeUi],
+  )
+  const notifierMenuActive = notifierUi.some((ui) => ui.path === location.pathname)
 
   return (
     <div className="shell">
@@ -74,11 +111,25 @@ export default function App() {
           </NavLink>
           <NavLink to="/groups">Groups</NavLink>
           <NavLink to="/targets">Targets</NavLink>
-          {activeUi.map((ui) => (
+          {nonNotifierUi.map((ui) => (
             <NavLink key={`${ui.kind}:${ui.id}`} to={ui.path}>
               {ui.label}
             </NavLink>
           ))}
+          <details className={`nav-dropdown${notifierMenuActive ? ' active' : ''}`}>
+            <summary>Notifiers</summary>
+            <div className="nav-dropdown-menu">
+              {notifierUi.length === 0 ? (
+                <span className="muted small">No notifier pages</span>
+              ) : (
+                notifierUi.map((ui) => (
+                  <NavLink key={`${ui.kind}:${ui.id}`} to={ui.path}>
+                    {ui.label}
+                  </NavLink>
+                ))
+              )}
+            </div>
+          </details>
           <NavLink to="/settings">Settings</NavLink>
         </nav>
       </header>

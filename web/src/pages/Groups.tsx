@@ -165,6 +165,29 @@ export default function Groups() {
   return (
     <div className="stack">
       <section className="panel">
+        <h2>How grouping works</h2>
+        <p className="muted">
+          Groups organize targets into trees so you can route and review incidents
+          by environment, service, or team.
+        </p>
+        <ul className="muted small">
+          <li>
+            Create a <strong>root</strong> group to start a tree (tag format:{' '}
+            <span className="mono">group_N</span>).
+          </li>
+          <li>
+            Add <strong>child</strong> groups under roots for actual target
+            assignment (path tags such as{' '}
+            <span className="mono">group_group_1_group_2</span>).
+          </li>
+          <li>
+            Targets should attach to child groups; deleting a group deletes its
+            subtree and unassigns affected targets.
+          </li>
+        </ul>
+      </section>
+
+      <section className="panel">
         <h2>Add group</h2>
         <p className="muted">
           Roots get tag <span className="mono">group_N</span>. Children get a

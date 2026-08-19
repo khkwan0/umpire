@@ -95,6 +95,55 @@ nav a.active {
   background: var(--panel);
 }
 
+.nav-dropdown {
+  position: relative;
+}
+
+.nav-dropdown > summary {
+  list-style: none;
+  cursor: pointer;
+  color: var(--ink);
+  padding: 0.45rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+}
+
+.nav-dropdown > summary::-webkit-details-marker {
+  display: none;
+}
+
+.nav-dropdown[open] > summary,
+.nav-dropdown.active > summary {
+  border-color: var(--line);
+  background: var(--panel);
+}
+
+.nav-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 0.3rem);
+  right: 0;
+  min-width: 12rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  padding: 0.35rem;
+  display: grid;
+  gap: 0.2rem;
+  z-index: 20;
+}
+
+.nav-dropdown-menu a {
+  text-decoration: none;
+  color: var(--ink);
+  padding: 0.4rem 0.55rem;
+  border-radius: 0.5rem;
+}
+
+.nav-dropdown-menu a.active {
+  background: #eef2f7;
+  border-color: transparent;
+}
+
 .stack {
   display: grid;
   gap: 1rem;

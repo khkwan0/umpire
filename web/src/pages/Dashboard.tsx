@@ -71,6 +71,8 @@ export default function Dashboard({
   const enabledNotifiers =
     pluginState?.notifiers.filter((n) => n.enabled).length ?? 0
   const totalNotifiers = pluginState?.notifiers.length ?? 0
+  const readyEnabledNotifiers =
+    pluginState?.notifiers.filter((n) => n.enabled && n.ready).length ?? 0
 
   return (
     <div className="stack">
@@ -100,23 +102,9 @@ export default function Dashboard({
             <div>
               <strong>{enabledNotifiers}/{totalNotifiers}</strong>
               <span>notifiers enabled</span>
+              <div className="muted small">{readyEnabledNotifiers} ready</div>
             </div>
           </>
-        )}
-        {data.notifiers.length === 0 ? (
-          <div>
-            <strong className="warn">none</strong>
-            <span>notifiers</span>
-          </div>
-        ) : (
-          data.notifiers.map((n) => (
-            <div key={n.id}>
-              <strong className={n.ready ? 'ok' : 'warn'}>
-                {n.ready ? 'ready' : 'off'}
-              </strong>
-              <span>{n.id}</span>
-            </div>
-          ))
         )}
       </section>
 
