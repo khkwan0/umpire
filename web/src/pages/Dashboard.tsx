@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, type Incident, type PluginManagerState, type StatusResponse } from '../api'
+import {
+  api,
+  isTransientApiError,
+  type Incident,
+  type PluginManagerState,
+  type StatusResponse,
+} from '../api'
+import ReconnectBanner from '../ReconnectBanner'
+import { useRealtime } from '../useRealtime'
 import type { DashboardWidgetModule } from '../plugin-ui'
 
 function statusLabel(isUp: number | null, enabled: number): string {
@@ -35,6 +43,7 @@ export default function Dashboard({
   const [pluginState, setPluginState] = useState<PluginManagerState | null>(null)
   const [incidents, setIncidents] = useState<Incident[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [reconnecting, setReconnecting] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -47,18 +56,24 @@ export default function Dashboard({
       setIncidents(log)
       setPluginState(manager)
       setError(null)
+      setReconnecting(false)
     } catch (err) {
+      if (isTransientApiError(err)) {
+        setReconnecting(true)
+        return
+      }
       setError(err instanceof Error ? err.message : String(err))
+      setReconnecting(false)
     }
   }, [])
 
   useEffect(() => {
     void load()
-    const id = setInterval(() => void load(), 5000)
-    return () => clearInterval(id)
   }, [load])
 
-  if (error) return <p className="error">{error}</p>
+  useRealtime(load)
+
+  if (error && !data) return <p className="error">{error}</p>
   if (!data) return <p className="muted">Loading…</p>
 
   const up = data.targets.filter((t) => t.enabled && t.is_up === 1).length
@@ -76,6 +91,8 @@ export default function Dashboard({
 
   return (
     <div className="stack">
+      {reconnecting && <ReconnectBanner />}
+      {error && <p className="error">{error}</p>}
       <section className="hero-stats">
         <div>
           <strong>{up}</strong>

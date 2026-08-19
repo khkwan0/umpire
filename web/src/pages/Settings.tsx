@@ -1,10 +1,12 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import {
   api,
+  isTransientApiError,
   type AlertPolicy,
   type PluginManagerState,
   type Settings,
 } from '../api'
+import ReconnectBanner from '../ReconnectBanner'
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Settings | null>(null)
@@ -12,6 +14,7 @@ export default function SettingsPage() {
   const [throttle, setThrottle] = useState(30)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [reconnecting, setReconnecting] = useState(false)
   const [busy, setBusy] = useState(false)
   const [plugins, setPlugins] = useState<PluginManagerState | null>(null)
   const [pluginBusy, setPluginBusy] = useState<string | null>(null)
@@ -23,10 +26,17 @@ export default function SettingsPage() {
         setPolicy(s.alert_policy)
         setThrottle(s.throttle_minutes)
         setPlugins(p)
+        setError(null)
+        setReconnecting(false)
       })
-      .catch((err) =>
-        setError(err instanceof Error ? err.message : String(err)),
-      )
+      .catch((err) => {
+        if (isTransientApiError(err)) {
+          setReconnecting(true)
+          return
+        }
+        setError(err instanceof Error ? err.message : String(err))
+        setReconnecting(false)
+      })
   }, [])
 
   async function togglePlugin(
@@ -69,10 +79,11 @@ export default function SettingsPage() {
     }
   }
 
-  if (!settings && !error) return <p className="muted">Loading…</p>
+  if (!settings && !error && !reconnecting) return <p className="muted">Loading…</p>
 
   return (
     <div className="stack">
+      {reconnecting && <ReconnectBanner />}
       <section className="panel">
         <h2>Alert policy</h2>
         <form className="form-col" onSubmit={onSave}>

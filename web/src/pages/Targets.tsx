@@ -8,12 +8,15 @@ import {
 import { Link } from 'react-router-dom'
 import {
   api,
+  isTransientApiError,
   type Group,
   type NotifierStatus,
   type PluginManagerState,
   type PluginRef,
   type Target,
 } from '../api'
+import ReconnectBanner from '../ReconnectBanner'
+import { useRealtime } from '../useRealtime'
 
 function toggleId(list: string[], id: string): string[] {
   return list.includes(id) ? list.filter((x) => x !== id) : [...list, id]
@@ -93,6 +96,7 @@ export default function Targets() {
   const [createCheckIds, setCreateCheckIds] = useState<string[]>([])
   const [createNotifierIds, setCreateNotifierIds] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [reconnecting, setReconnecting] = useState(false)
   const [busy, setBusy] = useState(false)
 
   const childGroups = useMemo(
@@ -107,19 +111,30 @@ export default function Targets() {
   }, [groups])
 
   const load = useCallback(async () => {
-    const [nextTargets, nextGroups, nextChecks, nextNotifiers, nextManager] =
-      await Promise.all([
-        api.targets.list(),
-        api.groups.list(),
-        api.checks.list(),
-        api.notifiers.list(),
-        api.pluginManager.get(),
-      ])
-    setTargets(nextTargets)
-    setGroups(nextGroups)
-    setChecks(nextChecks)
-    setNotifiers(nextNotifiers)
-    setPluginManager(nextManager)
+    try {
+      const [nextTargets, nextGroups, nextChecks, nextNotifiers, nextManager] =
+        await Promise.all([
+          api.targets.list(),
+          api.groups.list(),
+          api.checks.list(),
+          api.notifiers.list(),
+          api.pluginManager.get(),
+        ])
+      setTargets(nextTargets)
+      setGroups(nextGroups)
+      setChecks(nextChecks)
+      setNotifiers(nextNotifiers)
+      setPluginManager(nextManager)
+      setError(null)
+      setReconnecting(false)
+    } catch (err) {
+      if (isTransientApiError(err)) {
+        setReconnecting(true)
+        return
+      }
+      setError(err instanceof Error ? err.message : String(err))
+      setReconnecting(false)
+    }
   }, [])
 
   const enabledCheckIds = useMemo(() => {
@@ -143,56 +158,10 @@ export default function Targets() {
   )
 
   useEffect(() => {
-    void load().catch((err) =>
-      setError(err instanceof Error ? err.message : String(err)),
-    )
+    void load()
   }, [load])
 
-  useEffect(() => {
-    let fallbackId: ReturnType<typeof setInterval> | null = null
-
-    const startFallback = () => {
-      if (fallbackId) return
-      fallbackId = setInterval(
-        () =>
-          void load().catch((err) =>
-            setError(err instanceof Error ? err.message : String(err)),
-          ),
-        5000,
-      )
-    }
-
-    const stopFallback = () => {
-      if (!fallbackId) return
-      clearInterval(fallbackId)
-      fallbackId = null
-    }
-
-    const es = new EventSource('/api/stream')
-    const onRefresh = () => {
-      void load().catch((err) =>
-        setError(err instanceof Error ? err.message : String(err)),
-      )
-    }
-    const onOpen = () => {
-      stopFallback()
-    }
-    const onError = () => {
-      startFallback()
-    }
-    es.addEventListener('open', onOpen)
-    es.addEventListener('targets.updated', onRefresh)
-    es.addEventListener('plugin-manager.updated', onRefresh)
-    es.addEventListener('error', onError)
-    return () => {
-      stopFallback()
-      es.removeEventListener('open', onOpen)
-      es.removeEventListener('targets.updated', onRefresh)
-      es.removeEventListener('plugin-manager.updated', onRefresh)
-      es.removeEventListener('error', onError)
-      es.close()
-    }
-  }, [load])
+  useRealtime(load)
 
   async function onCreate(e: FormEvent) {
     e.preventDefault()
@@ -274,6 +243,7 @@ export default function Targets() {
 
   return (
     <div className="stack">
+      {reconnecting && <ReconnectBanner />}
       <section className="panel">
         <h2>Add target</h2>
         <p className="muted">

@@ -2,6 +2,18 @@ services:
   api:
     build: ./api
     restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/api/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
     volumes:
       - ./data:/data
       - ${FIREBASE_CREDENTIALS_PATH:-./firebase-service-account.json}:/run/secrets/firebase.json:ro
@@ -22,7 +34,8 @@ services:
     ports:
       - "${WEB_PORT:-8089}:80"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     networks:
       - monitor
 

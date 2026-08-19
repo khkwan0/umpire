@@ -158,16 +158,52 @@ export interface Incident {
   status_code: number | null
 }
 
+export class ApiError extends Error {
+  readonly status: number
+  readonly transient: boolean
+
+  constructor(message: string, status: number, transient: boolean) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.transient = transient
+  }
+}
+
+function isTransientStatus(status: number): boolean {
+  return status === 502 || status === 503 || status === 504 || status === 429
+}
+
+function apiErrorMessage(status: number, bodyError?: string): string {
+  if (bodyError) return bodyError
+  if (isTransientStatus(status)) return 'API temporarily unavailable'
+  if (status >= 500) return 'Server error'
+  return 'Request failed'
+}
+
+export function isTransientApiError(err: unknown): boolean {
+  return err instanceof ApiError && err.transient
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
   if (init?.body != null && !headers.has('content-type')) {
     headers.set('content-type', 'application/json')
   }
-  const res = await fetch(path, { ...init, headers })
+  let res: Response
+  try {
+    res = await fetch(path, { ...init, headers })
+  } catch {
+    throw new ApiError('API temporarily unavailable', 0, true)
+  }
   if (res.status === 204) return undefined as T
   const body = await res.json().catch(() => ({}))
   if (!res.ok) {
-    throw new Error((body as { error?: string }).error || res.statusText)
+    const message = apiErrorMessage(
+      res.status,
+      (body as { error?: string }).error,
+    )
+    throw new ApiError(message, res.status, isTransientStatus(res.status))
   }
   return body as T
 }

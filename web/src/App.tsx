@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { NavLink, Route, Routes } from 'react-router-dom'
 import { useLocation } from 'react-router-dom'
-import { api, type PluginCatalogEntry, type PluginManagerState } from './api'
+import { api, isTransientApiError, type PluginCatalogEntry, type PluginManagerState } from './api'
+import ReconnectBanner from './ReconnectBanner'
+import { useRealtime } from './useRealtime'
 import {
   hasDashboardWidget,
   isPluginUiModule,
@@ -34,7 +36,7 @@ export default function App() {
   const [pluginManager, setPluginManager] = useState<PluginManagerState | null>(
     null,
   )
-  const [realtimeMode, setRealtimeMode] = useState<'sse' | 'polling'>('sse')
+  const [reconnecting, setReconnecting] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -44,8 +46,14 @@ export default function App() {
       ])
       setCatalog(nextCatalog)
       setPluginManager(nextManager)
-    } catch {
+      setReconnecting(false)
+    } catch (err) {
+      if (isTransientApiError(err)) {
+        setReconnecting(true)
+        return
+      }
       setCatalog([])
+      setReconnecting(false)
     }
   }, [])
 
@@ -53,49 +61,11 @@ export default function App() {
     void load()
   }, [load])
 
-  useEffect(() => {
-    let fallbackId: ReturnType<typeof setInterval> | null = null
-
-    const startFallback = () => {
-      if (fallbackId) return
-      fallbackId = setInterval(() => void load(), 5000)
-    }
-
-    const stopFallback = () => {
-      if (!fallbackId) return
-      clearInterval(fallbackId)
-      fallbackId = null
-    }
-
-    const es = new EventSource('/api/stream')
-    const onRefresh = () => {
-      void load()
-    }
-    const onOpen = () => {
-      stopFallback()
-      setRealtimeMode('sse')
-    }
-    const onError = () => {
-      startFallback()
-      setRealtimeMode('polling')
-    }
-
-    es.addEventListener('open', onOpen)
-    es.addEventListener('plugin-manager.updated', onRefresh)
-    es.addEventListener('targets.updated', onRefresh)
-    es.addEventListener('status.updated', onRefresh)
-    es.addEventListener('error', onError)
-
-    return () => {
-      stopFallback()
-      es.removeEventListener('open', onOpen)
-      es.removeEventListener('plugin-manager.updated', onRefresh)
-      es.removeEventListener('targets.updated', onRefresh)
-      es.removeEventListener('status.updated', onRefresh)
-      es.removeEventListener('error', onError)
-      es.close()
-    }
+  const onRealtimeRefresh = useCallback(() => {
+    void load()
   }, [load])
+
+  const realtimeMode = useRealtime(onRealtimeRefresh)
 
   const activeUi = useMemo(() => {
     if (!catalog) return []
@@ -160,10 +130,20 @@ export default function App() {
             <p>Universal Monitoring Plugin &amp; Incident Reporter</p>
           </div>
         </div>
-        <div className={realtimeMode === 'sse' ? 'ok-text small' : 'error small'}>
-          {realtimeMode === 'sse'
-            ? 'Realtime: SSE connected'
-            : 'Realtime degraded: polling fallback active'}
+        <div
+          className={
+            reconnecting
+              ? 'warn small'
+              : realtimeMode === 'sse'
+                ? 'ok-text small'
+                : 'error small'
+          }
+        >
+          {reconnecting
+            ? 'Reconnecting to API…'
+            : realtimeMode === 'sse'
+              ? 'Realtime: SSE connected'
+              : 'Realtime degraded: polling fallback active'}
         </div>
         <nav>
           <NavLink to="/" end>
@@ -208,6 +188,7 @@ export default function App() {
         </nav>
       </header>
       <main>
+        {reconnecting && <ReconnectBanner />}
         <Routes>
           <Route path="/" element={<Dashboard widgets={dashboardWidgets} />} />
           <Route path="/groups" element={<Groups />} />

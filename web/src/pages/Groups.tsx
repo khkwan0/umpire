@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { api, type Group, type GroupTreeNode } from '../api'
+import { api, isTransientApiError, type Group, type GroupTreeNode } from '../api'
+import ReconnectBanner from '../ReconnectBanner'
 
 function flattenGroups(
   nodes: GroupTreeNode[],
@@ -77,21 +78,31 @@ export default function Groups() {
   const [name, setName] = useState('')
   const [parentId, setParentId] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [reconnecting, setReconnecting] = useState(false)
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(async () => {
-    const [nextTree, nextFlat] = await Promise.all([
-      api.groups.tree(),
-      api.groups.list(),
-    ])
-    setTree(nextTree)
-    setFlat(nextFlat)
+    try {
+      const [nextTree, nextFlat] = await Promise.all([
+        api.groups.tree(),
+        api.groups.list(),
+      ])
+      setTree(nextTree)
+      setFlat(nextFlat)
+      setError(null)
+      setReconnecting(false)
+    } catch (err) {
+      if (isTransientApiError(err)) {
+        setReconnecting(true)
+        return
+      }
+      setError(err instanceof Error ? err.message : String(err))
+      setReconnecting(false)
+    }
   }, [])
 
   useEffect(() => {
-    void load().catch((err) =>
-      setError(err instanceof Error ? err.message : String(err)),
-    )
+    void load()
   }, [load])
 
   async function onCreate(e: FormEvent) {
@@ -164,6 +175,7 @@ export default function Groups() {
 
   return (
     <div className="stack">
+      {reconnecting && <ReconnectBanner />}
       <section className="panel">
         <h2>How grouping works</h2>
         <p className="muted">

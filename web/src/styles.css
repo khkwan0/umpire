@@ -494,6 +494,14 @@ button.danger {
   font-size: 0.85rem;
 }
 
+.reconnect-banner {
+  margin: 0 0 1rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent);
+}
+
 .error {
   color: var(--danger);
 }
