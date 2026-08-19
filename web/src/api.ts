@@ -114,6 +114,20 @@ export interface CheckResult {
   checked_at: string
 }
 
+export interface Incident {
+  id: number
+  target_id: number
+  url: string
+  group_tag: string | null
+  status: 'down' | 'partial'
+  recovered: boolean
+  started_at: string
+  recovered_at: string | null
+  duration_seconds: number | null
+  error: string | null
+  status_code: number | null
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
   if (init?.body != null && !headers.has('content-type')) {
@@ -130,6 +144,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   status: () => request<StatusResponse>('/api/status'),
+  incidents: (limit = 50) =>
+    request<Incident[]>(`/api/incidents?limit=${limit}`),
   plugins: {
     list: () => request<PluginCatalogEntry[]>('/api/plugins'),
   },

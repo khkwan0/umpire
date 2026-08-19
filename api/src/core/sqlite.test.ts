@@ -143,6 +143,54 @@ describeStore('core sqlite store', () => {
     })
   })
 
+  it('builds an outage and recovery log from check results', () => {
+    const a = core.createTarget('https://a.test', 60)
+    const b = core.createTarget('https://b.test', 60)
+
+    core.recordCheckResult({
+      targetId: a.id,
+      status: 'down',
+      statusCode: 500,
+      error: 'HTTP 500',
+      latencyMs: 10,
+    })
+    core.recordCheckResult({
+      targetId: a.id,
+      status: 'up',
+      statusCode: 200,
+      error: null,
+      latencyMs: 8,
+    })
+    core.recordCheckResult({
+      targetId: b.id,
+      status: 'partial',
+      statusCode: 500,
+      error: '[http] 500',
+      latencyMs: 20,
+    })
+
+    const incidents = core.listIncidents()
+    expect(incidents).toHaveLength(2)
+    expect(incidents.map((i) => i.target_id)).toEqual([b.id, a.id])
+    expect(incidents[0]).toMatchObject({
+      target_id: b.id,
+      url: 'https://b.test',
+      status: 'partial',
+      recovered: false,
+      error: '[http] 500',
+    })
+    expect(incidents[1]).toMatchObject({
+      target_id: a.id,
+      url: 'https://a.test',
+      status: 'down',
+      recovered: true,
+      error: 'HTTP 500',
+      status_code: 500,
+    })
+    expect(incidents[1]?.recovered_at).toBeTruthy()
+    expect(core.listIncidents(1)).toHaveLength(1)
+  })
+
   it('updates and deletes targets', () => {
     const created = core.createTarget('https://a.test', 60)
     const updated = core.updateTarget(created.id, {
