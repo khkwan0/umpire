@@ -41,6 +41,22 @@ The scheduler is a plugin so timing *can* be replaced, but **leave `interval` in
 
 Both notifiers load together. Each reports `ready: false` until it is configured in its own UI (FCM FIDs + Firebase credentials; Webhook URL). An unready notifier is skipped on send. On each target, leave check/notifier boxes unchecked to use **all** loaded plugins of that kind, or tick a subset. Empty allowlists are stored as `[]`.
 
+### Plugin manager (runtime enable/disable)
+
+Plugin visibility/behavior now has two layers:
+
+1. **`api/plugins.json` = load list (startup inventory)**  
+   If a plugin id is in `plugins.json`, it is loaded by the host at startup and appears in **Settings → Plugin manager**.
+2. **Settings plugin-manager flag = runtime enabled state**  
+   Loaded plugins can be enabled/disabled live (persisted in `data/plugin-manager.json`) without restart.
+
+For **notifier UI plugins** specifically:
+
+- If listed in `plugins.json` but **disabled** in Settings, they stay loaded but are hidden from the top nav/Notifiers menu and hidden from dashboard notifier widgets.
+- After you **enable** them in Settings, they appear in the Notifiers navigation dropdown and their dashboard widgets can render.
+
+In short: `plugins.json` controls what is available to manage; Settings controls what is active/visible at runtime.
+
 **Writing plugins** (contracts, HTTP APIs, UI, dashboard widgets, cookbooks): **[Plugin developer guide](docs/plugins.md)**.
 
 ### What core does
