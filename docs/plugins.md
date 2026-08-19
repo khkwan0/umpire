@@ -176,7 +176,7 @@ interface CheckPlugin {
 
 - Receives **only** the target `url` — not the full row, settings, or store writes.
 - Always return a complete `CheckOutcome` (including `latencyMs`). Never throw for a failed probe; return `ok: false`.
-- Optional `registerRoutes` is for **plugin config/CRUD**, not for running the probe. Core calls `check(url)` on a schedule. Omit it if `url` is enough (shipped `http`).
+- Optional `registerRoutes` is for **plugin config/CRUD**, not for running the probe. Core calls `check(url)` on a schedule. Omit it when `url` is enough for your plugin logic.
 
 Aggregation (after selected checks finish):
 
@@ -308,7 +308,7 @@ Add it when the plugin owns **runtime data or actions** that do not belong in fr
 
 | `registerRoutes`? | Plugin | Why |
 |-------------------|--------|-----|
-| **No** | Shipped `http` check | Probe uses only the target `url` |
+| **Yes** | Shipped `http` check | Method/headers/body, accepted status ranges, and latency threshold are plugin-owned config |
 | **No** | Shipped `interval` scheduler | Timing uses core `interval_seconds` |
 | **Yes** | Shipped `webhook` notifier | URL, HTTP method, and headers are plugin-owned (`data/webhook.json` + Webhook page) |
 | **Yes** | Shipped `fcm` notifier | Many device FIDs, enable/disable, per-token filters, test push |
@@ -376,7 +376,7 @@ export default {
 } satisfies PluginUiModule
 ```
 
-2. [`web/src/App.tsx`](../web/src/App.tsx) globs `../../api/src/plugins/*/*/ui/index.tsx`, then shows routes only for plugins returned by **`GET /api/plugins`** (enabled and loaded). Nav placement is by kind:
+2. [`web/src/App.tsx`](../web/src/App.tsx) globs `../../api/src/plugins/*/*/ui/index.tsx`, then shows routes only for plugins returned by **`GET /api/plugins`**. Route visibility is additionally gated by the runtime plugin manager for `check` and `notify` kinds (`GET /api/plugin-manager`). Nav placement is by kind:
    - `check`: item under the built-in **Checks** dropdown (always present in the top nav)
    - `notify`: item under the built-in **Notifiers** dropdown (always present in the top nav)
    - `scheduler`: top-level nav link
@@ -967,6 +967,7 @@ After enabling a plugin:
    - check UIs under the **Checks** dropdown
    - notifier UIs under the **Notifiers** dropdown
    - scheduler UIs as top-level links
+   - for check/notifier kinds, the plugin must also be **enabled** in plugin manager settings
 6. If the UI module exports `Dashboard`, `/` shows a panel titled with `label` (under the stats, before Targets)
 7. Docker: rebuild `web` after adding UI; Vite glob is build-time
 8. Target checkboxes show the new check/notifier id
@@ -978,7 +979,7 @@ After enabling a plugin:
 
 | Plugin | Path | Why read it |
 |--------|------|-------------|
-| HTTP check | [`api/src/plugins/check/http/index.ts`](../api/src/plugins/check/http/index.ts) | Minimal check, timeout default, no UI |
+| HTTP check | [`api/src/plugins/check/http/`](../api/src/plugins/check/http/) | Configurable check with plugin routes/UI, accepted status ranges, optional latency threshold |
 | Interval scheduler | [`api/src/plugins/scheduler/interval/index.ts`](../api/src/plugins/scheduler/interval/index.ts) | Differential `reschedule`, Pause, stagger |
 | Webhook notifier | [`api/src/plugins/notify/webhook/`](../api/src/plugins/notify/webhook/) | Sidecar + method/URL/headers + test + UI |
 | FCM notifier | [`api/src/plugins/notify/fcm/`](../api/src/plugins/notify/fcm/) | Storage, CRUD, OpenAPI, test sends, full UI |
