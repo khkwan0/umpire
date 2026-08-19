@@ -1,7 +1,7 @@
 # Build from the repo root so Vite can glob plugin UI modules:
 #   docker compose build web
 #   docker build -f web/Dockerfile .
-FROM node:22-bookworm-slim AS build
+FROM node:26-bookworm-slim AS build
 WORKDIR /src
 
 COPY web/package.json web/package-lock.json* ./web/
