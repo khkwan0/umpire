@@ -28,7 +28,11 @@ export async function registerKeywordBodyCheckRoutes(
           required: ['targetId'],
           properties: { targetId: { type: 'string' } },
         },
-        response: { 200: configSchema },
+        response: {
+          200: configSchema,
+          400: { type: 'object', properties: { error: { type: 'string' } } },
+          404: { type: 'object', properties: { error: { type: 'string' } } },
+        },
       },
     },
     async (req, reply) => {
@@ -63,6 +67,10 @@ export async function registerKeywordBodyCheckRoutes(
         response: {
           200: configSchema,
           400: {
+            type: 'object',
+            properties: { error: { type: 'string' } },
+          },
+          404: {
             type: 'object',
             properties: { error: { type: 'string' } },
           },

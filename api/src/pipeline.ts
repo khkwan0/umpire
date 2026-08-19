@@ -4,6 +4,7 @@ import { getChecks, getNotifiers } from './plugins/registry.js'
 import { isPluginEnabled } from './plugins/manager.js'
 import type { AggregatedCheck, HealthStatus, Target } from './plugins/types.js'
 import { healthFromDb } from './plugins/types.js'
+import { publishRealtime } from './realtime.js'
 
 /** Aggregate check plugins: all ok → up; none ok → down; mixed → partial. */
 async function runAllChecks(
@@ -67,6 +68,8 @@ export async function runCheck(targetId: number): Promise<void> {
     error: result.error,
     latencyMs: result.latencyMs,
   })
+  publishRealtime('status.updated', { reason: 'check-result', targetId: target.id })
+  publishRealtime('incidents.updated', { targetId: target.id })
 
   const settings = store.getSettings()
   const alert = shouldAlert({

@@ -54,7 +54,11 @@ export async function registerHttpCheckRoutes(
           required: ['targetId'],
           properties: { targetId: { type: 'string' } },
         },
-        response: { 200: configSchema },
+        response: {
+          200: configSchema,
+          400: errorResponse,
+          404: errorResponse,
+        },
       },
     },
     async (req, reply) => {
@@ -95,6 +99,7 @@ export async function registerHttpCheckRoutes(
         response: {
           200: configSchema,
           400: errorResponse,
+          404: errorResponse,
         },
       },
     },
@@ -160,6 +165,7 @@ export async function registerHttpCheckRoutes(
         response: {
           200: testSchema,
           400: errorResponse,
+          404: errorResponse,
         },
       },
     },

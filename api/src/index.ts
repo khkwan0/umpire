@@ -15,6 +15,7 @@ import { groupsRoutes } from './routes/groups.js'
 import { settingsRoutes } from './routes/settings.js'
 import { statusRoutes } from './routes/status.js'
 import { incidentsRoutes } from './routes/incidents.js'
+import { streamRoutes } from './routes/stream.js'
 import { schemaRoutes } from './routes/schema.js'
 import { checksRoutes } from './routes/checks.js'
 import { notifiersRoutes } from './routes/notifiers.js'
@@ -50,6 +51,7 @@ async function main() {
   await app.register(settingsRoutes)
   await app.register(statusRoutes)
   await app.register(incidentsRoutes)
+  await app.register(streamRoutes)
   await app.register(schemaRoutes)
   await app.register(checksRoutes)
   await app.register(notifiersRoutes)

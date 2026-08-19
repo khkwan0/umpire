@@ -163,7 +163,7 @@ Deploy helper:
 WEB_PORT=8090 ./scripts/deploy.sh
 ```
 
-Pushes and pull requests run [GitHub Actions](.github/workflows/ci.yml) (Node 22). Optional on-host deploy: Jenkins Pipeline in `Jenkinsfile` — [setup](docs/jenkins.md).
+Pushes and pull requests run [GitHub Actions](.github/workflows/ci.yml) (current Node LTS). Optional on-host deploy: Jenkins Pipeline in `Jenkinsfile` — [setup](docs/jenkins.md).
 
 Or run with Docker Compose (optional deploy path):
 

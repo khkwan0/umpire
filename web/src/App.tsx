@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { NavLink, Route, Routes } from 'react-router-dom'
 import { useLocation } from 'react-router-dom'
 import { api, type PluginCatalogEntry, type PluginManagerState } from './api'
@@ -34,25 +34,68 @@ export default function App() {
   const [pluginManager, setPluginManager] = useState<PluginManagerState | null>(
     null,
   )
+  const [realtimeMode, setRealtimeMode] = useState<'sse' | 'polling'>('sse')
+
+  const load = useCallback(async () => {
+    try {
+      const [nextCatalog, nextManager] = await Promise.all([
+        api.plugins.list(),
+        api.pluginManager.get(),
+      ])
+      setCatalog(nextCatalog)
+      setPluginManager(nextManager)
+    } catch {
+      setCatalog([])
+    }
+  }, [])
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const [nextCatalog, nextManager] = await Promise.all([
-          api.plugins.list(),
-          api.pluginManager.get(),
-        ])
-        setCatalog(nextCatalog)
-        setPluginManager(nextManager)
-      } catch {
-        setCatalog([])
-      }
+    void load()
+  }, [load])
+
+  useEffect(() => {
+    let fallbackId: ReturnType<typeof setInterval> | null = null
+
+    const startFallback = () => {
+      if (fallbackId) return
+      fallbackId = setInterval(() => void load(), 5000)
     }
 
-    void load()
-    const id = setInterval(() => void load(), 5000)
-    return () => clearInterval(id)
-  }, [])
+    const stopFallback = () => {
+      if (!fallbackId) return
+      clearInterval(fallbackId)
+      fallbackId = null
+    }
+
+    const es = new EventSource('/api/stream')
+    const onRefresh = () => {
+      void load()
+    }
+    const onOpen = () => {
+      stopFallback()
+      setRealtimeMode('sse')
+    }
+    const onError = () => {
+      startFallback()
+      setRealtimeMode('polling')
+    }
+
+    es.addEventListener('open', onOpen)
+    es.addEventListener('plugin-manager.updated', onRefresh)
+    es.addEventListener('targets.updated', onRefresh)
+    es.addEventListener('status.updated', onRefresh)
+    es.addEventListener('error', onError)
+
+    return () => {
+      stopFallback()
+      es.removeEventListener('open', onOpen)
+      es.removeEventListener('plugin-manager.updated', onRefresh)
+      es.removeEventListener('targets.updated', onRefresh)
+      es.removeEventListener('status.updated', onRefresh)
+      es.removeEventListener('error', onError)
+      es.close()
+    }
+  }, [load])
 
   const activeUi = useMemo(() => {
     if (!catalog) return []
@@ -116,6 +159,11 @@ export default function App() {
             <h1>UMPIRE</h1>
             <p>Universal Monitoring Plugin &amp; Incident Reporter</p>
           </div>
+        </div>
+        <div className={realtimeMode === 'sse' ? 'ok-text small' : 'error small'}>
+          {realtimeMode === 'sse'
+            ? 'Realtime: SSE connected'
+            : 'Realtime degraded: polling fallback active'}
         </div>
         <nav>
           <NavLink to="/" end>

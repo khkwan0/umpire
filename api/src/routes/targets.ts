@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { getCore } from '../core/index.js'
 import { normalizePluginIds } from '../core/sqlite.js'
 import { getChecks, getScheduler } from '../plugins/registry.js'
+import { publishRealtime } from '../realtime.js'
 
 const errorResponse = {
   type: 'object',
@@ -134,6 +135,8 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
           notifierIdsParsed.value ?? [],
         )
         getScheduler().reschedule()
+        publishRealtime('targets.updated', { action: 'create', targetId: target.id })
+        publishRealtime('status.updated', { reason: 'targets' })
         return reply.code(201).send(target)
       } catch (err) {
         return reply
@@ -234,6 +237,8 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
         const updated = getCore().updateTarget(id, patch)
         if (!updated) return reply.code(404).send({ error: 'not found' })
         getScheduler().reschedule()
+        publishRealtime('targets.updated', { action: 'update', targetId: id })
+        publishRealtime('status.updated', { reason: 'targets' })
         return updated
       } catch (err) {
         return reply
@@ -268,6 +273,8 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
       const ok = getCore().deleteTarget(id)
       if (!ok) return reply.code(404).send({ error: 'not found' })
       getScheduler().reschedule()
+      publishRealtime('targets.updated', { action: 'delete', targetId: id })
+      publishRealtime('status.updated', { reason: 'targets' })
       return reply.code(204).send()
     },
   )
@@ -374,6 +381,7 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(400).send({ error: 'body must be a JSON object' })
       }
       getCore().setTargetCheckConfig(id, checkId, req.body)
+      publishRealtime('targets.updated', { action: 'config-update', targetId: id, checkId })
       return req.body
     },
   )
@@ -408,6 +416,7 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
       const checkId = req.params.checkId.trim()
       if (!checkId) return reply.code(400).send({ error: 'invalid checkId' })
       getCore().deleteTargetCheckConfig(id, checkId)
+      publishRealtime('targets.updated', { action: 'config-delete', targetId: id, checkId })
       return reply.code(204).send()
     },
   )

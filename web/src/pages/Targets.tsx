@@ -10,6 +10,7 @@ import {
   api,
   type Group,
   type NotifierStatus,
+  type PluginManagerState,
   type PluginRef,
   type Target,
 } from '../api'
@@ -83,6 +84,9 @@ export default function Targets() {
   const [groups, setGroups] = useState<Group[]>([])
   const [checks, setChecks] = useState<PluginRef[]>([])
   const [notifiers, setNotifiers] = useState<NotifierStatus[]>([])
+  const [pluginManager, setPluginManager] = useState<PluginManagerState | null>(
+    null,
+  )
   const [url, setUrl] = useState('https://')
   const [interval, setIntervalSeconds] = useState(60)
   const [groupId, setGroupId] = useState<number | ''>('')
@@ -103,23 +107,91 @@ export default function Targets() {
   }, [groups])
 
   const load = useCallback(async () => {
-    const [nextTargets, nextGroups, nextChecks, nextNotifiers] =
+    const [nextTargets, nextGroups, nextChecks, nextNotifiers, nextManager] =
       await Promise.all([
         api.targets.list(),
         api.groups.list(),
         api.checks.list(),
         api.notifiers.list(),
+        api.pluginManager.get(),
       ])
     setTargets(nextTargets)
     setGroups(nextGroups)
     setChecks(nextChecks)
     setNotifiers(nextNotifiers)
+    setPluginManager(nextManager)
   }, [])
+
+  const enabledCheckIds = useMemo(() => {
+    const entries = pluginManager?.checks ?? []
+    return new Set(entries.filter((p) => p.enabled).map((p) => p.id))
+  }, [pluginManager])
+
+  const enabledNotifierIds = useMemo(() => {
+    const entries = pluginManager?.notifiers ?? []
+    return new Set(entries.filter((p) => p.enabled).map((p) => p.id))
+  }, [pluginManager])
+
+  const visibleChecks = useMemo(
+    () => checks.filter((c) => enabledCheckIds.has(c.id)),
+    [checks, enabledCheckIds],
+  )
+
+  const visibleNotifiers = useMemo(
+    () => notifiers.filter((n) => enabledNotifierIds.has(n.id)),
+    [notifiers, enabledNotifierIds],
+  )
 
   useEffect(() => {
     void load().catch((err) =>
       setError(err instanceof Error ? err.message : String(err)),
     )
+  }, [load])
+
+  useEffect(() => {
+    let fallbackId: ReturnType<typeof setInterval> | null = null
+
+    const startFallback = () => {
+      if (fallbackId) return
+      fallbackId = setInterval(
+        () =>
+          void load().catch((err) =>
+            setError(err instanceof Error ? err.message : String(err)),
+          ),
+        5000,
+      )
+    }
+
+    const stopFallback = () => {
+      if (!fallbackId) return
+      clearInterval(fallbackId)
+      fallbackId = null
+    }
+
+    const es = new EventSource('/api/stream')
+    const onRefresh = () => {
+      void load().catch((err) =>
+        setError(err instanceof Error ? err.message : String(err)),
+      )
+    }
+    const onOpen = () => {
+      stopFallback()
+    }
+    const onError = () => {
+      startFallback()
+    }
+    es.addEventListener('open', onOpen)
+    es.addEventListener('targets.updated', onRefresh)
+    es.addEventListener('plugin-manager.updated', onRefresh)
+    es.addEventListener('error', onError)
+    return () => {
+      stopFallback()
+      es.removeEventListener('open', onOpen)
+      es.removeEventListener('targets.updated', onRefresh)
+      es.removeEventListener('plugin-manager.updated', onRefresh)
+      es.removeEventListener('error', onError)
+      es.close()
+    }
   }, [load])
 
   async function onCreate(e: FormEvent) {
@@ -249,11 +321,11 @@ export default function Targets() {
             Add
           </button>
         </form>
-        {checks.length > 0 && (
+        {visibleChecks.length > 0 && (
           <fieldset className="check-ids">
             <legend>Checks (optional allowlist)</legend>
             <div className="check-ids-list">
-              {checks.map((c) => (
+              {visibleChecks.map((c) => (
                 <label key={c.id} className="check-ids-item">
                   <input
                     type="checkbox"
@@ -273,11 +345,11 @@ export default function Targets() {
             </p>
           </fieldset>
         )}
-        {notifiers.length > 0 && (
+        {visibleNotifiers.length > 0 && (
           <fieldset className="check-ids">
             <legend>Notifiers (optional allowlist)</legend>
             <div className="check-ids-list">
-              {notifiers.map((n) => (
+              {visibleNotifiers.map((n) => (
                 <label key={n.id} className="check-ids-item">
                   <input
                     type="checkbox"
@@ -354,11 +426,11 @@ export default function Targets() {
                       {g && <div className="muted small mono">{g.tag}</div>}
                     </td>
                     <td>
-                      {checks.length === 0 ? (
+                      {visibleChecks.length === 0 ? (
                         <span className="muted">—</span>
                       ) : (
                         <div className="check-ids-list">
-                          {checks.map((c) => (
+                          {visibleChecks.map((c) => (
                             <label key={c.id} className="check-ids-item">
                               <input
                                 type="checkbox"
@@ -379,11 +451,11 @@ export default function Targets() {
                       )}
                     </td>
                     <td>
-                      {notifiers.length === 0 ? (
+                      {visibleNotifiers.length === 0 ? (
                         <span className="muted">—</span>
                       ) : (
                         <div className="check-ids-list">
-                          {notifiers.map((n) => (
+                          {visibleNotifiers.map((n) => (
                             <label key={n.id} className="check-ids-item">
                               <input
                                 type="checkbox"

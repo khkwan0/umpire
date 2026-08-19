@@ -21,7 +21,7 @@ pipeline {
     CI = 'true'
     COMPOSE_DOCKER_CLI_BUILD = '1'
     DOCKER_BUILDKIT = '1'
-    NODE_IMAGE = 'node:22-bookworm'
+    NODE_IMAGE = 'node:lts-bookworm'
   }
 
   stages {

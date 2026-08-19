@@ -4,6 +4,7 @@ import {
   setPluginEnabled,
 } from '../plugins/manager.js'
 import { getChecks, getNotifiers, getScheduler } from '../plugins/registry.js'
+import { publishRealtime } from '../realtime.js'
 
 const errorResponse = {
   type: 'object',
@@ -68,6 +69,12 @@ export async function pluginManagerRoutes(app: FastifyInstance): Promise<void> {
           return reply.code(404).send({ error: 'check plugin not loaded' })
         }
         setPluginEnabled('check', id, enabled)
+        publishRealtime('plugin-manager.updated', {
+          kind: 'check',
+          id,
+          enabled,
+        })
+        publishRealtime('status.updated', { reason: 'plugin-manager' })
         return { ok: true }
       }
       if (kind === 'notify') {
@@ -75,6 +82,12 @@ export async function pluginManagerRoutes(app: FastifyInstance): Promise<void> {
           return reply.code(404).send({ error: 'notifier plugin not loaded' })
         }
         setPluginEnabled('notify', id, enabled)
+        publishRealtime('plugin-manager.updated', {
+          kind: 'notify',
+          id,
+          enabled,
+        })
+        publishRealtime('status.updated', { reason: 'plugin-manager' })
         return { ok: true }
       }
       if (kind === 'scheduler') {
@@ -89,6 +102,12 @@ export async function pluginManagerRoutes(app: FastifyInstance): Promise<void> {
         } else {
           scheduler.stop()
         }
+        publishRealtime('plugin-manager.updated', {
+          kind: 'scheduler',
+          id,
+          enabled,
+        })
+        publishRealtime('status.updated', { reason: 'plugin-manager' })
         return { ok: true }
       }
 

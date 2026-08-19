@@ -1,6 +1,10 @@
 {
   "check": {
-    "http": true
+    "http": true,
+    "tls": false,
+    "keyword-body": false,
+    "tcp": false,
+    "ping": false
   },
   "notify": {
     "fcm": true,
