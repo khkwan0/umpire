@@ -3,7 +3,7 @@ import { NavLink, Route, Routes } from 'react-router-dom'
 import { useLocation } from 'react-router-dom'
 import { api, isTransientApiError, type PluginCatalogEntry, type PluginManagerState } from './api'
 import ReconnectBanner from './ReconnectBanner'
-import { useRealtime } from './useRealtime'
+import { useRealtimeMode, useRealtimeRefresh } from './RealtimeProvider'
 import {
   hasDashboardWidget,
   isPluginUiModule,
@@ -65,7 +65,9 @@ export default function App() {
     void load()
   }, [load])
 
-  const realtimeMode = useRealtime(onRealtimeRefresh)
+  useRealtimeRefresh(onRealtimeRefresh)
+
+  const realtimeMode = useRealtimeMode()
 
   const activeUi = useMemo(() => {
     if (!catalog) return []
@@ -132,7 +134,7 @@ export default function App() {
         </div>
         <div
           className={
-            reconnecting
+            reconnecting || realtimeMode === 'reconnecting'
               ? 'warn small'
               : realtimeMode === 'sse'
                 ? 'ok-text small'
@@ -141,9 +143,11 @@ export default function App() {
         >
           {reconnecting
             ? 'Reconnecting to API…'
-            : realtimeMode === 'sse'
-              ? 'Realtime: SSE connected'
-              : 'Realtime degraded: polling fallback active'}
+            : realtimeMode === 'reconnecting'
+              ? 'Realtime reconnecting…'
+              : realtimeMode === 'sse'
+                ? 'Realtime: SSE connected'
+                : 'Realtime degraded: polling fallback active'}
         </div>
         <nav>
           <NavLink to="/" end>

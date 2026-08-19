@@ -8,7 +8,7 @@ import {
   type StatusResponse,
 } from '../api'
 import ReconnectBanner from '../ReconnectBanner'
-import { useRealtime } from '../useRealtime'
+import { useRealtimeRefresh } from '../RealtimeProvider'
 import type { DashboardWidgetModule } from '../plugin-ui'
 
 function statusLabel(isUp: number | null, enabled: number): string {
@@ -71,7 +71,7 @@ export default function Dashboard({
     void load()
   }, [load])
 
-  useRealtime(load)
+  useRealtimeRefresh(load)
 
   if (error && !data) return <p className="error">{error}</p>
   if (!data) return <p className="muted">Loading…</p>

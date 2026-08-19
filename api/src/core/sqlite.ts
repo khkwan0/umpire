@@ -18,10 +18,121 @@ import type { CoreStore } from './types.js'
 
 let db: Database.Database | undefined
 let dbPath = ''
+let stmts: ReturnType<typeof buildStatements> | undefined
 
 function getDb(): Database.Database {
   if (!db) throw new Error('Core database not initialized')
   return db
+}
+
+function getStmts() {
+  if (!stmts) throw new Error('Core database not initialized')
+  return stmts
+}
+
+function buildStatements(database: Database.Database) {
+  return {
+    selectGroupParent: database.prepare(
+      `SELECT id, parent FROM groups WHERE id = ?`,
+    ),
+    selectGroupById: database.prepare(`SELECT * FROM groups WHERE id = ?`),
+    updateGroupTag: database.prepare(
+      `UPDATE groups SET tag = ?, updated_at = datetime('now') WHERE id = ?`,
+    ),
+    selectAllGroupsParent: database.prepare(`SELECT id, parent FROM groups`),
+    selectSettings: database.prepare(`SELECT key, value FROM settings`),
+    upsertSetting: database.prepare(
+      `INSERT INTO settings (key, value) VALUES (?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+    ),
+    selectAllGroups: database.prepare(`SELECT * FROM groups ORDER BY id ASC`),
+    insertGroup: database.prepare(
+      `INSERT INTO groups (parent, name, tag) VALUES (?, ?, ?)`,
+    ),
+    deleteGroupById: database.prepare(`DELETE FROM groups WHERE id = ?`),
+    updateGroup: database.prepare(
+      `UPDATE groups SET parent = ?, name = ?, updated_at = datetime('now') WHERE id = ?`,
+    ),
+    selectAllTargets: database.prepare(`SELECT * FROM targets ORDER BY id ASC`),
+    selectTargetById: database.prepare(`SELECT * FROM targets WHERE id = ?`),
+    selectTargetCheckConfig: database.prepare(
+      `SELECT config_json FROM target_check_configs WHERE target_id = ? AND check_id = ?`,
+    ),
+    upsertTargetCheckConfig: database.prepare(
+      `INSERT INTO target_check_configs (target_id, check_id, config_json, updated_at)
+       VALUES (?, ?, ?, datetime('now'))
+       ON CONFLICT(target_id, check_id) DO UPDATE SET
+         config_json = excluded.config_json,
+         updated_at = excluded.updated_at`,
+    ),
+    deleteTargetCheckConfig: database.prepare(
+      `DELETE FROM target_check_configs WHERE target_id = ? AND check_id = ?`,
+    ),
+    insertTarget: database.prepare(
+      `INSERT INTO targets (url, interval_seconds, enabled, group_id, check_ids, notifier_ids) VALUES (?, ?, ?, ?, ?, ?)`,
+    ),
+    insertTargetState: database.prepare(
+      `INSERT INTO target_state (target_id) VALUES (?)`,
+    ),
+    updateTarget: database.prepare(
+      `UPDATE targets SET url = ?, interval_seconds = ?, enabled = ?, group_id = ?, check_ids = ?, notifier_ids = ?, updated_at = datetime('now') WHERE id = ?`,
+    ),
+    deleteTargetById: database.prepare(`DELETE FROM targets WHERE id = ?`),
+    selectTargetState: database.prepare(
+      `SELECT * FROM target_state WHERE target_id = ?`,
+    ),
+    insertCheckResult: database.prepare(
+      `INSERT INTO check_results (target_id, ok, status_code, error, latency_ms)
+       VALUES (?, ?, ?, ?, ?)`,
+    ),
+    upsertTargetState: database.prepare(
+      `INSERT INTO target_state (target_id, is_up, last_checked_at, last_status_code, last_error, last_latency_ms)
+       VALUES (?, ?, datetime('now'), ?, ?, ?)
+       ON CONFLICT(target_id) DO UPDATE SET
+         is_up = excluded.is_up,
+         last_checked_at = excluded.last_checked_at,
+         last_status_code = excluded.last_status_code,
+         last_error = excluded.last_error,
+         last_latency_ms = excluded.last_latency_ms`,
+    ),
+    pruneCheckResults: database.prepare(
+      `DELETE FROM check_results
+       WHERE target_id = ?
+         AND id NOT IN (
+           SELECT id FROM check_results
+           WHERE target_id = ?
+           ORDER BY checked_at DESC, id DESC
+           LIMIT 500
+         )`,
+    ),
+    markAlertSent: database.prepare(
+      `UPDATE target_state SET last_alert_at = datetime('now') WHERE target_id = ?`,
+    ),
+    selectRecentResults: database.prepare(
+      `SELECT * FROM check_results WHERE target_id = ? ORDER BY checked_at DESC, id DESC LIMIT ?`,
+    ),
+    selectIncidentRows: database.prepare(
+      `SELECT r.id, r.target_id, r.ok, r.status_code, r.error, r.checked_at,
+              t.url, g.tag AS group_tag
+       FROM check_results r
+       JOIN targets t ON t.id = r.target_id
+       LEFT JOIN groups g ON g.id = t.group_id
+       ORDER BY r.target_id ASC, r.checked_at ASC, r.id ASC`,
+    ),
+    selectStatusSummary: database.prepare(
+      `SELECT t.id, t.url, t.interval_seconds, t.enabled, t.group_id,
+              g.tag AS group_tag,
+              s.is_up, s.last_checked_at, s.last_status_code, s.last_error,
+              s.last_latency_ms, s.last_alert_at
+       FROM targets t
+       LEFT JOIN groups g ON g.id = t.group_id
+       LEFT JOIN target_state s ON s.target_id = t.id
+       ORDER BY t.id ASC`,
+    ),
+    insertSettingIgnore: database.prepare(
+      `INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`,
+    ),
+  }
 }
 
 function ensureColumn(table: string, column: string, definition: string): void {
@@ -51,9 +162,8 @@ function pathIdsToRoot(id: number, parent: number): number[] {
   while (p !== 0) {
     if (seen.has(p)) throw new Error('group parent cycle detected')
     seen.add(p)
-    const row = getDb()
-      .prepare(`SELECT id, parent FROM groups WHERE id = ?`)
-      .get(p) as { id: number; parent: number } | undefined
+    const row = getStmts().selectGroupParent.get(p) as
+      { id: number; parent: number } | undefined
     if (!row) throw new Error(`parent group ${p} not found`)
     ids.unshift(row.id)
     p = row.parent
@@ -62,16 +172,11 @@ function pathIdsToRoot(id: number, parent: number): number[] {
 }
 
 function readGroup(id: number): Group | undefined {
-  return getDb().prepare(`SELECT * FROM groups WHERE id = ?`).get(id) as
-    Group | undefined
+  return getStmts().selectGroupById.get(id) as Group | undefined
 }
 
 function setGroupTag(id: number, tag: string): void {
-  getDb()
-    .prepare(
-      `UPDATE groups SET tag = ?, updated_at = datetime('now') WHERE id = ?`,
-    )
-    .run(tag, id)
+  getStmts().updateGroupTag.run(tag, id)
 }
 
 function recomputeTag(id: number): void {
@@ -82,7 +187,7 @@ function recomputeTag(id: number): void {
 }
 
 function descendantIds(rootId: number): number[] {
-  const all = getDb().prepare(`SELECT id, parent FROM groups`).all() as Array<{
+  const all = getStmts().selectAllGroupsParent.all() as Array<{
     id: number
     parent: number
   }>
@@ -224,9 +329,10 @@ export const core: CoreStore = {
   },
 
   getSettings(): Settings {
-    const rows = getDb()
-      .prepare(`SELECT key, value FROM settings`)
-      .all() as Array<{ key: string; value: string }>
+    const rows = getStmts().selectSettings.all() as Array<{
+      key: string
+      value: string
+    }>
     const map = Object.fromEntries(rows.map((r) => [r.key, r.value]))
     const policy = map.alert_policy as AlertPolicy
     return {
@@ -251,19 +357,14 @@ export const core: CoreStore = {
     if (!Number.isFinite(next.throttle_minutes) || next.throttle_minutes < 1) {
       throw new Error('throttle_minutes must be >= 1')
     }
-    const upsert = getDb().prepare(
-      `INSERT INTO settings (key, value) VALUES (?, ?)
-       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-    )
+    const upsert = getStmts().upsertSetting
     upsert.run('alert_policy', next.alert_policy)
     upsert.run('throttle_minutes', String(next.throttle_minutes))
     return next
   },
 
   listGroups(): Group[] {
-    return getDb()
-      .prepare(`SELECT * FROM groups ORDER BY id ASC`)
-      .all() as Group[]
+    return getStmts().selectAllGroups.all() as Group[]
   },
 
   listGroupTree(): GroupTreeNode[] {
@@ -281,16 +382,14 @@ export const core: CoreStore = {
     }
     const name = (input.name ?? '').trim()
     const placeholder = `__tmp_${Date.now()}_${Math.random().toString(36).slice(2)}`
-    const result = getDb()
-      .prepare(`INSERT INTO groups (parent, name, tag) VALUES (?, ?, ?)`)
-      .run(parent, name, placeholder)
+    const result = getStmts().insertGroup.run(parent, name, placeholder)
     const id = Number(result.lastInsertRowid)
     const tag =
       input.tag?.trim() || computeTagForPath(pathIdsToRoot(id, parent))
     try {
       setGroupTag(id, tag)
     } catch (err) {
-      getDb().prepare(`DELETE FROM groups WHERE id = ?`).run(id)
+      getStmts().deleteGroupById.run(id)
       throw err
     }
     return readGroup(id)!
@@ -313,11 +412,7 @@ export const core: CoreStore = {
       throw new Error('cannot move group under itself or a descendant')
     }
 
-    getDb()
-      .prepare(
-        `UPDATE groups SET parent = ?, name = ?, updated_at = datetime('now') WHERE id = ?`,
-      )
-      .run(parent, name, id)
+    getStmts().updateGroup.run(parent, name, id)
 
     if (patch.tag !== undefined && patch.tag.trim()) {
       setGroupTag(id, patch.tag.trim())
@@ -332,7 +427,7 @@ export const core: CoreStore = {
   deleteGroup(id: number): boolean {
     if (!readGroup(id)) return false
     const ids = [id, ...descendantIds(id)].sort((a, b) => b - a)
-    const del = getDb().prepare(`DELETE FROM groups WHERE id = ?`)
+    const del = getStmts().deleteGroupById
     const tx = getDb().transaction(() => {
       for (const gid of ids) del.run(gid)
     })
@@ -341,25 +436,20 @@ export const core: CoreStore = {
   },
 
   listTargets(): Target[] {
-    const rows = getDb()
-      .prepare(`SELECT * FROM targets ORDER BY id ASC`)
-      .all() as TargetRow[]
+    const rows = getStmts().selectAllTargets.all() as TargetRow[]
     return rows.map((r) => mapTarget(r)!)
   },
 
   getTarget(id: number): Target | undefined {
-    const row = getDb()
-      .prepare(`SELECT * FROM targets WHERE id = ?`)
-      .get(id) as TargetRow | undefined
+    const row = getStmts().selectTargetById.get(id) as TargetRow | undefined
     return mapTarget(row)
   },
 
   getTargetCheckConfig(targetId: number, checkId: string): unknown | null {
-    const row = getDb()
-      .prepare(
-        `SELECT config_json FROM target_check_configs WHERE target_id = ? AND check_id = ?`,
-      )
-      .get(targetId, checkId) as TargetCheckConfigRow | undefined
+    const row = getStmts().selectTargetCheckConfig.get(
+      targetId,
+      checkId,
+    ) as TargetCheckConfigRow | undefined
     if (!row) return null
     try {
       return JSON.parse(row.config_json) as unknown
@@ -378,23 +468,15 @@ export const core: CoreStore = {
     const target = core.getTarget(targetId)
     if (!target) throw new Error(`target ${targetId} not found`)
     const normalizedCheckId = checkId.trim()
-    getDb()
-      .prepare(
-        `INSERT INTO target_check_configs (target_id, check_id, config_json, updated_at)
-         VALUES (?, ?, ?, datetime('now'))
-         ON CONFLICT(target_id, check_id) DO UPDATE SET
-           config_json = excluded.config_json,
-           updated_at = excluded.updated_at`,
-      )
-      .run(targetId, normalizedCheckId, JSON.stringify(config))
+    getStmts().upsertTargetCheckConfig.run(
+      targetId,
+      normalizedCheckId,
+      JSON.stringify(config),
+    )
   },
 
   deleteTargetCheckConfig(targetId: number, checkId: string): void {
-    getDb()
-      .prepare(
-        `DELETE FROM target_check_configs WHERE target_id = ? AND check_id = ?`,
-      )
-      .run(targetId, checkId)
+    getStmts().deleteTargetCheckConfig.run(targetId, checkId)
   },
 
   createTarget(
@@ -408,20 +490,16 @@ export const core: CoreStore = {
     assertChildGroupForTarget(groupId)
     const checks = normalizePluginIds(checkIds, 'check_ids')
     const notifiers = normalizePluginIds(notifierIds, 'notifier_ids')
-    const result = getDb()
-      .prepare(
-        `INSERT INTO targets (url, interval_seconds, enabled, group_id, check_ids, notifier_ids) VALUES (?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        url,
-        intervalSeconds,
-        enabled ? 1 : 0,
-        groupId,
-        JSON.stringify(checks),
-        JSON.stringify(notifiers),
-      )
+    const result = getStmts().insertTarget.run(
+      url,
+      intervalSeconds,
+      enabled ? 1 : 0,
+      groupId,
+      JSON.stringify(checks),
+      JSON.stringify(notifiers),
+    )
     const id = Number(result.lastInsertRowid)
-    getDb().prepare(`INSERT INTO target_state (target_id) VALUES (?)`).run(id)
+    getStmts().insertTargetState.run(id)
     return core.getTarget(id)!
   },
 
@@ -453,31 +531,25 @@ export const core: CoreStore = {
         ? normalizePluginIds(patch.notifier_ids, 'notifier_ids')
         : existing.notifier_ids
     assertChildGroupForTarget(groupId)
-    getDb()
-      .prepare(
-        `UPDATE targets SET url = ?, interval_seconds = ?, enabled = ?, group_id = ?, check_ids = ?, notifier_ids = ?, updated_at = datetime('now') WHERE id = ?`,
-      )
-      .run(
-        url,
-        interval,
-        enabled,
-        groupId,
-        JSON.stringify(checkIds),
-        JSON.stringify(notifierIds),
-        id,
-      )
+    getStmts().updateTarget.run(
+      url,
+      interval,
+      enabled,
+      groupId,
+      JSON.stringify(checkIds),
+      JSON.stringify(notifierIds),
+      id,
+    )
     return core.getTarget(id)
   },
 
   deleteTarget(id: number): boolean {
-    const result = getDb().prepare(`DELETE FROM targets WHERE id = ?`).run(id)
+    const result = getStmts().deleteTargetById.run(id)
     return result.changes > 0
   },
 
   getTargetState(targetId: number): TargetState | undefined {
-    return getDb()
-      .prepare(`SELECT * FROM target_state WHERE target_id = ?`)
-      .get(targetId) as TargetState | undefined
+    return getStmts().selectTargetState.get(targetId) as TargetState | undefined
   },
 
   recordCheckResult(input: {
@@ -487,85 +559,43 @@ export const core: CoreStore = {
     error: string | null
     latencyMs: number | null
   }): void {
-    const database = getDb()
+    const s = getStmts()
     const code = healthToDb(input.status)
-    database
-      .prepare(
-        `INSERT INTO check_results (target_id, ok, status_code, error, latency_ms)
-         VALUES (?, ?, ?, ?, ?)`,
-      )
-      .run(input.targetId, code, input.statusCode, input.error, input.latencyMs)
-
-    database
-      .prepare(
-        `INSERT INTO target_state (target_id, is_up, last_checked_at, last_status_code, last_error, last_latency_ms)
-         VALUES (?, ?, datetime('now'), ?, ?, ?)
-         ON CONFLICT(target_id) DO UPDATE SET
-           is_up = excluded.is_up,
-           last_checked_at = excluded.last_checked_at,
-           last_status_code = excluded.last_status_code,
-           last_error = excluded.last_error,
-           last_latency_ms = excluded.last_latency_ms`,
-      )
-      .run(input.targetId, code, input.statusCode, input.error, input.latencyMs)
-
-    database
-      .prepare(
-        `DELETE FROM check_results
-         WHERE target_id = ?
-           AND id NOT IN (
-             SELECT id FROM check_results
-             WHERE target_id = ?
-             ORDER BY checked_at DESC, id DESC
-             LIMIT 500
-           )`,
-      )
-      .run(input.targetId, input.targetId)
+    s.insertCheckResult.run(
+      input.targetId,
+      code,
+      input.statusCode,
+      input.error,
+      input.latencyMs,
+    )
+    s.upsertTargetState.run(
+      input.targetId,
+      code,
+      input.statusCode,
+      input.error,
+      input.latencyMs,
+    )
+    s.pruneCheckResults.run(input.targetId, input.targetId)
   },
 
   markAlertSent(targetId: number): void {
-    getDb()
-      .prepare(
-        `UPDATE target_state SET last_alert_at = datetime('now') WHERE target_id = ?`,
-      )
-      .run(targetId)
+    getStmts().markAlertSent.run(targetId)
   },
 
   listRecentResults(targetId: number, limit = 50): CheckResult[] {
-    return getDb()
-      .prepare(
-        `SELECT * FROM check_results WHERE target_id = ? ORDER BY checked_at DESC, id DESC LIMIT ?`,
-      )
-      .all(targetId, limit) as CheckResult[]
+    return getStmts().selectRecentResults.all(
+      targetId,
+      limit,
+    ) as CheckResult[]
   },
 
   listIncidents(limit = 50) {
-    const rows = getDb()
-      .prepare(
-        `SELECT r.id, r.target_id, r.ok, r.status_code, r.error, r.checked_at,
-                t.url, g.tag AS group_tag
-         FROM check_results r
-         JOIN targets t ON t.id = r.target_id
-         LEFT JOIN groups g ON g.id = t.group_id
-         ORDER BY r.target_id ASC, r.checked_at ASC, r.id ASC`,
-      )
-      .all() as IncidentSourceRow[]
+    const rows = getStmts().selectIncidentRows.all() as IncidentSourceRow[]
     return buildIncidents(rows, { limit })
   },
 
   getStatusSummary() {
-    return getDb()
-      .prepare(
-        `SELECT t.id, t.url, t.interval_seconds, t.enabled, t.group_id,
-                g.tag AS group_tag,
-                s.is_up, s.last_checked_at, s.last_status_code, s.last_error,
-                s.last_latency_ms, s.last_alert_at
-         FROM targets t
-         LEFT JOIN groups g ON g.id = t.group_id
-         LEFT JOIN target_state s ON s.target_id = t.id
-         ORDER BY t.id ASC`,
-      )
-      .all()
+    return getStmts().selectStatusSummary.all()
   },
 }
 
@@ -651,9 +681,9 @@ export function initCore(databasePath: string): void {
   ensureColumn('targets', 'check_ids', `TEXT NOT NULL DEFAULT '[]'`)
   ensureColumn('targets', 'notifier_ids', `TEXT NOT NULL DEFAULT '[]'`)
 
-  const insertSetting = db.prepare(
-    `INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`,
-  )
+  stmts = buildStatements(db)
+
+  const insertSetting = stmts.insertSettingIgnore
   insertSetting.run('alert_policy', 'state_change')
   insertSetting.run('throttle_minutes', '30')
 

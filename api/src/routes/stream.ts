@@ -28,7 +28,7 @@ export async function streamRoutes(app: FastifyInstance): Promise<void> {
       })
 
       const heartbeat = setInterval(() => {
-        reply.raw.write(': ping\n\n')
+        writeEvent('heartbeat', { ok: true })
       }, 15000)
 
       reply.raw.on('close', () => {

@@ -16,7 +16,7 @@ import {
   type Target,
 } from '../api'
 import ReconnectBanner from '../ReconnectBanner'
-import { useRealtime } from '../useRealtime'
+import { useRealtimeRefresh } from '../RealtimeProvider'
 
 function toggleId(list: string[], id: string): string[] {
   return list.includes(id) ? list.filter((x) => x !== id) : [...list, id]
@@ -161,7 +161,7 @@ export default function Targets() {
     void load()
   }, [load])
 
-  useRealtime(load)
+  useRealtimeRefresh(load)
 
   async function onCreate(e: FormEvent) {
     e.preventDefault()
