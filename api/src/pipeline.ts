@@ -1,6 +1,7 @@
 import { aggregateCheckOutcomes, alertCopy, shouldAlert } from './alert.js'
 import { getCore } from './core/index.js'
 import { getChecks, getNotifiers } from './plugins/registry.js'
+import { isPluginEnabled } from './plugins/manager.js'
 import type { AggregatedCheck, HealthStatus } from './plugins/types.js'
 import { healthFromDb } from './plugins/types.js'
 
@@ -10,6 +11,7 @@ async function runAllChecks(
   checkIds: string[],
 ): Promise<AggregatedCheck> {
   const loaded = getChecks()
+    .filter((c) => isPluginEnabled('check', c.id))
   const checks =
     checkIds.length === 0
       ? loaded
@@ -88,6 +90,7 @@ export async function runCheck(targetId: number): Promise<void> {
   }
 
   const notifiersLoaded = getNotifiers()
+    .filter((n) => isPluginEnabled('notify', n.id))
   const notifiers =
     target.notifier_ids.length === 0
       ? notifiersLoaded

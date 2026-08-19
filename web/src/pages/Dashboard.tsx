@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, type Incident, type StatusResponse } from '../api'
+import { api, type Incident, type PluginManagerState, type StatusResponse } from '../api'
 import type { DashboardWidgetModule } from '../plugin-ui'
 
 function statusLabel(isUp: number | null, enabled: number): string {
@@ -32,14 +32,20 @@ export default function Dashboard({
   widgets?: DashboardWidgetModule[]
 }) {
   const [data, setData] = useState<StatusResponse | null>(null)
+  const [pluginState, setPluginState] = useState<PluginManagerState | null>(null)
   const [incidents, setIncidents] = useState<Incident[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
-      const [status, log] = await Promise.all([api.status(), api.incidents(50)])
+      const [status, log, manager] = await Promise.all([
+        api.status(),
+        api.incidents(50),
+        api.pluginManager.get(),
+      ])
       setData(status)
       setIncidents(log)
+      setPluginState(manager)
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -60,6 +66,11 @@ export default function Dashboard({
   const down = data.targets.filter((t) => t.enabled && t.is_up === 0).length
   const paused = data.targets.filter((t) => !t.enabled).length
   const ongoing = (incidents ?? []).filter((i) => !i.recovered).length
+  const enabledChecks = pluginState?.checks.filter((c) => c.enabled).length ?? 0
+  const totalChecks = pluginState?.checks.length ?? 0
+  const enabledNotifiers =
+    pluginState?.notifiers.filter((n) => n.enabled).length ?? 0
+  const totalNotifiers = pluginState?.notifiers.length ?? 0
 
   return (
     <div className="stack">
@@ -80,6 +91,18 @@ export default function Dashboard({
           <strong>{paused}</strong>
           <span>paused</span>
         </div>
+        {pluginState && (
+          <>
+            <div>
+              <strong>{enabledChecks}/{totalChecks}</strong>
+              <span>checks enabled</span>
+            </div>
+            <div>
+              <strong>{enabledNotifiers}/{totalNotifiers}</strong>
+              <span>notifiers enabled</span>
+            </div>
+          </>
+        )}
         {data.notifiers.length === 0 ? (
           <div>
             <strong className="warn">none</strong>

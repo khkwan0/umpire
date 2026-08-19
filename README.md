@@ -176,6 +176,8 @@ Swagger UI: [http://localhost:8089/documentation](http://localhost:8089/document
 - `GET /api/checks` — loaded check plugins `{ id }`
 - `GET /api/notifiers` — loaded notifier plugins `{ id, ready }`
 - `GET /api/plugins` — loaded plugins + namespaced HTTP routes
+- `GET /api/plugin-manager` — runtime plugin enable/disable state
+- `PUT /api/plugin-manager/:kind/:id` — toggle a loaded plugin (`kind` = `check` | `notify` | `scheduler`) without restart
 - `GET/POST/PATCH/DELETE /api/plugins/notify/fcm/tokens` — FCM destinations (FID preferred; `target_ids` / `check_ids`)
 - `POST /api/plugins/notify/fcm/tokens/import` — import `{ fids: [...] }` (or `{ tokens: [...] }`); duplicates skipped
 - `POST /api/plugins/notify/fcm/tokens/test` — send a test push to a raw FID or legacy token

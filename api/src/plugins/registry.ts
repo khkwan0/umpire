@@ -10,6 +10,7 @@ import {
   setNotifiers,
   setScheduler,
 } from './runtime.js'
+import { initPluginManager } from './manager.js'
 import type { CheckPlugin, NotifierPlugin, SchedulerPlugin } from './types.js'
 
 export {
@@ -183,6 +184,8 @@ export async function initPlugins(): Promise<void> {
   console.log(
     `[plugins] scheduler=${loadedScheduler.plugin.id} (${path.basename(loadedScheduler.file)})`,
   )
+
+  initPluginManager()
 }
 
 export function pluginStatus() {

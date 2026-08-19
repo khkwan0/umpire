@@ -84,6 +84,21 @@ export interface NotifierStatus {
   ready: boolean
 }
 
+export interface PluginManagerEntry {
+  id: string
+  enabled: boolean
+}
+
+export interface PluginManagerNotifierEntry extends PluginManagerEntry {
+  ready: boolean
+}
+
+export interface PluginManagerState {
+  checks: PluginManagerEntry[]
+  scheduler: PluginManagerEntry
+  notifiers: PluginManagerNotifierEntry[]
+}
+
 export interface PluginRouteRef {
   method: string
   path: string
@@ -271,6 +286,18 @@ export const api = {
       request<Settings>('/api/settings', {
         method: 'PUT',
         body: JSON.stringify(data),
+      }),
+  },
+  pluginManager: {
+    get: () => request<PluginManagerState>('/api/plugin-manager'),
+    setEnabled: (
+      kind: 'check' | 'notify' | 'scheduler',
+      id: string,
+      enabled: boolean,
+    ) =>
+      request<{ ok: boolean }>(`/api/plugin-manager/${kind}/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ enabled }),
       }),
   },
 }

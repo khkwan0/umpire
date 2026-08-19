@@ -1,9 +1,22 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import type { DashboardWidgetProps } from '@umpire/plugin-ui'
 
+type EmailMode = 'sendmail' | 'smtp'
+
+interface EmailSmtpConfig {
+  host: string
+  port: number
+  secure: boolean
+  username: string
+  password: string
+}
+
 interface EmailConfig {
+  mode: EmailMode
   from: string
   to: string[]
+  sendmailPath: string
+  smtp: EmailSmtpConfig
 }
 
 interface TestResult {
@@ -36,8 +49,15 @@ function parseList(raw: string): string[] {
 }
 
 export default function EmailPage() {
+  const [mode, setMode] = useState<EmailMode>('sendmail')
   const [from, setFrom] = useState('')
   const [toTextValue, setToTextValue] = useState('')
+  const [sendmailPath, setSendmailPath] = useState('')
+  const [smtpHost, setSmtpHost] = useState('')
+  const [smtpPort, setSmtpPort] = useState(465)
+  const [smtpSecure, setSmtpSecure] = useState(true)
+  const [smtpUsername, setSmtpUsername] = useState('')
+  const [smtpPassword, setSmtpPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -48,8 +68,15 @@ export default function EmailPage() {
 
   const load = useCallback(async () => {
     const config = await request<EmailConfig>('/api/plugins/notify/email/config')
+    setMode(config.mode)
     setFrom(config.from)
     setToTextValue(toText(config.to))
+    setSendmailPath(config.sendmailPath)
+    setSmtpHost(config.smtp.host)
+    setSmtpPort(config.smtp.port)
+    setSmtpSecure(config.smtp.secure)
+    setSmtpUsername(config.smtp.username)
+    setSmtpPassword(config.smtp.password)
   }, [])
 
   useEffect(() => {
@@ -67,11 +94,32 @@ export default function EmailPage() {
     try {
       const saved = await request<EmailConfig>('/api/plugins/notify/email/config', {
         method: 'PUT',
-        body: JSON.stringify({ from: from.trim(), to: recipients }),
+        body: JSON.stringify({
+          mode,
+          from: from.trim(),
+          to: recipients,
+          sendmailPath: sendmailPath.trim(),
+          smtp: {
+            host: smtpHost.trim(),
+            port: smtpPort,
+            secure: smtpSecure,
+            username: smtpUsername.trim(),
+            password: smtpPassword,
+          },
+        }),
       })
+      setMode(saved.mode)
       setFrom(saved.from)
       setToTextValue(toText(saved.to))
-      setMessage(saved.from && saved.to.length > 0 ? 'Saved' : 'Saved (missing from/to — notifier off)')
+      setSendmailPath(saved.sendmailPath)
+      setSmtpHost(saved.smtp.host)
+      setSmtpPort(saved.smtp.port)
+      setSmtpSecure(saved.smtp.secure)
+      setSmtpUsername(saved.smtp.username)
+      setSmtpPassword(saved.smtp.password)
+      setMessage(
+        saved.from && saved.to.length > 0 ? 'Saved' : 'Saved (missing from/to — notifier off)',
+      )
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -100,9 +148,19 @@ export default function EmailPage() {
       <section className="panel">
         <h2>Email</h2>
         <p className="muted">
-          Sends alerts using local <code>sendmail</code>. Configure sender and recipients.
+          Sends alerts using local <code>sendmail</code> or external SMTP.
         </p>
         <form className="form-col" onSubmit={onSave}>
+          <label>
+            Mode
+            <select
+              value={mode}
+              onChange={(e) => setMode(e.target.value as EmailMode)}
+            >
+              <option value="sendmail">Sendmail (local)</option>
+              <option value="smtp">SMTP (external server)</option>
+            </select>
+          </label>
           <label>
             From
             <input
@@ -113,6 +171,64 @@ export default function EmailPage() {
               spellCheck={false}
             />
           </label>
+          {mode === 'sendmail' ? (
+            <label>
+              Sendmail path (optional)
+              <input
+                value={sendmailPath}
+                onChange={(e) => setSendmailPath(e.target.value)}
+                placeholder="sendmail"
+                spellCheck={false}
+              />
+            </label>
+          ) : (
+            <>
+              <label>
+                SMTP host
+                <input
+                  value={smtpHost}
+                  onChange={(e) => setSmtpHost(e.target.value)}
+                  placeholder="smtp.example.com"
+                  spellCheck={false}
+                />
+              </label>
+              <label>
+                SMTP port
+                <input
+                  type="number"
+                  min={1}
+                  max={65535}
+                  value={smtpPort}
+                  onChange={(e) => setSmtpPort(Number(e.target.value) || 465)}
+                />
+              </label>
+              <label className="check-ids-item">
+                <input
+                  type="checkbox"
+                  checked={smtpSecure}
+                  onChange={(e) => setSmtpSecure(e.target.checked)}
+                />
+                Use TLS/SSL
+              </label>
+              <label>
+                SMTP username
+                <input
+                  value={smtpUsername}
+                  onChange={(e) => setSmtpUsername(e.target.value)}
+                  spellCheck={false}
+                />
+              </label>
+              <label>
+                SMTP password
+                <input
+                  type="password"
+                  value={smtpPassword}
+                  onChange={(e) => setSmtpPassword(e.target.value)}
+                  spellCheck={false}
+                />
+              </label>
+            </>
+          )}
           <label>
             To (one per line or comma-separated)
             <textarea
@@ -126,7 +242,11 @@ export default function EmailPage() {
             <button type="submit" disabled={busy}>
               Save
             </button>
-            <button type="button" disabled={testing || !from.trim() || recipients.length === 0} onClick={() => void onTest()}>
+            <button
+              type="button"
+              disabled={testing || !from.trim() || recipients.length === 0}
+              onClick={() => void onTest()}
+            >
               Send test
             </button>
           </div>
@@ -147,7 +267,9 @@ export function EmailWidget({ status }: DashboardWidgetProps) {
   const ready = status.notifiers.find((n) => n.id === 'email')?.ready
   return (
     <p className="muted">
-      {ready ? 'Email notifier is configured.' : 'Set from/to addresses to enable alerts.'}
+      {ready
+        ? 'Email notifier is configured.'
+        : 'Set mode + from/to (and SMTP credentials if using SMTP) to enable alerts.'}
     </p>
   )
 }

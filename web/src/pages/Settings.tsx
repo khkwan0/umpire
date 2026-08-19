@@ -1,5 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { api, type AlertPolicy, type Settings } from '../api'
+import {
+  api,
+  type AlertPolicy,
+  type PluginManagerState,
+  type Settings,
+} from '../api'
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Settings | null>(null)
@@ -8,19 +13,42 @@ export default function SettingsPage() {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [plugins, setPlugins] = useState<PluginManagerState | null>(null)
+  const [pluginBusy, setPluginBusy] = useState<string | null>(null)
 
   useEffect(() => {
-    void api.settings
-      .get()
-      .then((s) => {
+    void Promise.all([api.settings.get(), api.pluginManager.get()])
+      .then(([s, p]) => {
         setSettings(s)
         setPolicy(s.alert_policy)
         setThrottle(s.throttle_minutes)
+        setPlugins(p)
       })
       .catch((err) =>
         setError(err instanceof Error ? err.message : String(err)),
       )
   }, [])
+
+  async function togglePlugin(
+    kind: 'check' | 'notify' | 'scheduler',
+    id: string,
+    enabled: boolean,
+  ) {
+    const key = `${kind}:${id}`
+    setPluginBusy(key)
+    setError(null)
+    setMessage(null)
+    try {
+      await api.pluginManager.setEnabled(kind, id, enabled)
+      const next = await api.pluginManager.get()
+      setPlugins(next)
+      setMessage('Plugin state updated')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setPluginBusy(null)
+    }
+  }
 
   async function onSave(e: FormEvent) {
     e.preventDefault()
@@ -79,6 +107,73 @@ export default function SettingsPage() {
         </form>
         {message && <p className="ok-text">{message}</p>}
         {error && <p className="error">{error}</p>}
+      </section>
+
+      <section className="panel">
+        <h2>Plugin manager</h2>
+        {!plugins ? (
+          <p className="muted">Loading plugins…</p>
+        ) : (
+          <div className="stack">
+            <div>
+              <h3>Scheduler</h3>
+              <label className="check-ids-item">
+                <input
+                  type="checkbox"
+                  checked={plugins.scheduler.enabled}
+                  disabled={pluginBusy === `scheduler:${plugins.scheduler.id}`}
+                  onChange={(e) =>
+                    void togglePlugin(
+                      'scheduler',
+                      plugins.scheduler.id,
+                      e.target.checked,
+                    )
+                  }
+                />
+                {plugins.scheduler.id}
+              </label>
+            </div>
+
+            <div>
+              <h3>Checks</h3>
+              <div className="check-ids-list">
+                {plugins.checks.map((c) => (
+                  <label key={c.id} className="check-ids-item">
+                    <input
+                      type="checkbox"
+                      checked={c.enabled}
+                      disabled={pluginBusy === `check:${c.id}`}
+                      onChange={(e) =>
+                        void togglePlugin('check', c.id, e.target.checked)
+                      }
+                    />
+                    {c.id}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h3>Notifiers</h3>
+              <div className="check-ids-list">
+                {plugins.notifiers.map((n) => (
+                  <label key={n.id} className="check-ids-item">
+                    <input
+                      type="checkbox"
+                      checked={n.enabled}
+                      disabled={pluginBusy === `notify:${n.id}`}
+                      onChange={(e) =>
+                        void togglePlugin('notify', n.id, e.target.checked)
+                      }
+                    />
+                    {n.id}
+                    {!n.ready ? ' (not ready)' : ''}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </section>
     </div>
   )

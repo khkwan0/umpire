@@ -19,6 +19,7 @@ import { schemaRoutes } from './routes/schema.js'
 import { checksRoutes } from './routes/checks.js'
 import { notifiersRoutes } from './routes/notifiers.js'
 import { pluginsRoutes } from './routes/plugins.js'
+import { pluginManagerRoutes } from './routes/plugin-manager.js'
 
 const port = Number(process.env.PORT) || 3000
 const databasePath = process.env.DATABASE_PATH || './data/monitor.sqlite'
@@ -52,6 +53,7 @@ async function main() {
   await app.register(schemaRoutes)
   await app.register(checksRoutes)
   await app.register(notifiersRoutes)
+  await app.register(pluginManagerRoutes)
   await mountAllPluginRoutes(app, {
     checks: getChecks(),
     scheduler: getScheduler(),
