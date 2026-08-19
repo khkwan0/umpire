@@ -15,8 +15,9 @@ export interface PluginUiModule {
   path: string
   /**
    * UI label.
+   * - `check` plugins render under the built-in "Checks" dropdown.
    * - `notify` plugins render under the built-in "Notifiers" dropdown.
-   * - other kinds render as top-level nav links.
+   * - `scheduler` plugins render as top-level nav links.
    * Also used as the dashboard widget heading.
    */
   label: string

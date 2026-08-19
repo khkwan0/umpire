@@ -58,9 +58,15 @@ export default function App() {
     if (!catalog) return []
     return uiModules.filter((ui) => {
       if (!catalog.some((e) => isLoaded(e, ui))) return false
-      if (ui.kind !== 'notify') return true
-      const notifier = pluginManager?.notifiers.find((n) => n.id === ui.id)
-      return notifier ? notifier.enabled : true
+      if (ui.kind === 'notify') {
+        const notifier = pluginManager?.notifiers.find((n) => n.id === ui.id)
+        return notifier ? notifier.enabled : true
+      }
+      if (ui.kind === 'check') {
+        const check = pluginManager?.checks.find((c) => c.id === ui.id)
+        return check ? check.enabled : true
+      }
+      return true
     })
   }, [catalog, pluginManager])
 
@@ -74,19 +80,25 @@ export default function App() {
         const notifier = pluginManager?.notifiers.find((n) => n.id === ui.id)
         if (notifier && !notifier.enabled) continue
       }
+      if (ui.kind === 'check') {
+        const check = pluginManager?.checks.find((c) => c.id === ui.id)
+        if (check && !check.enabled) continue
+      }
       out.push(ui)
     }
     return out
   }, [catalog, pluginManager])
 
-  const nonNotifierUi = useMemo(
-    () => activeUi.filter((ui) => ui.kind !== 'notify'),
+  const nonDropdownUi = useMemo(
+    () => activeUi.filter((ui) => ui.kind === 'scheduler'),
     [activeUi],
   )
+  const checkUi = useMemo(() => activeUi.filter((ui) => ui.kind === 'check'), [activeUi])
   const notifierUi = useMemo(
     () => activeUi.filter((ui) => ui.kind === 'notify'),
     [activeUi],
   )
+  const checksMenuActive = checkUi.some((ui) => ui.path === location.pathname)
   const notifierMenuActive = notifierUi.some((ui) => ui.path === location.pathname)
 
   return (
@@ -111,11 +123,25 @@ export default function App() {
           </NavLink>
           <NavLink to="/groups">Groups</NavLink>
           <NavLink to="/targets">Targets</NavLink>
-          {nonNotifierUi.map((ui) => (
+          {nonDropdownUi.map((ui) => (
             <NavLink key={`${ui.kind}:${ui.id}`} to={ui.path}>
               {ui.label}
             </NavLink>
           ))}
+          <details className={`nav-dropdown${checksMenuActive ? ' active' : ''}`}>
+            <summary>Checks</summary>
+            <div className="nav-dropdown-menu">
+              {checkUi.length === 0 ? (
+                <span className="muted small">No check pages</span>
+              ) : (
+                checkUi.map((ui) => (
+                  <NavLink key={`${ui.kind}:${ui.id}`} to={ui.path}>
+                    {ui.label}
+                  </NavLink>
+                ))
+              )}
+            </div>
+          </details>
           <details className={`nav-dropdown${notifierMenuActive ? ' active' : ''}`}>
             <summary>Notifiers</summary>
             <div className="nav-dropdown-menu">

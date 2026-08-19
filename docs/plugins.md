@@ -75,7 +75,7 @@ Plugin HTTP and UI are a side channel for plugin-owned data. They are not how pr
 Optional for every kind:
 
 - `registerRoutes(app)` — plugin-owned HTTP under `/api/plugins/<kind>/<id>/…` (skip it only if core target fields are enough; [why](#plugin-http-apis))
-- `ui/index.tsx` — page in the web shell (notifier pages appear under built-in **Notifiers** dropdown)
+- `ui/index.tsx` — page in the web shell (check/notifier pages appear under built-in dropdowns)
 - `Dashboard` on that UI module — optional panel on the **core** home page (does not replace the dashboard)
 
 **Default shipped set:** `http` check, `interval` scheduler, `fcm` and `webhook` notifiers.
@@ -118,7 +118,7 @@ api/src/plugins/<kind>/<id>/
   routes.ts         # optional — Fastify routes
   storage.ts        # optional — plugin-owned JSON/SQLite/etc.
   ui/
-    index.tsx       # optional — PluginUiModule (route + label; notify kind goes in Notifiers dropdown)
+    index.tsx       # optional — PluginUiModule (route + label; check/notify kinds go in dropdowns)
     Page.tsx        # optional — React page
     Widget.tsx      # optional — dashboard panel (or inline in index.tsx)
 ```
@@ -377,8 +377,9 @@ export default {
 ```
 
 2. [`web/src/App.tsx`](../web/src/App.tsx) globs `../../api/src/plugins/*/*/ui/index.tsx`, then shows routes only for plugins returned by **`GET /api/plugins`** (enabled and loaded). Nav placement is by kind:
+   - `check`: item under the built-in **Checks** dropdown (always present in the top nav)
    - `notify`: item under the built-in **Notifiers** dropdown (always present in the top nav)
-   - `check` / `scheduler`: top-level nav links
+   - `scheduler`: top-level nav link
    Optional `Dashboard` widgets on those modules appear on `/` (see [Dashboard widgets](#dashboard-widgets)).
 3. Import the shared client as `@umpire/web-api` (alias to `web/src/api.ts`). Types: `@umpire/plugin-ui`.
 4. Reuse existing CSS classes from [`web/src/styles.css`](../web/src/styles.css) (`panel`, `stack`, `form-row`, `muted`, `error`, `mono`, …). Add plugin-specific rules there if needed (FCM’s table styles live in the core stylesheet today).
@@ -963,8 +964,9 @@ After enabling a plugin:
 3. `GET /api/plugins` includes the id and any routes
 4. Swagger `/documentation` lists routes that have `schema`
 5. Web nav shows plugin UI **only if** `ui/index.tsx` exists **and** the plugin is loaded:
+   - check UIs under the **Checks** dropdown
    - notifier UIs under the **Notifiers** dropdown
-   - check/scheduler UIs as top-level links
+   - scheduler UIs as top-level links
 6. If the UI module exports `Dashboard`, `/` shows a panel titled with `label` (under the stats, before Targets)
 7. Docker: rebuild `web` after adding UI; Vite glob is build-time
 8. Target checkboxes show the new check/notifier id
