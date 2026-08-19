@@ -12,6 +12,8 @@ describe('http check plugin', () => {
       method: 'GET',
       headers: {},
       body: '',
+      acceptedStatusRanges: ['2xx'],
+      maxLatencyMs: null,
     })
     jest.spyOn(globalThis, 'fetch').mockResolvedValue({
       status: 200,
@@ -23,11 +25,13 @@ describe('http check plugin', () => {
     expect(result.error).toBeNull()
   })
 
-  it('returns ok=false for non-200 responses', async () => {
+  it('returns ok=false when status is outside accepted ranges', async () => {
     jest.spyOn(cfg, 'readConfig').mockReturnValue({
       method: 'GET',
       headers: {},
       body: '',
+      acceptedStatusRanges: ['2xx'],
+      maxLatencyMs: null,
     })
     jest.spyOn(globalThis, 'fetch').mockResolvedValue({
       status: 500,
@@ -36,7 +40,7 @@ describe('http check plugin', () => {
     const result = await httpCheck.check('https://example.com')
     expect(result.ok).toBe(false)
     expect(result.statusCode).toBe(500)
-    expect(result.error).toBe('HTTP 500')
+    expect(result.error).toContain('outside accepted ranges')
   })
 
   it('maps abort errors to timeout', async () => {
@@ -44,6 +48,8 @@ describe('http check plugin', () => {
       method: 'GET',
       headers: {},
       body: '',
+      acceptedStatusRanges: ['2xx'],
+      maxLatencyMs: null,
     })
     const err = new Error('aborted')
     err.name = 'AbortError'
@@ -60,6 +66,8 @@ describe('http check plugin', () => {
       method: 'POST',
       headers: { 'x-test': 'ok' },
       body: '{"ping":true}',
+      acceptedStatusRanges: ['2xx', '3xx'],
+      maxLatencyMs: null,
     })
     const fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue({
       status: 200,
@@ -78,5 +86,44 @@ describe('http check plugin', () => {
         }),
       }),
     )
+  })
+
+  it('accepts configured status ranges', async () => {
+    jest.spyOn(cfg, 'readConfig').mockReturnValue({
+      method: 'GET',
+      headers: {},
+      body: '',
+      acceptedStatusRanges: ['2xx', '3xx'],
+      maxLatencyMs: null,
+    })
+    jest.spyOn(globalThis, 'fetch').mockResolvedValue({
+      status: 302,
+    } as Response)
+
+    const result = await httpCheck.check('https://example.com')
+    expect(result.ok).toBe(true)
+    expect(result.statusCode).toBe(302)
+    expect(result.error).toBeNull()
+  })
+
+  it('fails when latency exceeds max latency threshold', async () => {
+    jest.spyOn(cfg, 'readConfig').mockReturnValue({
+      method: 'GET',
+      headers: {},
+      body: '',
+      acceptedStatusRanges: ['2xx'],
+      maxLatencyMs: 1,
+    })
+    jest.spyOn(globalThis, 'fetch').mockImplementation(
+      async () =>
+        new Promise<Response>((resolve) => {
+          setTimeout(() => resolve({ status: 200 } as Response), 5)
+        }),
+    )
+
+    const result = await httpCheck.check('https://example.com')
+    expect(result.ok).toBe(false)
+    expect(result.statusCode).toBe(200)
+    expect(result.error).toContain('exceeds')
   })
 })

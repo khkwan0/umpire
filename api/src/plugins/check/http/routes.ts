@@ -1,5 +1,12 @@
 import type { FastifyInstance } from 'fastify'
-import { HTTP_METHODS, normalizeConfig, readConfig, writeConfig } from './config.js'
+import {
+  HTTP_METHODS,
+  STATUS_RANGES,
+  normalizeConfig,
+  readConfig,
+  writeConfig,
+} from './config.js'
+import { runHttpCheck } from './evaluate.js'
 
 const errorResponse = {
   type: 'object',
@@ -8,11 +15,17 @@ const errorResponse = {
 
 const configSchema = {
   type: 'object',
-  required: ['method', 'headers', 'body'],
+  required: ['method', 'headers', 'body', 'acceptedStatusRanges', 'maxLatencyMs'],
   properties: {
     method: { type: 'string', enum: [...HTTP_METHODS] },
     headers: { type: 'object', additionalProperties: { type: 'string' } },
     body: { type: 'string' },
+    acceptedStatusRanges: {
+      type: 'array',
+      minItems: 1,
+      items: { type: 'string', enum: [...STATUS_RANGES] },
+    },
+    maxLatencyMs: { type: ['integer', 'null'], minimum: 1 },
   },
 } as const
 
@@ -42,7 +55,15 @@ export async function registerHttpCheckRoutes(
     async () => readConfig(),
   )
 
-  app.put<{ Body: { method?: string; headers?: Record<string, string>; body?: string } }>(
+  app.put<{
+    Body: {
+      method?: string
+      headers?: Record<string, string>
+      body?: string
+      acceptedStatusRanges?: string[]
+      maxLatencyMs?: number | null
+    }
+  }>(
     '/config',
     {
       schema: {
@@ -72,6 +93,8 @@ export async function registerHttpCheckRoutes(
       method?: string
       headers?: Record<string, string>
       body?: string
+      acceptedStatusRanges?: string[]
+      maxLatencyMs?: number | null
     }
   }>(
     '/test',
@@ -91,6 +114,12 @@ export async function registerHttpCheckRoutes(
               additionalProperties: { type: 'string' },
             },
             body: { type: 'string' },
+            acceptedStatusRanges: {
+              type: 'array',
+              minItems: 1,
+              items: { type: 'string', enum: [...STATUS_RANGES] },
+            },
+            maxLatencyMs: { type: ['integer', 'null'], minimum: 1 },
           },
         },
         response: {
@@ -118,53 +147,23 @@ export async function registerHttpCheckRoutes(
       if (
         req.body?.method !== undefined ||
         req.body?.headers !== undefined ||
-        req.body?.body !== undefined
+        req.body?.body !== undefined ||
+        req.body?.acceptedStatusRanges !== undefined ||
+        req.body?.maxLatencyMs !== undefined
       ) {
         config = normalizeConfig({
           method: req.body.method ?? base.method,
           headers: req.body.headers ?? base.headers,
           body: req.body.body ?? base.body,
+          acceptedStatusRanges:
+            req.body.acceptedStatusRanges ?? base.acceptedStatusRanges,
+          maxLatencyMs:
+            req.body.maxLatencyMs !== undefined
+              ? req.body.maxLatencyMs
+              : base.maxLatencyMs,
         })
       }
-
-      const startedAt = Date.now()
-      const timeout = Number(process.env.CHECK_TIMEOUT_MS)
-      const timeoutMs = Number.isFinite(timeout) && timeout > 0 ? timeout : 10_000
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), timeoutMs)
-      try {
-        const headers: Record<string, string> = {
-          'user-agent': 'umpire/1.0',
-          ...config.headers,
-        }
-        const useBody = !['GET', 'HEAD'].includes(config.method)
-        const res = await fetch(url, {
-          method: config.method,
-          redirect: 'follow',
-          signal: controller.signal,
-          headers,
-          body: useBody && config.body ? config.body : undefined,
-        })
-        const latencyMs = Date.now() - startedAt
-        const ok = res.status === 200
-        return {
-          ok,
-          statusCode: res.status,
-          error: ok ? null : `HTTP ${res.status}`,
-          latencyMs,
-        }
-      } catch (err) {
-        const latencyMs = Date.now() - startedAt
-        const message =
-          err instanceof Error
-            ? err.name === 'AbortError'
-              ? 'timeout'
-              : err.message
-            : String(err)
-        return { ok: false, statusCode: null, error: message, latencyMs }
-      } finally {
-        clearTimeout(timer)
-      }
+      return runHttpCheck(url, config)
     },
   )
 }

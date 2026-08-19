@@ -19,7 +19,12 @@ interface HttpCheckConfig {
   method: HttpMethod
   headers: Record<string, string>
   body: string
+  acceptedStatusRanges: StatusRange[]
+  maxLatencyMs: number | null
 }
+
+type StatusRange = '1xx' | '2xx' | '3xx' | '4xx' | '5xx'
+const STATUS_RANGES: StatusRange[] = ['1xx', '2xx', '3xx', '4xx', '5xx']
 
 interface HttpCheckTestResult {
   ok: boolean
@@ -69,6 +74,10 @@ export default function HttpCheckPage() {
   const [testUrl, setTestUrl] = useState('https://')
   const [headersText, setHeadersText] = useState('')
   const [bodyText, setBodyText] = useState('')
+  const [acceptedStatusRanges, setAcceptedStatusRanges] = useState<StatusRange[]>([
+    '2xx',
+  ])
+  const [maxLatencyMs, setMaxLatencyMs] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [testResult, setTestResult] = useState<HttpCheckTestResult | null>(null)
@@ -81,6 +90,10 @@ export default function HttpCheckPage() {
     setMethod(config.method)
     setHeadersText(headersToText(config.headers))
     setBodyText(config.body)
+    setAcceptedStatusRanges(config.acceptedStatusRanges)
+    setMaxLatencyMs(
+      config.maxLatencyMs == null ? '' : String(Math.floor(config.maxLatencyMs)),
+    )
     setLoaded(true)
   }, [])
 
@@ -103,11 +116,17 @@ export default function HttpCheckPage() {
           method,
           headers: parseHeadersText(headersText),
           body: bodyText,
+          acceptedStatusRanges,
+          maxLatencyMs: maxLatencyMs.trim() ? Number(maxLatencyMs) : null,
         }),
       })
       setMethod(saved.method)
       setHeadersText(headersToText(saved.headers))
       setBodyText(saved.body)
+      setAcceptedStatusRanges(saved.acceptedStatusRanges)
+      setMaxLatencyMs(
+        saved.maxLatencyMs == null ? '' : String(Math.floor(saved.maxLatencyMs)),
+      )
       setMessage('Saved')
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -129,6 +148,8 @@ export default function HttpCheckPage() {
           method,
           headers: parseHeadersText(headersText),
           body: bodyText,
+          acceptedStatusRanges,
+          maxLatencyMs: maxLatencyMs.trim() ? Number(maxLatencyMs) : null,
         }),
       })
       setTestResult(result)
@@ -147,8 +168,8 @@ export default function HttpCheckPage() {
         <h2>HTTP check</h2>
         <p className="muted">
           Configure request method, headers, and body for all targets using this
-          check plugin. A response is healthy only when status is{' '}
-          <code>200</code>.
+          check plugin. You can also configure accepted status ranges and an
+          optional latency SLO threshold.
         </p>
         <form className="form-col" onSubmit={onSave}>
           <label>
@@ -171,6 +192,38 @@ export default function HttpCheckPage() {
               onChange={(e) => setHeadersText(e.target.value)}
               placeholder='{"Authorization":"Bearer token"}'
               spellCheck={false}
+            />
+          </label>
+          <label>
+            Accepted status ranges
+            <div className="form-col">
+              {STATUS_RANGES.map((range) => (
+                <label key={range} className="row">
+                  <input
+                    type="checkbox"
+                    checked={acceptedStatusRanges.includes(range)}
+                    onChange={(e) => {
+                      setAcceptedStatusRanges((prev) => {
+                        if (e.target.checked) return [...prev, range]
+                        if (prev.length === 1 && prev[0] === range) return prev
+                        return prev.filter((r) => r !== range)
+                      })
+                    }}
+                  />
+                  <span>{range}</span>
+                </label>
+              ))}
+            </div>
+          </label>
+          <label>
+            Max latency (ms, optional)
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={maxLatencyMs}
+              onChange={(e) => setMaxLatencyMs(e.target.value)}
+              placeholder="1500"
             />
           </label>
           <label>

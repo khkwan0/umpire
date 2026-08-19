@@ -19,12 +19,19 @@ export interface HttpCheckConfig {
   method: HttpMethod
   headers: Record<string, string>
   body: string
+  acceptedStatusRanges: StatusRange[]
+  maxLatencyMs: number | null
 }
+
+export const STATUS_RANGES = ['1xx', '2xx', '3xx', '4xx', '5xx'] as const
+export type StatusRange = (typeof STATUS_RANGES)[number]
 
 const empty: HttpCheckConfig = {
   method: 'GET',
   headers: {},
   body: '',
+  acceptedStatusRanges: ['2xx'],
+  maxLatencyMs: null,
 }
 
 function configPath(): string {
@@ -58,9 +65,51 @@ function parseMethod(input: unknown): HttpMethod {
   return method as HttpMethod
 }
 
+function parseStatusRanges(input: unknown): StatusRange[] {
+  if (input === undefined || input === null) return ['2xx']
+  if (!Array.isArray(input)) {
+    throw new Error(`acceptedStatusRanges must be an array of ${STATUS_RANGES.join(', ')}`)
+  }
+  const out: StatusRange[] = []
+  for (const raw of input) {
+    if (typeof raw !== 'string') {
+      throw new Error(
+        `acceptedStatusRanges must be an array of ${STATUS_RANGES.join(', ')}`,
+      )
+    }
+    const normalized = raw.trim().toLowerCase()
+    if (!(STATUS_RANGES as readonly string[]).includes(normalized)) {
+      throw new Error(
+        `acceptedStatusRanges must only include ${STATUS_RANGES.join(', ')}`,
+      )
+    }
+    out.push(normalized as StatusRange)
+  }
+  if (out.length === 0) {
+    throw new Error('acceptedStatusRanges must include at least one range')
+  }
+  return Array.from(new Set(out))
+}
+
+function parseMaxLatencyMs(input: unknown): number | null {
+  if (input === undefined || input === null || input === '') return null
+  const value =
+    typeof input === 'number'
+      ? input
+      : typeof input === 'string'
+        ? Number(input)
+        : Number.NaN
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error('maxLatencyMs must be a positive number when provided')
+  }
+  return Math.floor(value)
+}
+
 export function normalizeConfig(input: unknown): HttpCheckConfig {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
-    throw new Error('body must be { method?, headers?, body? }')
+    throw new Error(
+      'body must be { method?, headers?, body?, acceptedStatusRanges?, maxLatencyMs? }',
+    )
   }
   const row = input as Record<string, unknown>
   const body =
@@ -69,6 +118,8 @@ export function normalizeConfig(input: unknown): HttpCheckConfig {
     method: parseMethod(row.method),
     headers: parseHeaders(row.headers),
     body,
+    acceptedStatusRanges: parseStatusRanges(row.acceptedStatusRanges),
+    maxLatencyMs: parseMaxLatencyMs(row.maxLatencyMs),
   }
 }
 
