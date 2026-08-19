@@ -5,10 +5,10 @@
   "notify": {
     "fcm": true,
     "webhook": true,
-    "slack": true,
-    "telegram": true,
-    "discord": true,
-    "email": true
+    "slack": false,
+    "telegram": false,
+    "discord": false,
+    "email": false
   },
   "scheduler": {
     "interval": true

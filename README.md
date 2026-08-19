@@ -33,7 +33,7 @@ Enabled out of the box by [`api/plugins.json`](api/plugins.json) (override with 
 
 | Kind | Cardinality | Default | What it does |
 |------|-------------|---------|--------------|
-| **Check** | One or more | `http` | HTTP GET; **200 = healthy** (`CHECK_TIMEOUT_MS`, default 10s) |
+| **Check** | One or more | `http` | HTTP check plugin with configurable method, headers, body; **200 = healthy** (`CHECK_TIMEOUT_MS`, default 10s) |
 | **Scheduler** | **Exactly one** | `interval` | Per-target `interval_seconds` timers; honors Pause |
 | **Notifier** | Zero or more | `fcm`, `webhook` | FCM to stored FIDs; HTTP call (GET/POST/PUT/PATCH/…) with `AlertEvent` |
 
@@ -194,6 +194,7 @@ Swagger UI: [http://localhost:8089/documentation](http://localhost:8089/document
 - `GET /api/plugins` — loaded plugins + namespaced HTTP routes
 - `GET /api/plugin-manager` — runtime plugin enable/disable state
 - `PUT /api/plugin-manager/:kind/:id` — toggle a loaded plugin (`kind` = `check` | `notify` | `scheduler`) without restart
+- `GET/PUT /api/plugins/check/http/config`, `POST /api/plugins/check/http/test` — configurable HTTP check (method, headers, body + one-shot test)
 - `GET/POST/PATCH/DELETE /api/plugins/notify/fcm/tokens` — FCM destinations (FID preferred; `target_ids` / `check_ids`)
 - `POST /api/plugins/notify/fcm/tokens/import` — import `{ fids: [...] }` (or `{ tokens: [...] }`); duplicates skipped
 - `POST /api/plugins/notify/fcm/tokens/test` — send a test push to a raw FID or legacy token

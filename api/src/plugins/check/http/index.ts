@@ -1,4 +1,6 @@
 import type { CheckOutcome, CheckPlugin } from '../../types.js'
+import { readConfig } from './config.js'
+import { registerHttpCheckRoutes } from './routes.js'
 
 function timeoutMs(): number {
   const n = Number(process.env.CHECK_TIMEOUT_MS)
@@ -8,16 +10,27 @@ function timeoutMs(): number {
 const httpCheck: CheckPlugin = {
   id: 'http',
 
+  async registerRoutes(app) {
+    await registerHttpCheckRoutes(app)
+  },
+
   async check(url: string): Promise<CheckOutcome> {
+    const config = readConfig()
     const startedAt = Date.now()
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), timeoutMs())
     try {
+      const headers: Record<string, string> = {
+        'user-agent': 'umpire/1.0',
+        ...config.headers,
+      }
+      const useBody = !['GET', 'HEAD'].includes(config.method)
       const res = await fetch(url, {
-        method: 'GET',
+        method: config.method,
         redirect: 'follow',
         signal: controller.signal,
-        headers: { 'user-agent': 'umpire/1.0' },
+        headers,
+        body: useBody && config.body ? config.body : undefined,
       })
       const latencyMs = Date.now() - startedAt
       const ok = res.status === 200
