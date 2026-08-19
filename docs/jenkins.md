@@ -1,6 +1,8 @@
 # Jenkins CI/CD
 
-The repo ships a Declarative Pipeline in [`Jenkinsfile`](../Jenkinsfile). CI always installs, tests, and builds. Docker image builds run on `master`. Compose deploy is opt-in (`DEPLOY`).
+Pull-request CI runs on **GitHub Actions** ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)): API tests + build, web production build, Node 22. That is the status check on GitHub.
+
+This Jenkins pipeline is optional **on-host** CD. The repo ships a Declarative Pipeline in [`Jenkinsfile`](../Jenkinsfile). CI always installs, tests, and builds. Docker image builds run on `master`. Compose deploy is opt-in (`DEPLOY`).
 
 ## What the pipeline does
 

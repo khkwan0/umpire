@@ -1,5 +1,7 @@
 # UMPIRE
 
+[![CI](https://github.com/khkwan0/umpire/actions/workflows/ci.yml/badge.svg)](https://github.com/khkwan0/umpire/actions/workflows/ci.yml)
+
 **Universal Monitoring Plugin & Incident Reporter** is a **plugin architecture** for monitoring. Core is the host: it stores data, runs the pipeline, and enforces contracts. **Check**, **scheduler**, and **notifier** plugins do the actual probing, timing, and delivery. Swap or add plugins without changing core.
 
 Default process-wide set in [`api/plugins.json`](api/plugins.json): **`http`** check, **`interval`** scheduler, **`fcm`** and **`webhook`** notifiers.
@@ -103,14 +105,14 @@ API unit tests:
 cd api && npm test
 ```
 
-CI locally (same as Jenkins API/Web stages):
+CI locally (same as GitHub Actions / Jenkins API and Web jobs):
 
 ```bash
 cd api && npm ci && npm run test:ci && npm run build
 cd ../web && npm ci && npm run build
 ```
 
-Jenkins: [docs/jenkins.md](docs/jenkins.md) (`Jenkinsfile` at the repo root).
+Pushes and pull requests run [GitHub Actions](.github/workflows/ci.yml) (Node 22). Optional on-host deploy: Jenkins Pipeline in `Jenkinsfile` — [setup](docs/jenkins.md).
 
 Or run with Docker Compose (optional deploy path):
 
@@ -169,5 +171,5 @@ SQLite file: `./data/monitor.sqlite` (bind-mounted in Compose at `/data/monitor.
 - No auth on the UI — bind to localhost or put it behind a VPN/firewall
 - Default branch for this repo is `master`
 - Docker Compose is optional; prefer host `npm run dev` when writing plugins
-- CI/CD: Jenkins Pipeline in `Jenkinsfile` — [setup](docs/jenkins.md)
+- CI: GitHub Actions on push/PR ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)). Optional CD: Jenkins — [setup](docs/jenkins.md)
 - Plugin authoring (API + UI + dashboard widgets): [docs/plugins.md](docs/plugins.md)
