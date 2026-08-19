@@ -103,9 +103,8 @@ cd web && npm install && npm run dev
 
 ### Root
 
-- `./scripts/ci_cd.sh` — run API/web install + lint + format check + test/build
-- `DEPLOY=1 ./scripts/ci_cd.sh` — run the same checks, then deploy with Docker Compose and health-check `/api/health`
-- `WEB_PORT=8090 DEPLOY=1 ./scripts/ci_cd.sh` — same as above, with custom web port for health check
+- `./scripts/deploy.sh` — build and start with Docker Compose, then wait for `/api/health`
+- `WEB_PORT=8090 ./scripts/deploy.sh` — deploy and health-check with a custom web port
 
 ### API (`api/package.json`)
 
@@ -141,11 +140,11 @@ cd api && npm ci && npm run lint && npm run format:check && npm run test:ci && n
 cd ../web && npm ci && npm run lint && npm run format:check && npm run build
 ```
 
-All-in-one local CI/CD helper:
+Deploy helper:
 
 ```bash
-./scripts/ci_cd.sh
-DEPLOY=1 ./scripts/ci_cd.sh
+./scripts/deploy.sh
+WEB_PORT=8090 ./scripts/deploy.sh
 ```
 
 Pushes and pull requests run [GitHub Actions](.github/workflows/ci.yml) (Node 22). Optional on-host deploy: Jenkins Pipeline in `Jenkinsfile` — [setup](docs/jenkins.md).

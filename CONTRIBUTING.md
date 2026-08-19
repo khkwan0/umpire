@@ -4,7 +4,6 @@ Thanks for contributing.
 
 ## Development setup
 
-- Use Node 22 (`.nvmrc`).
 - From repo root:
   - `cp .env.example .env`
   - `cp firebase-service-account.json.example firebase-service-account.json` (optional for local; required for real FCM delivery)
@@ -33,10 +32,10 @@ cd api && npm ci && npm run lint && npm run format:check && npm run test:ci && n
 cd ../web && npm ci && npm run lint && npm run format:check && npm run build
 ```
 
-Or run the all-in-one script from repo root:
+Deploy from repo root:
 
 ```bash
-./scripts/ci_cd.sh
+./scripts/deploy.sh
 ```
 
 Quick API test loop:
