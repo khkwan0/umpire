@@ -10,7 +10,10 @@ import type { BaseMessage } from 'firebase-admin/messaging'
 const TEST_TITLE = 'UMPIRE test'
 const TEST_BODY = 'This device is registered for FCM alerts.'
 
-export function testPushCopy(destination: string): { title: string; body: string } {
+export function testPushCopy(destination: string): {
+  title: string
+  body: string
+} {
   const kind = isLegacyRegistrationToken(destination) ? 'token' : 'fid'
   return {
     title: TEST_TITLE,

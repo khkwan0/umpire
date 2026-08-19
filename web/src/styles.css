@@ -14,7 +14,7 @@
   --partial: #9a6700;
   --paused: #5a6b7d;
   --pending: #9a6700;
-  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif;
 }
 
 * {
@@ -164,7 +164,7 @@ td {
 }
 
 .mono {
-  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
   font-size: 0.85rem;
   word-break: break-all;
 }
@@ -314,7 +314,7 @@ label.check-ids-item {
 }
 
 .cell-input.mono {
-  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
   font-size: 0.78rem;
 }
 
@@ -373,7 +373,7 @@ textarea {
   width: 100%;
   min-height: 8rem;
   resize: vertical;
-  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
   font-size: 0.85rem;
 }
 

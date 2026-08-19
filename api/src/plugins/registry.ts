@@ -10,11 +10,7 @@ import {
   setNotifiers,
   setScheduler,
 } from './runtime.js'
-import type {
-  CheckPlugin,
-  NotifierPlugin,
-  SchedulerPlugin,
-} from './types.js'
+import type { CheckPlugin, NotifierPlugin, SchedulerPlugin } from './types.js'
 
 export {
   getChecks,
@@ -48,7 +44,9 @@ function loadConfig(): PluginsConfig {
       `plugins.json not found at ${file}. Create it or set PLUGINS_CONFIG.`,
     )
   }
-  const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as Partial<PluginsConfig>
+  const raw = JSON.parse(
+    fs.readFileSync(file, 'utf8'),
+  ) as Partial<PluginsConfig>
   if (!Array.isArray(raw.checks) || raw.checks.length === 0) {
     throw new Error('plugins.json: checks must be a non-empty array of ids')
   }

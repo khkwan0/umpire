@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+} from 'react'
 import { Link } from 'react-router-dom'
 import {
   api,
@@ -332,7 +338,9 @@ export default function Targets() {
                         onChange={(e) =>
                           void changeGroup(
                             t,
-                            e.target.value === '' ? null : Number(e.target.value),
+                            e.target.value === ''
+                              ? null
+                              : Number(e.target.value),
                           )
                         }
                       >
@@ -343,9 +351,7 @@ export default function Targets() {
                           </option>
                         ))}
                       </select>
-                      {g && (
-                        <div className="muted small mono">{g.tag}</div>
-                      )}
+                      {g && <div className="muted small mono">{g.tag}</div>}
                     </td>
                     <td>
                       {checks.length === 0 ? (
@@ -358,17 +364,16 @@ export default function Targets() {
                                 type="checkbox"
                                 checked={checkIds.includes(c.id)}
                                 onChange={() =>
-                                  void changeChecks(
-                                    t,
-                                    toggleId(checkIds, c.id),
-                                  )
+                                  void changeChecks(t, toggleId(checkIds, c.id))
                                 }
                               />
                               {c.id}
                             </label>
                           ))}
                           <div className="muted small">
-                            {checkIds.length === 0 ? 'all' : checkIds.join(', ')}
+                            {checkIds.length === 0
+                              ? 'all'
+                              : checkIds.join(', ')}
                           </div>
                         </div>
                       )}

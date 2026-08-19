@@ -27,7 +27,9 @@ export interface Incident {
   status_code: number | null
 }
 
-function isUnhealthy(status: HealthStatus | null): status is 'down' | 'partial' {
+function isUnhealthy(
+  status: HealthStatus | null,
+): status is 'down' | 'partial' {
   return status === 'down' || status === 'partial'
 }
 
@@ -106,7 +108,10 @@ export function buildIncidents(
       } else if (open && status === 'up') {
         open.recovered = true
         open.recovered_at = row.checked_at
-        open.duration_seconds = durationSeconds(open.started_at, parseCheckedAt(row.checked_at))
+        open.duration_seconds = durationSeconds(
+          open.started_at,
+          parseCheckedAt(row.checked_at),
+        )
         open = null
       }
 

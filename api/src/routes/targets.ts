@@ -11,8 +11,7 @@ const errorResponse = {
 const checkIdsSchema = {
   type: 'array',
   items: { type: 'string', minLength: 1 },
-  description:
-    'Check plugin ids to run. Empty array = all loaded checks.',
+  description: 'Check plugin ids to run. Empty array = all loaded checks.',
 } as const
 
 const notifierIdsSchema = {
@@ -185,7 +184,8 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
     },
     async (req, reply) => {
       const id = Number(req.params.id)
-      if (!Number.isInteger(id)) return reply.code(400).send({ error: 'invalid id' })
+      if (!Number.isInteger(id))
+        return reply.code(400).send({ error: 'invalid id' })
       if (req.body?.url !== undefined && !isValidUrl(req.body.url)) {
         return reply.code(400).send({ error: 'valid http(s) url required' })
       }
@@ -263,7 +263,8 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
     },
     async (req, reply) => {
       const id = Number(req.params.id)
-      if (!Number.isInteger(id)) return reply.code(400).send({ error: 'invalid id' })
+      if (!Number.isInteger(id))
+        return reply.code(400).send({ error: 'invalid id' })
       const ok = getCore().deleteTarget(id)
       if (!ok) return reply.code(404).send({ error: 'not found' })
       getScheduler().reschedule()
@@ -291,8 +292,10 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
     },
     async (req, reply) => {
       const id = Number(req.params.id)
-      if (!Number.isInteger(id)) return reply.code(400).send({ error: 'invalid id' })
-      if (!getCore().getTarget(id)) return reply.code(404).send({ error: 'not found' })
+      if (!Number.isInteger(id))
+        return reply.code(400).send({ error: 'invalid id' })
+      if (!getCore().getTarget(id))
+        return reply.code(404).send({ error: 'not found' })
       return getCore().listRecentResults(id, 100)
     },
   )

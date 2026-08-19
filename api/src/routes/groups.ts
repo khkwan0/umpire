@@ -177,7 +177,8 @@ export async function groupsRoutes(app: FastifyInstance): Promise<void> {
       schema: {
         tags: ['groups'],
         summary: 'Delete group and subtree',
-        description: 'Deletes descendants; clears group_id on affected targets.',
+        description:
+          'Deletes descendants; clears group_id on affected targets.',
         params: {
           type: 'object',
           required: ['id'],

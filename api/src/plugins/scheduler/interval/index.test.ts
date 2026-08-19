@@ -2,7 +2,10 @@ import { jest } from '@jest/globals'
 import intervalScheduler from './index.js'
 import type { SchedulableTarget, SchedulerContext } from '../../types.js'
 
-function context(targets: SchedulableTarget[], run: SchedulerContext['run']): SchedulerContext {
+function context(
+  targets: SchedulableTarget[],
+  run: SchedulerContext['run'],
+): SchedulerContext {
   return {
     getTargets: () => targets,
     run,

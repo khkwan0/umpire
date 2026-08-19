@@ -10,6 +10,9 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
+    "lint": "eslint src",
+    "format": "prettier --write \"src/**/*.ts\" \"*.{js,json,md}\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"*.{js,json,md}\"",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "test:ci": "NODE_OPTIONS=--experimental-vm-modules jest --ci --watchman=false --reporters=default --reporters=jest-junit",
     "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch"
@@ -22,13 +25,19 @@
     "firebase-admin": "^14.2.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/better-sqlite3": "^7.6.12",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.10.5",
+    "eslint": "^10.8.1",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.11.0",
     "jest": "^30.4.2",
     "jest-junit": "^16.0.0",
+    "prettier": "^3.9.6",
     "ts-jest": "^29.4.12",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.67.0"
   }
 }

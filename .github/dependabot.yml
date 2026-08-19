@@ -2,25 +2,66 @@ version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
+    labels:
+      - dependencies
+      - ci
+    open-pull-requests-limit: 10
     schedule:
       interval: weekly
+    groups:
+      github-actions-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: npm
     directory: /api
+    labels:
+      - dependencies
+      - api
+    open-pull-requests-limit: 10
     schedule:
       interval: weekly
+    groups:
+      api-npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: npm
     directory: /web
+    labels:
+      - dependencies
+      - web
+    open-pull-requests-limit: 10
     schedule:
       interval: weekly
+    groups:
+      web-npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: docker
     directory: /api
+    labels:
+      - dependencies
+      - docker
+    open-pull-requests-limit: 10
     schedule:
       interval: monthly
 
   - package-ecosystem: docker
     directory: /web
+    labels:
+      - dependencies
+      - docker
+    open-pull-requests-limit: 10
     schedule:
       interval: monthly

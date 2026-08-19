@@ -52,7 +52,9 @@ describe('sendAlert', () => {
       event,
     )
     const calledUrl = new URL(fetchMock.mock.calls[0]![0] as string)
-    expect(calledUrl.origin + calledUrl.pathname).toBe('https://hooks.test/alert')
+    expect(calledUrl.origin + calledUrl.pathname).toBe(
+      'https://hooks.test/alert',
+    )
     expect(calledUrl.searchParams.get('title')).toBe(event.title)
     expect(calledUrl.searchParams.get('status')).toBe('down')
     expect(fetchMock.mock.calls[0]![1]).toMatchObject({

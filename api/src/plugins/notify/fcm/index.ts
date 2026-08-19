@@ -13,7 +13,9 @@ const fcmNotifier: NotifierPlugin = {
   init(): void {
     const credPath = process.env.GOOGLE_APPLICATION_CREDENTIALS
     if (!credPath) {
-      console.warn('[notify:fcm] GOOGLE_APPLICATION_CREDENTIALS not set; alerts disabled')
+      console.warn(
+        '[notify:fcm] GOOGLE_APPLICATION_CREDENTIALS not set; alerts disabled',
+      )
       return
     }
     if (!fs.existsSync(credPath)) {

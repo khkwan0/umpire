@@ -39,7 +39,9 @@ const fcmTokenTestSchema = {
   },
 } as const
 
-function destinationFromBody(body: { fid?: string; token?: string } | undefined): string {
+function destinationFromBody(
+  body: { fid?: string; token?: string } | undefined,
+): string {
   return (body?.fid ?? body?.token ?? '').trim()
 }
 
@@ -49,7 +51,8 @@ export async function registerFcmRoutes(app: FastifyInstance): Promise<void> {
     {
       schema: {
         tags: ['tokens'],
-        summary: 'List FCM destinations (FID preferred; legacy registration tokens still stored)',
+        summary:
+          'List FCM destinations (FID preferred; legacy registration tokens still stored)',
         description:
           'Owned by the fcm notifier. Mounted at /api/plugins/notify/fcm/tokens. Each destination may restrict targets and checks. Send uses fid unless the value looks like a legacy :APA91 registration token.',
         response: {
@@ -150,7 +153,8 @@ export async function registerFcmRoutes(app: FastifyInstance): Promise<void> {
     {
       schema: {
         tags: ['tokens'],
-        summary: 'Send a test push to a raw FID or legacy token (does not persist)',
+        summary:
+          'Send a test push to a raw FID or legacy token (does not persist)',
         body: {
           type: 'object',
           properties: {
@@ -183,7 +187,8 @@ export async function registerFcmRoutes(app: FastifyInstance): Promise<void> {
     {
       schema: {
         tags: ['tokens'],
-        summary: 'Send a test push to a stored FID or legacy token and record the result',
+        summary:
+          'Send a test push to a stored FID or legacy token and record the result',
         params: {
           type: 'object',
           required: ['id'],
@@ -222,8 +227,7 @@ export async function registerFcmRoutes(app: FastifyInstance): Promise<void> {
     {
       schema: {
         tags: ['tokens'],
-        summary:
-          'Confirm whether a test push actually appeared on the device',
+        summary: 'Confirm whether a test push actually appeared on the device',
         params: {
           type: 'object',
           required: ['id'],

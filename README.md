@@ -99,6 +99,35 @@ In another terminal:
 cd web && npm install && npm run dev
 ```
 
+## Scripts
+
+### Root
+
+- `./scripts/ci_cd.sh` — run API/web install + lint + format check + test/build
+- `DEPLOY=1 ./scripts/ci_cd.sh` — run the same checks, then deploy with Docker Compose and health-check `/api/health`
+- `WEB_PORT=8090 DEPLOY=1 ./scripts/ci_cd.sh` — same as above, with custom web port for health check
+
+### API (`api/package.json`)
+
+- `npm run dev` — run API in watch mode
+- `npm run build` — compile TypeScript
+- `npm run start` — start compiled API from `dist`
+- `npm run lint` — run ESLint on API source
+- `npm run format` — format API files with Prettier
+- `npm run format:check` — verify API formatting
+- `npm test` — run API tests
+- `npm run test:ci` — run API tests in CI mode + JUnit output
+- `npm run test:watch` — run API tests in watch mode
+
+### Web (`web/package.json`)
+
+- `npm run dev` — run Vite dev server
+- `npm run build` — typecheck + production build
+- `npm run preview` — preview production build locally
+- `npm run lint` — run ESLint on web source
+- `npm run format` — format web files with Prettier
+- `npm run format:check` — verify web formatting
+
 API unit tests:
 
 ```bash
@@ -108,8 +137,15 @@ cd api && npm test
 CI locally (same as GitHub Actions / Jenkins API and Web jobs):
 
 ```bash
-cd api && npm ci && npm run test:ci && npm run build
-cd ../web && npm ci && npm run build
+cd api && npm ci && npm run lint && npm run format:check && npm run test:ci && npm run build
+cd ../web && npm ci && npm run lint && npm run format:check && npm run build
+```
+
+All-in-one local CI/CD helper:
+
+```bash
+./scripts/ci_cd.sh
+DEPLOY=1 ./scripts/ci_cd.sh
 ```
 
 Pushes and pull requests run [GitHub Actions](.github/workflows/ci.yml) (Node 22). Optional on-host deploy: Jenkins Pipeline in `Jenkinsfile` — [setup](docs/jenkins.md).
@@ -172,4 +208,5 @@ SQLite file: `./data/monitor.sqlite` (bind-mounted in Compose at `/data/monitor.
 - Default branch for this repo is `master`
 - Docker Compose is optional; prefer host `npm run dev` when writing plugins
 - CI: GitHub Actions on push/PR ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)). Optional CD: Jenkins — [setup](docs/jenkins.md)
+- Dependency updates: Dependabot (`.github/dependabot.yml`) for npm, Docker, and GitHub Actions
 - Plugin authoring (API + UI + dashboard widgets): [docs/plugins.md](docs/plugins.md)

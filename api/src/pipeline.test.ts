@@ -1,5 +1,10 @@
 import { jest } from '@jest/globals'
-import type { AlertEvent, CheckPlugin, NotifierPlugin, Target } from './plugins/types.js'
+import type {
+  AlertEvent,
+  CheckPlugin,
+  NotifierPlugin,
+  Target,
+} from './plugins/types.js'
 import { setChecks, setNotifiers } from './plugins/runtime.js'
 
 const store = {
@@ -136,7 +141,10 @@ describe('runCheck', () => {
   })
 
   it('still marks the alert sent if one notifier succeeds', async () => {
-    const ok = notifierPlugin('webhook', jest.fn(async () => {}))
+    const ok = notifierPlugin(
+      'webhook',
+      jest.fn(async () => {}),
+    )
     const boom = notifierPlugin(
       'fcm',
       jest.fn(async () => {

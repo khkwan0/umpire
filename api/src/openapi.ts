@@ -24,8 +24,7 @@ const groupSchema = {
     name: { type: 'string' },
     tag: {
       type: 'string',
-      description:
-        'Auto tag: root group_N; child group_group_1_group_2_…',
+      description: 'Auto tag: root group_N; child group_group_1_group_2_…',
     },
     created_at: { type: 'string' },
     updated_at: { type: 'string' },

@@ -24,14 +24,10 @@ function getDb(): Database.Database {
   return db
 }
 
-function ensureColumn(
-  table: string,
-  column: string,
-  definition: string,
-): void {
-  const cols = getDb()
-    .prepare(`PRAGMA table_info(${table})`)
-    .all() as Array<{ name: string }>
+function ensureColumn(table: string, column: string, definition: string): void {
+  const cols = getDb().prepare(`PRAGMA table_info(${table})`).all() as Array<{
+    name: string
+  }>
   if (!cols.some((c) => c.name === column)) {
     getDb().exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
   }
@@ -67,8 +63,7 @@ function pathIdsToRoot(id: number, parent: number): number[] {
 
 function readGroup(id: number): Group | undefined {
   return getDb().prepare(`SELECT * FROM groups WHERE id = ?`).get(id) as
-    | Group
-    | undefined
+    Group | undefined
 }
 
 function setGroupTag(id: number, tag: string): void {
@@ -87,9 +82,10 @@ function recomputeTag(id: number): void {
 }
 
 function descendantIds(rootId: number): number[] {
-  const all = getDb()
-    .prepare(`SELECT id, parent FROM groups`)
-    .all() as Array<{ id: number; parent: number }>
+  const all = getDb().prepare(`SELECT id, parent FROM groups`).all() as Array<{
+    id: number
+    parent: number
+  }>
   const byParent = new Map<number, number[]>()
   for (const row of all) {
     const list = byParent.get(row.parent) ?? []
@@ -243,7 +239,9 @@ export const core: CoreStore = {
       alert_policy: partial.alert_policy ?? current.alert_policy,
       throttle_minutes: partial.throttle_minutes ?? current.throttle_minutes,
     }
-    if (!['state_change', 'every_fail', 'throttle'].includes(next.alert_policy)) {
+    if (
+      !['state_change', 'every_fail', 'throttle'].includes(next.alert_policy)
+    ) {
       throw new Error('Invalid alert_policy')
     }
     if (!Number.isFinite(next.throttle_minutes) || next.throttle_minutes < 1) {
@@ -301,10 +299,8 @@ export const core: CoreStore = {
     const existing = readGroup(id)
     if (!existing) return undefined
 
-    const parent =
-      patch.parent !== undefined ? patch.parent : existing.parent
-    const name =
-      patch.name !== undefined ? patch.name.trim() : existing.name
+    const parent = patch.parent !== undefined ? patch.parent : existing.parent
+    const name = patch.name !== undefined ? patch.name.trim() : existing.name
 
     if (parent !== 0 && !readGroup(parent)) {
       throw new Error(`parent group ${parent} not found`)
@@ -348,9 +344,9 @@ export const core: CoreStore = {
   },
 
   getTarget(id: number): Target | undefined {
-    const row = getDb().prepare(`SELECT * FROM targets WHERE id = ?`).get(id) as
-      | TargetRow
-      | undefined
+    const row = getDb()
+      .prepare(`SELECT * FROM targets WHERE id = ?`)
+      .get(id) as TargetRow | undefined
     return mapTarget(row)
   },
 
@@ -378,9 +374,7 @@ export const core: CoreStore = {
         JSON.stringify(notifiers),
       )
     const id = Number(result.lastInsertRowid)
-    getDb()
-      .prepare(`INSERT INTO target_state (target_id) VALUES (?)`)
-      .run(id)
+    getDb().prepare(`INSERT INTO target_state (target_id) VALUES (?)`).run(id)
     return core.getTarget(id)!
   },
 
@@ -453,13 +447,7 @@ export const core: CoreStore = {
         `INSERT INTO check_results (target_id, ok, status_code, error, latency_ms)
          VALUES (?, ?, ?, ?, ?)`,
       )
-      .run(
-        input.targetId,
-        code,
-        input.statusCode,
-        input.error,
-        input.latencyMs,
-      )
+      .run(input.targetId, code, input.statusCode, input.error, input.latencyMs)
 
     database
       .prepare(
@@ -472,13 +460,7 @@ export const core: CoreStore = {
            last_error = excluded.last_error,
            last_latency_ms = excluded.last_latency_ms`,
       )
-      .run(
-        input.targetId,
-        code,
-        input.statusCode,
-        input.error,
-        input.latencyMs,
-      )
+      .run(input.targetId, code, input.statusCode, input.error, input.latencyMs)
 
     database
       .prepare(

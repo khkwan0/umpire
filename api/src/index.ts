@@ -9,6 +9,7 @@ import {
 import { mountAllPluginRoutes } from './plugins/routes.js'
 import { runCheck } from './pipeline.js'
 import { registerOpenApi } from './openapi.js'
+import { healthRoutes } from './routes/health.js'
 import { targetsRoutes } from './routes/targets.js'
 import { groupsRoutes } from './routes/groups.js'
 import { settingsRoutes } from './routes/settings.js'
@@ -42,24 +43,7 @@ async function main() {
 
   await registerOpenApi(app)
 
-  app.get(
-    '/api/health',
-    {
-      schema: {
-        tags: ['health'],
-        summary: 'Health check',
-        response: {
-          200: {
-            type: 'object',
-            required: ['ok'],
-            properties: { ok: { type: 'boolean' } },
-          },
-        },
-      },
-    },
-    async () => ({ ok: true }),
-  )
-
+  await app.register(healthRoutes)
   await app.register(targetsRoutes)
   await app.register(groupsRoutes)
   await app.register(settingsRoutes)

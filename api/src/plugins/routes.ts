@@ -53,11 +53,7 @@
  */
 
 import type { FastifyInstance } from 'fastify'
-import type {
-  CheckPlugin,
-  NotifierPlugin,
-  SchedulerPlugin,
-} from './types.js'
+import type { CheckPlugin, NotifierPlugin, SchedulerPlugin } from './types.js'
 
 export type PluginKind = 'check' | 'scheduler' | 'notify'
 
@@ -98,9 +94,7 @@ export function listPluginCatalog(): PluginCatalogEntry[] {
 function normalizeMethods(method: string | string[]): string[] {
   const list = Array.isArray(method) ? method : [method]
   // Fastify also registers HEAD alongside GET; omit from the public catalog.
-  return list
-    .map((m) => m.toUpperCase())
-    .filter((m) => m !== 'HEAD')
+  return list.map((m) => m.toUpperCase()).filter((m) => m !== 'HEAD')
 }
 
 function fullPath(prefix: string, url: string): string {

@@ -1,0 +1,8 @@
+node_modules
+dist
+coverage
+data
+web/dist
+api/dist
+*.sqlite
+*.sqlite-*

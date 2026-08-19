@@ -17,7 +17,9 @@ describe('isUnregisteredTokenError', () => {
     expect(
       isUnregisteredTokenError('messaging/registration-token-not-registered'),
     ).toBe(true)
-    expect(isUnregisteredTokenError('installation-id-not-registered')).toBe(true)
+    expect(isUnregisteredTokenError('installation-id-not-registered')).toBe(
+      true,
+    )
     expect(isUnregisteredTokenError('boom')).toBe(false)
   })
 })
@@ -44,7 +46,9 @@ describe('fcmContent', () => {
   it('includes an Android channel when configured', () => {
     process.env.FCM_ANDROID_CHANNEL_ID = 'alerts'
     try {
-      expect(fcmContent('t', 'b').android?.notification?.channelId).toBe('alerts')
+      expect(fcmContent('t', 'b').android?.notification?.channelId).toBe(
+        'alerts',
+      )
     } finally {
       delete process.env.FCM_ANDROID_CHANNEL_ID
     }

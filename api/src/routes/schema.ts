@@ -24,8 +24,7 @@ export async function schemaRoutes(app: FastifyInstance): Promise<void> {
     },
     async (req) => {
       const core = getCore()
-      const includeData =
-        req.query.data === '1' || req.query.data === 'true'
+      const includeData = req.query.data === '1' || req.query.data === 'true'
       return {
         engine: 'sqlite',
         tables: core.schema(),

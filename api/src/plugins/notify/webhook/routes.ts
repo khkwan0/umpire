@@ -59,7 +59,9 @@ const webhookTestSchema = {
   },
 } as const
 
-export async function registerWebhookRoutes(app: FastifyInstance): Promise<void> {
+export async function registerWebhookRoutes(
+  app: FastifyInstance,
+): Promise<void> {
   app.get(
     '/config',
     {

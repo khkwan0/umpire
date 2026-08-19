@@ -29,15 +29,21 @@ export async function sendAlert(
 
   const useBody = WEBHOOK_BODY_METHODS.has(config.method)
   const headers: Record<string, string> = { ...config.headers }
-  if (useBody && !Object.keys(headers).some((k) => k.toLowerCase() === 'content-type')) {
+  if (
+    useBody &&
+    !Object.keys(headers).some((k) => k.toLowerCase() === 'content-type')
+  ) {
     headers['content-type'] = 'application/json'
   }
 
-  const res = await fetch(useBody ? config.url : withQueryPayload(config.url, event), {
-    method: config.method,
-    headers,
-    body: useBody ? JSON.stringify(event) : undefined,
-  })
+  const res = await fetch(
+    useBody ? config.url : withQueryPayload(config.url, event),
+    {
+      method: config.method,
+      headers,
+      body: useBody ? JSON.stringify(event) : undefined,
+    },
+  )
 
   if (!res.ok) {
     const text = await res.text().catch(() => '')

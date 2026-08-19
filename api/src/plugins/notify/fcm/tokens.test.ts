@@ -21,7 +21,15 @@ function sampleEvent(overrides: Partial<AlertEvent> = {}): AlertEvent {
     checkedAt: '2026-01-01T00:00:00.000Z',
     title: 'Site down',
     body: 'down',
-    checks: [{ id: 'http', ok: false, statusCode: 500, error: 'HTTP 500', latencyMs: 1 }],
+    checks: [
+      {
+        id: 'http',
+        ok: false,
+        statusCode: 500,
+        error: 'HTTP 500',
+        latencyMs: 1,
+      },
+    ],
     ...overrides,
   }
 }
@@ -53,7 +61,10 @@ describe('normalizeTargetIds / normalizeCheckIds', () => {
       'target_ids must be an array of positive integers',
     )
 
-    expect(normalizeCheckIds([' http ', 'http', 'dns'])).toEqual(['http', 'dns'])
+    expect(normalizeCheckIds([' http ', 'http', 'dns'])).toEqual([
+      'http',
+      'dns',
+    ])
     expect(() => normalizeCheckIds([''])).toThrow(
       'check_ids must be an array of non-empty strings',
     )
@@ -73,7 +84,9 @@ describe('parseTokenImport', () => {
 
   it('rejects empty or invalid payloads', () => {
     expect(() => parseTokenImport([])).toThrow('import array is empty')
-    expect(() => parseTokenImport({ tokens: [1] })).toThrow('item 0: must be a string or object')
+    expect(() => parseTokenImport({ tokens: [1] })).toThrow(
+      'item 0: must be a string or object',
+    )
     expect(() => parseTokenImport({ nope: [] })).toThrow(/import must be/)
   })
 })
@@ -84,24 +97,32 @@ describe('tokenMatchesAlert', () => {
   })
 
   it('filters by target allowlist', () => {
-    expect(
-      tokenMatchesAlert(token({ target_ids: [2] }), sampleEvent()),
-    ).toBe(false)
-    expect(
-      tokenMatchesAlert(token({ target_ids: [1] }), sampleEvent()),
-    ).toBe(true)
+    expect(tokenMatchesAlert(token({ target_ids: [2] }), sampleEvent())).toBe(
+      false,
+    )
+    expect(tokenMatchesAlert(token({ target_ids: [1] }), sampleEvent())).toBe(
+      true,
+    )
   })
 
   it('with a check allowlist, skips recoveries and unmatched failures', () => {
     const row = token({ check_ids: ['http'] })
-    expect(tokenMatchesAlert(row, sampleEvent({ status: 'up', checks: [] }))).toBe(
-      false,
-    )
+    expect(
+      tokenMatchesAlert(row, sampleEvent({ status: 'up', checks: [] })),
+    ).toBe(false)
     expect(
       tokenMatchesAlert(
         row,
         sampleEvent({
-          checks: [{ id: 'dns', ok: false, statusCode: null, error: 'x', latencyMs: 1 }],
+          checks: [
+            {
+              id: 'dns',
+              ok: false,
+              statusCode: null,
+              error: 'x',
+              latencyMs: 1,
+            },
+          ],
         }),
       ),
     ).toBe(false)

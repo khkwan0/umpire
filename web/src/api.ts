@@ -160,7 +160,10 @@ export const api = {
     tree: () => request<GroupTreeNode[]>('/api/groups?tree=1'),
     get: (id: number) => request<Group>(`/api/groups/${id}`),
     create: (data: { parent?: number; name?: string; tag?: string }) =>
-      request<Group>('/api/groups', { method: 'POST', body: JSON.stringify(data) }),
+      request<Group>('/api/groups', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
     update: (
       id: number,
       data: Partial<{ parent: number; name: string; tag: string }>,
@@ -182,7 +185,10 @@ export const api = {
       check_ids?: string[]
       notifier_ids?: string[]
     }) =>
-      request<Target>('/api/targets', { method: 'POST', body: JSON.stringify(data) }),
+      request<Target>('/api/targets', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
     update: (
       id: number,
       data: Partial<{

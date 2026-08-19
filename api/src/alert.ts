@@ -36,7 +36,9 @@ export function shouldAlert(opts: {
     return true
   }
   if (!lastAlertAt) return true
-  const last = Date.parse(lastAlertAt.includes('T') ? lastAlertAt : `${lastAlertAt}Z`)
+  const last = Date.parse(
+    lastAlertAt.includes('T') ? lastAlertAt : `${lastAlertAt}Z`,
+  )
   if (Number.isNaN(last)) return true
   return Date.now() - last >= throttleMinutes * 60_000
 }

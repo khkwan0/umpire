@@ -17,7 +17,9 @@ export default function SettingsPage() {
         setPolicy(s.alert_policy)
         setThrottle(s.throttle_minutes)
       })
-      .catch((err) => setError(err instanceof Error ? err.message : String(err)))
+      .catch((err) =>
+        setError(err instanceof Error ? err.message : String(err)),
+      )
   }, [])
 
   async function onSave(e: FormEvent) {

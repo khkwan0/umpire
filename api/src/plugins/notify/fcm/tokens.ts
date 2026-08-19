@@ -284,8 +284,7 @@ export function updateToken(
   const idx = rows.findIndex((r) => r.id === id)
   if (idx < 0) return undefined
   const existing = rows[idx]!
-  const token =
-    patch.token !== undefined ? patch.token.trim() : existing.token
+  const token = patch.token !== undefined ? patch.token.trim() : existing.token
   if (!token) {
     throw new Error('fid or token required')
   }
@@ -334,18 +333,13 @@ export function deleteToken(id: number): boolean {
 /** Whether this token should receive the given alert. */
 export function tokenMatchesAlert(row: FcmToken, event: AlertEvent): boolean {
   if (!row.enabled) return false
-  if (
-    row.target_ids.length > 0 &&
-    !row.target_ids.includes(event.target.id)
-  ) {
+  if (row.target_ids.length > 0 && !row.target_ids.includes(event.target.id)) {
     return false
   }
   if (row.check_ids.length === 0) return true
   // Non-empty check allowlist: only failure overlap; skip recoveries.
   if (event.status === 'up') return false
-  const failed = new Set(
-    event.checks.filter((c) => !c.ok).map((c) => c.id),
-  )
+  const failed = new Set(event.checks.filter((c) => !c.ok).map((c) => c.id))
   return row.check_ids.some((id) => failed.has(id))
 }
 

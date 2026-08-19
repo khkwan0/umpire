@@ -15,7 +15,9 @@ describe('parseHeaders', () => {
     expect(() => parseHeaders(['x'])).toThrow(
       'headers must be a JSON object of string values',
     )
-    expect(() => parseHeaders({ n: 1 })).toThrow('headers values must be strings')
+    expect(() => parseHeaders({ n: 1 })).toThrow(
+      'headers values must be strings',
+    )
   })
 })
 

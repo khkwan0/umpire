@@ -12,7 +12,9 @@ export function healthToDb(status: HealthStatus): number {
   return 0
 }
 
-export function healthFromDb(value: number | null | undefined): HealthStatus | null {
+export function healthFromDb(
+  value: number | null | undefined,
+): HealthStatus | null {
   if (value === null || value === undefined) return null
   if (value === 1) return 'up'
   if (value === 2) return 'partial'

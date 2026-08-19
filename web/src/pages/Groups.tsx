@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { api, type Group, type GroupTreeNode } from '../api'
 
-function flattenGroups(nodes: GroupTreeNode[], depth = 0): Array<Group & { depth: number }> {
+function flattenGroups(
+  nodes: GroupTreeNode[],
+  depth = 0,
+): Array<Group & { depth: number }> {
   const out: Array<Group & { depth: number }> = []
   for (const node of nodes) {
     out.push({ ...node, depth })
@@ -164,9 +167,9 @@ export default function Groups() {
       <section className="panel">
         <h2>Add group</h2>
         <p className="muted">
-          Roots get tag <span className="mono">group_N</span>. Children get a path
-          tag like <span className="mono">group_group_1_group_2</span>. Targets
-          attach to child groups only.
+          Roots get tag <span className="mono">group_N</span>. Children get a
+          path tag like <span className="mono">group_group_1_group_2</span>.
+          Targets attach to child groups only.
         </p>
         <form className="form-row" onSubmit={onCreate}>
           <label className="grow">
@@ -217,7 +220,8 @@ export default function Groups() {
         )}
         {flat.length > 0 && (
           <p className="muted small">
-            {flat.length} group{flat.length === 1 ? '' : 's'} · {tree.length} tree
+            {flat.length} group{flat.length === 1 ? '' : 's'} · {tree.length}{' '}
+            tree
             {tree.length === 1 ? '' : 's'}
           </p>
         )}

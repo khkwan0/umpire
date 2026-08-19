@@ -37,10 +37,7 @@ export default function Dashboard({
 
   const load = useCallback(async () => {
     try {
-      const [status, log] = await Promise.all([
-        api.status(),
-        api.incidents(50),
-      ])
+      const [status, log] = await Promise.all([api.status(), api.incidents(50)])
       setData(status)
       setIncidents(log)
       setError(null)
@@ -206,7 +203,9 @@ export default function Dashboard({
                     <td>{t.interval_seconds}s</td>
                     <td>{t.last_checked_at ?? '—'}</td>
                     <td>
-                      {t.last_latency_ms != null ? `${t.last_latency_ms}ms` : '—'}
+                      {t.last_latency_ms != null
+                        ? `${t.last_latency_ms}ms`
+                        : '—'}
                     </td>
                     <td className="muted">
                       {t.last_error ||

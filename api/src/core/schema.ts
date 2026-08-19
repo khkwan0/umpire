@@ -10,7 +10,11 @@ export interface CoreColumnDef {
   notNull?: boolean
   unique?: boolean
   default?: string | number | { type: 'now' }
-  references?: { table: string; column: string; onDelete?: 'CASCADE' | 'SET NULL' }
+  references?: {
+    table: string
+    column: string
+    onDelete?: 'CASCADE' | 'SET NULL'
+  }
 }
 
 export interface CoreIndexDef {
@@ -33,8 +37,18 @@ export const CORE_TABLES: CoreTableDef[] = [
       { name: 'parent', type: 'integer', notNull: true, default: 0 },
       { name: 'name', type: 'text', notNull: true, default: '' },
       { name: 'tag', type: 'text', notNull: true, unique: true },
-      { name: 'created_at', type: 'text', notNull: true, default: { type: 'now' } },
-      { name: 'updated_at', type: 'text', notNull: true, default: { type: 'now' } },
+      {
+        name: 'created_at',
+        type: 'text',
+        notNull: true,
+        default: { type: 'now' },
+      },
+      {
+        name: 'updated_at',
+        type: 'text',
+        notNull: true,
+        default: { type: 'now' },
+      },
     ],
     indexes: [{ name: 'idx_groups_parent', columns: ['parent'] }],
   },
@@ -52,8 +66,18 @@ export const CORE_TABLES: CoreTableDef[] = [
       },
       { name: 'check_ids', type: 'text', notNull: true, default: '[]' },
       { name: 'notifier_ids', type: 'text', notNull: true, default: '[]' },
-      { name: 'created_at', type: 'text', notNull: true, default: { type: 'now' } },
-      { name: 'updated_at', type: 'text', notNull: true, default: { type: 'now' } },
+      {
+        name: 'created_at',
+        type: 'text',
+        notNull: true,
+        default: { type: 'now' },
+      },
+      {
+        name: 'updated_at',
+        type: 'text',
+        notNull: true,
+        default: { type: 'now' },
+      },
     ],
   },
   {
@@ -77,7 +101,12 @@ export const CORE_TABLES: CoreTableDef[] = [
       { name: 'status_code', type: 'integer' },
       { name: 'error', type: 'text' },
       { name: 'latency_ms', type: 'integer' },
-      { name: 'checked_at', type: 'text', notNull: true, default: { type: 'now' } },
+      {
+        name: 'checked_at',
+        type: 'text',
+        notNull: true,
+        default: { type: 'now' },
+      },
     ],
     indexes: [
       {

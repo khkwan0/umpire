@@ -1,9 +1,5 @@
 import { jest } from '@jest/globals'
-import {
-  aggregateCheckOutcomes,
-  alertCopy,
-  shouldAlert,
-} from './alert.js'
+import { aggregateCheckOutcomes, alertCopy, shouldAlert } from './alert.js'
 import type { AlertCheckOutcome } from './plugins/types.js'
 
 const check = (
@@ -298,9 +294,8 @@ describe('aggregateCheckOutcomes', () => {
 
   it('uses a default error when a failed check has none', () => {
     expect(
-      aggregateCheckOutcomes([
-        check({ id: 'http', ok: false, error: null }),
-      ]).error,
+      aggregateCheckOutcomes([check({ id: 'http', ok: false, error: null })])
+        .error,
     ).toBe('[http] failed')
   })
 })

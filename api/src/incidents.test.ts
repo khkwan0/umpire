@@ -1,7 +1,12 @@
-import { buildIncidents, parseCheckedAt, type IncidentSourceRow } from './incidents.js'
+import {
+  buildIncidents,
+  parseCheckedAt,
+  type IncidentSourceRow,
+} from './incidents.js'
 
 function row(
-  partial: Partial<IncidentSourceRow> & Pick<IncidentSourceRow, 'id' | 'ok' | 'checked_at'>,
+  partial: Partial<IncidentSourceRow> &
+    Pick<IncidentSourceRow, 'id' | 'ok' | 'checked_at'>,
 ): IncidentSourceRow {
   return {
     target_id: 1,

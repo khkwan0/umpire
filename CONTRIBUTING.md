@@ -29,8 +29,14 @@ cd web && npm install && npm run dev
 Before opening a pull request, run the same checks as CI:
 
 ```bash
-cd api && npm ci && npm run test:ci && npm run build
-cd ../web && npm ci && npm run build
+cd api && npm ci && npm run lint && npm run format:check && npm run test:ci && npm run build
+cd ../web && npm ci && npm run lint && npm run format:check && npm run build
+```
+
+Or run the all-in-one script from repo root:
+
+```bash
+./scripts/ci_cd.sh
 ```
 
 Quick API test loop:
@@ -40,6 +46,7 @@ cd api && npm test
 ```
 
 GitHub Actions (`.github/workflows/ci.yml`) is the source of truth for PR CI.
+Dependabot (`.github/dependabot.yml`) keeps npm, Docker, and GitHub Actions dependencies fresh.
 
 ## Pull request guidelines
 
