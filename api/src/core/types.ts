@@ -1,3 +1,4 @@
+import type { Incident } from '../incidents.js'
 import type {
   CheckResult,
   Group,
@@ -54,6 +55,8 @@ export interface CoreStore {
   }): void
   markAlertSent(targetId: number): void
   listRecentResults(targetId: number, limit?: number): CheckResult[]
+  /** Outage windows (including recoveries), newest activity first. */
+  listIncidents(limit?: number): Incident[]
   getStatusSummary(): unknown[]
   /** Absolute path to the SQLite file. */
   databasePath(): string

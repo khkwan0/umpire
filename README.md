@@ -47,7 +47,7 @@ Core owns the monitoring **host**, not the implementations:
 
 - **Pipeline** — `run(targetId)`: selected checks → aggregate health → write SQLite → apply alert policy → call selected notifiers
 - **Frozen SQLite** — `groups`, `targets` (including `check_ids` / `notifier_ids`), `settings`, `check_results`, `target_state`. Plugins must not `ALTER` these tables. Plugin-owned data (FCM tokens, webhook URL) lives in sidecar files next to the DB and is edited in the plugin UI — not `.env`
-- **HTTP API + UI shell** — CRUD for groups, targets, settings, history, status; dashboard and nav. Plugin screens, dashboard widgets, and routes are optional add-ons
+- **HTTP API + UI shell** — CRUD for groups, targets, settings, history, status; dashboard (including an outage/recovery log) and nav. Plugin screens, dashboard widgets, and routes are optional add-ons
 - **Plugin host** — loads `plugins.json`, mounts plugin HTTP under `/api/plugins/<kind>/<id>/…`, catalogs them at `GET /api/plugins`
 - **Alert policy** — decides *whether* to notify (`state_change`, `every_fail`, `throttle`). Notifiers only deliver
 - **Allowlists** — empty `check_ids` / `notifier_ids` = all loaded plugins of that kind
@@ -135,6 +135,7 @@ Swagger UI: [http://localhost:8089/documentation](http://localhost:8089/document
 - `GET/POST/PATCH/DELETE /api/groups` (`GET /api/groups?tree=1` for nested trees)
 - `GET/POST/PATCH/DELETE /api/targets` (optional `group_id`, optional `check_ids` / `notifier_ids`; empty allowlist = all of that kind)
 - `GET /api/targets/:id/results`
+- `GET /api/incidents` — outage and recovery log (newest first; optional `?limit=`)
 - `GET /api/checks` — loaded check plugins `{ id }`
 - `GET /api/notifiers` — loaded notifier plugins `{ id, ready }`
 - `GET /api/plugins` — loaded plugins + namespaced HTTP routes

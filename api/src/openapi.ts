@@ -98,6 +98,48 @@ const targetSchema = {
   },
 } as const
 
+const incidentSchema = {
+  $id: 'Incident',
+  type: 'object',
+  required: [
+    'id',
+    'target_id',
+    'url',
+    'group_tag',
+    'status',
+    'recovered',
+    'started_at',
+    'recovered_at',
+    'duration_seconds',
+    'error',
+    'status_code',
+  ],
+  properties: {
+    id: {
+      type: 'integer',
+      description: 'check_results.id where the outage began',
+    },
+    target_id: { type: 'integer' },
+    url: { type: 'string' },
+    group_tag: { type: ['string', 'null'] },
+    status: {
+      type: 'string',
+      enum: ['down', 'partial'],
+      description: 'Most severe status during the outage window',
+    },
+    recovered: { type: 'boolean' },
+    started_at: { type: 'string' },
+    recovered_at: { type: ['string', 'null'] },
+    duration_seconds: {
+      type: ['integer', 'null'],
+      description:
+        'Elapsed seconds from start to recovery, or to now if still ongoing',
+    },
+    error: { type: ['string', 'null'] },
+    status_code: { type: ['integer', 'null'] },
+  },
+} as const
+
 const checkResultSchema = {
   $id: 'CheckResult',
   type: 'object',
@@ -352,6 +394,7 @@ export async function registerOpenApi(app: FastifyInstance): Promise<void> {
     groupSchema,
     groupTreeNodeSchema,
     targetSchema,
+    incidentSchema,
     checkResultSchema,
     fcmTokenSchema,
     settingsSchema,
@@ -404,6 +447,10 @@ export async function registerOpenApi(app: FastifyInstance): Promise<void> {
         },
         { name: 'settings', description: 'Alert policy' },
         { name: 'status', description: 'Dashboard summary' },
+        {
+          name: 'incidents',
+          description: 'Outage and recovery log from check history',
+        },
         { name: 'schema', description: 'Frozen core SQLite schema' },
       ],
     },

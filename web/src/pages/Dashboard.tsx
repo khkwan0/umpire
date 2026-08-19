@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, type StatusResponse } from '../api'
+import { api, type Incident, type StatusResponse } from '../api'
 import type { DashboardWidgetModule } from '../plugin-ui'
 
 function statusLabel(isUp: number | null, enabled: number): string {
@@ -11,17 +11,38 @@ function statusLabel(isUp: number | null, enabled: number): string {
   return 'down'
 }
 
+function formatDuration(seconds: number | null): string {
+  if (seconds == null) return '—'
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  const rest = seconds % 60
+  if (minutes < 60) return rest ? `${minutes}m ${rest}s` : `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  const rem = minutes % 60
+  return rem ? `${hours}h ${rem}m` : `${hours}h`
+}
+
+function incidentLabel(incident: Incident): string {
+  return incident.recovered ? 'recovered' : incident.status
+}
+
 export default function Dashboard({
   widgets = [],
 }: {
   widgets?: DashboardWidgetModule[]
 }) {
   const [data, setData] = useState<StatusResponse | null>(null)
+  const [incidents, setIncidents] = useState<Incident[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
-      setData(await api.status())
+      const [status, log] = await Promise.all([
+        api.status(),
+        api.incidents(50),
+      ])
+      setData(status)
+      setIncidents(log)
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -41,6 +62,7 @@ export default function Dashboard({
   const partial = data.targets.filter((t) => t.enabled && t.is_up === 2).length
   const down = data.targets.filter((t) => t.enabled && t.is_up === 0).length
   const paused = data.targets.filter((t) => !t.enabled).length
+  const ongoing = (incidents ?? []).filter((i) => !i.recovered).length
 
   return (
     <div className="stack">
@@ -75,6 +97,60 @@ export default function Dashboard({
               <span>{n.id}</span>
             </div>
           ))
+        )}
+      </section>
+
+      <section className="panel">
+        <div className="panel-head">
+          <h2>Outages &amp; recovery</h2>
+          {ongoing > 0 ? (
+            <span className="pill down">{ongoing} ongoing</span>
+          ) : (
+            <span className="muted small">No ongoing outages</span>
+          )}
+        </div>
+        {!incidents || incidents.length === 0 ? (
+          <p className="muted">No outages recorded yet.</p>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>URL</th>
+                <th>Started</th>
+                <th>Recovered</th>
+                <th>Duration</th>
+                <th>Detail</th>
+              </tr>
+            </thead>
+            <tbody>
+              {incidents.map((incident) => {
+                const label = incidentLabel(incident)
+                return (
+                  <tr key={`${incident.target_id}:${incident.id}`}>
+                    <td>
+                      <span className={`pill ${label}`}>{label}</span>
+                    </td>
+                    <td className="mono">
+                      {incident.url}
+                      {incident.group_tag ? (
+                        <div className="muted small">{incident.group_tag}</div>
+                      ) : null}
+                    </td>
+                    <td>{incident.started_at}</td>
+                    <td>{incident.recovered_at ?? '—'}</td>
+                    <td>{formatDuration(incident.duration_seconds)}</td>
+                    <td className="muted">
+                      {incident.error ||
+                        (incident.status_code != null
+                          ? `HTTP ${incident.status_code}`
+                          : '—')}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         )}
       </section>
 

@@ -273,7 +273,7 @@ Config path override: `PLUGINS_CONFIG`.
 
 ## Plugin HTTP APIs
 
-`registerRoutes(app)` is how a plugin exposes **its own** HTTP API. It is optional. Core already has `/api/targets`, `/api/groups`, `/api/settings`, history, and status — do not recreate those. Use `registerRoutes` only for data and actions that belong to **this plugin**.
+`registerRoutes(app)` is how a plugin exposes **its own** HTTP API. It is optional. Core already has `/api/targets`, `/api/groups`, `/api/settings`, history, `/api/incidents`, and status — do not recreate those. Use `registerRoutes` only for data and actions that belong to **this plugin**.
 
 Host module: [`api/src/plugins/routes.ts`](../api/src/plugins/routes.ts).
 

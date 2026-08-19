@@ -11,6 +11,7 @@ import type {
   Target,
   TargetState,
 } from '../plugins/types.js'
+import { buildIncidents, type IncidentSourceRow } from '../incidents.js'
 import { healthToDb } from '../plugins/types.js'
 import { CORE_TABLES } from './schema.js'
 import type { CoreStore } from './types.js'
@@ -507,6 +508,20 @@ export const core: CoreStore = {
         `SELECT * FROM check_results WHERE target_id = ? ORDER BY checked_at DESC, id DESC LIMIT ?`,
       )
       .all(targetId, limit) as CheckResult[]
+  },
+
+  listIncidents(limit = 50) {
+    const rows = getDb()
+      .prepare(
+        `SELECT r.id, r.target_id, r.ok, r.status_code, r.error, r.checked_at,
+                t.url, g.tag AS group_tag
+         FROM check_results r
+         JOIN targets t ON t.id = r.target_id
+         LEFT JOIN groups g ON g.id = t.group_id
+         ORDER BY r.target_id ASC, r.checked_at ASC, r.id ASC`,
+      )
+      .all() as IncidentSourceRow[]
+    return buildIncidents(rows, { limit })
   },
 
   getStatusSummary() {

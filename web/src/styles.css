@@ -186,7 +186,7 @@ td {
   background: #ece7dc;
 }
 
-.pill.up {
+.pill.recovered {
   background: #d8f3e7;
   color: var(--up);
 }
