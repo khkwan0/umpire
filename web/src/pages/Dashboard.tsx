@@ -73,7 +73,7 @@ export default function Dashboard({
         </div>
         <div>
           <strong className={partial ? 'warn' : ''}>{partial}</strong>
-          <span>partial</span>
+          <span>wanring</span>
         </div>
         <div>
           <strong className={down ? 'bad' : ''}>{down}</strong>
@@ -109,22 +109,26 @@ export default function Dashboard({
             <span className="muted small">No ongoing outages</span>
           )}
         </div>
-        {!incidents || incidents.length === 0 ? (
-          <p className="muted">No outages recorded yet.</p>
-        ) : (
-          <table>
-            <thead>
+        <table>
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>URL</th>
+              <th>Started</th>
+              <th>Recovered</th>
+              <th>Duration</th>
+              <th>Detail</th>
+            </tr>
+          </thead>
+          <tbody>
+            {!incidents || incidents.length === 0 ? (
               <tr>
-                <th>Status</th>
-                <th>URL</th>
-                <th>Started</th>
-                <th>Recovered</th>
-                <th>Duration</th>
-                <th>Detail</th>
+                <td colSpan={6} className="muted center">
+                  No outages recorded yet.
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {incidents.map((incident) => {
+            ) : (
+              incidents.map((incident) => {
                 const label = incidentLabel(incident)
                 return (
                   <tr key={`${incident.target_id}:${incident.id}`}>
@@ -148,10 +152,10 @@ export default function Dashboard({
                     </td>
                   </tr>
                 )
-              })}
-            </tbody>
-          </table>
-        )}
+              })
+            )}
+          </tbody>
+        </table>
       </section>
 
       {widgets.map((ui) => (

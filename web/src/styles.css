@@ -191,6 +191,11 @@ td {
   color: var(--up);
 }
 
+.pill.up {
+  background: #d8f3e7;
+  color: var(--up);
+}
+
 .pill.down {
   background: #f8d7d7;
   color: var(--down);
