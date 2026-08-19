@@ -114,6 +114,11 @@ export interface CheckOutcome {
   latencyMs: number
 }
 
+export interface CheckContext {
+  target: Target
+  config: unknown
+}
+
 /** Per-check result attached to aggregated runs and AlertEvent. */
 export interface AlertCheckOutcome {
   id: string
@@ -156,7 +161,7 @@ export interface NotifierPlugin {
 
 export interface CheckPlugin {
   id: string
-  check(url: string): Promise<CheckOutcome>
+  check(ctx: CheckContext): Promise<CheckOutcome>
   /** Optional HTTP routes under /api/plugins/<kind>/<id>/… (host applies the prefix). */
   registerRoutes?(app: FastifyInstance): void | Promise<void>
 }

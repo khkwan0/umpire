@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { getCore } from '../core/index.js'
 import { normalizePluginIds } from '../core/sqlite.js'
-import { getScheduler } from '../plugins/registry.js'
+import { getChecks, getScheduler } from '../plugins/registry.js'
 
 const errorResponse = {
   type: 'object',
@@ -297,6 +297,118 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
       if (!getCore().getTarget(id))
         return reply.code(404).send({ error: 'not found' })
       return getCore().listRecentResults(id, 100)
+    },
+  )
+
+  app.get<{ Params: { id: string; checkId: string } }>(
+    '/api/targets/:id/checks/:checkId/config',
+    {
+      schema: {
+        tags: ['targets'],
+        summary: 'Get per-target config for a check plugin',
+        params: {
+          type: 'object',
+          required: ['id', 'checkId'],
+          properties: {
+            id: { type: 'string' },
+            checkId: { type: 'string' },
+          },
+        },
+        response: {
+          200: { type: 'object', additionalProperties: true },
+          400: errorResponse,
+          404: errorResponse,
+        },
+      },
+    },
+    async (req, reply) => {
+      const id = Number(req.params.id)
+      if (!Number.isInteger(id))
+        return reply.code(400).send({ error: 'invalid id' })
+      if (!getCore().getTarget(id))
+        return reply.code(404).send({ error: 'not found' })
+      const checkId = req.params.checkId.trim()
+      if (!checkId) return reply.code(400).send({ error: 'invalid checkId' })
+      const config = getCore().getTargetCheckConfig(id, checkId)
+      return config && typeof config === 'object' ? config : {}
+    },
+  )
+
+  app.put<{
+    Params: { id: string; checkId: string }
+    Body: Record<string, unknown>
+  }>(
+    '/api/targets/:id/checks/:checkId/config',
+    {
+      schema: {
+        tags: ['targets'],
+        summary: 'Set per-target config for a check plugin',
+        params: {
+          type: 'object',
+          required: ['id', 'checkId'],
+          properties: {
+            id: { type: 'string' },
+            checkId: { type: 'string' },
+          },
+        },
+        body: { type: 'object', additionalProperties: true },
+        response: {
+          200: { type: 'object', additionalProperties: true },
+          400: errorResponse,
+          404: errorResponse,
+        },
+      },
+    },
+    async (req, reply) => {
+      const id = Number(req.params.id)
+      if (!Number.isInteger(id))
+        return reply.code(400).send({ error: 'invalid id' })
+      if (!getCore().getTarget(id))
+        return reply.code(404).send({ error: 'not found' })
+      const checkId = req.params.checkId.trim()
+      if (!checkId) return reply.code(400).send({ error: 'invalid checkId' })
+      if (!getChecks().some((c) => c.id === checkId)) {
+        return reply.code(404).send({ error: `check plugin "${checkId}" not found` })
+      }
+      if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+        return reply.code(400).send({ error: 'body must be a JSON object' })
+      }
+      getCore().setTargetCheckConfig(id, checkId, req.body)
+      return req.body
+    },
+  )
+
+  app.delete<{ Params: { id: string; checkId: string } }>(
+    '/api/targets/:id/checks/:checkId/config',
+    {
+      schema: {
+        tags: ['targets'],
+        summary: 'Delete per-target config override for a check plugin',
+        params: {
+          type: 'object',
+          required: ['id', 'checkId'],
+          properties: {
+            id: { type: 'string' },
+            checkId: { type: 'string' },
+          },
+        },
+        response: {
+          204: { type: 'null' },
+          400: errorResponse,
+          404: errorResponse,
+        },
+      },
+    },
+    async (req, reply) => {
+      const id = Number(req.params.id)
+      if (!Number.isInteger(id))
+        return reply.code(400).send({ error: 'invalid id' })
+      if (!getCore().getTarget(id))
+        return reply.code(404).send({ error: 'not found' })
+      const checkId = req.params.checkId.trim()
+      if (!checkId) return reply.code(400).send({ error: 'invalid checkId' })
+      getCore().deleteTargetCheckConfig(id, checkId)
+      return reply.code(204).send()
     },
   )
 }

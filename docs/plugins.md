@@ -56,7 +56,7 @@ They do not import each other. Core calls a few hooks. Plugins answer, or call b
 1. **Load** — Core reads `plugins.json` and loads those modules. If a plugin has HTTP, core mounts it under `/api/plugins/<kind>/<id>/…`.
 2. **Start the clock** — After the API is listening, core calls the scheduler’s `start()`. After every target create, update, delete, or Pause, core calls `reschedule()`.
 3. **Scheduler asks core to run** — When a target is due, the scheduler calls `ctx.run(targetId)`. That is the only way a check cycle starts.
-4. **Core asks checks to probe** — `run` calls `check(url)` on each selected check. The plugin returns `{ ok, statusCode, error, latencyMs }` and stops there. It does not write the database.
+4. **Core asks checks to probe** — `run` calls `check(ctx)` on each selected check. The plugin returns `{ ok, statusCode, error, latencyMs }` and stops there. It does not write the database.
 5. **Core keeps the books** — Core aggregates outcomes, writes SQLite, and applies alert policy.
 6. **Core asks notifiers to deliver** — If policy says alert, core calls `notify(event)` with a ready-made title and body. The notifier only sends.
 
@@ -68,7 +68,7 @@ Plugin HTTP and UI are a side channel for plugin-owned data. They are not how pr
 
 | You want to… | Kind | Cardinality | Minimum hook |
 |--------------|------|-------------|--------------|
-| Probe a URL (HTTP, TLS, DNS, keyword, …) | `check` | One or more | `check(url)` |
+| Probe a URL (HTTP, TLS, DNS, keyword, …) | `check` | One or more | `check(ctx)` |
 | Decide *when* targets run (rarely: keep `interval`) | `scheduler` | **Exactly one** process-wide | `start` / `stop` / `reschedule` |
 | Deliver an alert (FCM, webhook, ntfy, email, …) | `notify` | Zero or more | `isReady` + `notify(event)` |
 
@@ -169,14 +169,14 @@ interface CheckOutcome {
 
 interface CheckPlugin {
   id: string
-  check(url: string): Promise<CheckOutcome>
+  check(ctx: { target: Target; config: unknown }): Promise<CheckOutcome>
   registerRoutes?(app: FastifyInstance): void | Promise<void>
 }
 ```
 
-- Receives **only** the target `url` — not the full row, settings, or store writes.
+- Receives the target row + plugin config (`ctx.target`, `ctx.config`) resolved per target.
 - Always return a complete `CheckOutcome` (including `latencyMs`). Never throw for a failed probe; return `ok: false`.
-- Optional `registerRoutes` is for **plugin config/CRUD**, not for running the probe. Core calls `check(url)` on a schedule. Omit it when `url` is enough for your plugin logic.
+- Optional `registerRoutes` is for **plugin config/CRUD**, not for running the probe. Core calls `check(ctx)` on a schedule.
 
 Aggregation (after selected checks finish):
 
@@ -294,7 +294,7 @@ async registerRoutes(app: FastifyInstance) {
 // becomes GET /api/plugins/notify/hello/ping
 ```
 
-That is the whole job: attach plugin HTTP under a namespace so it cannot collide with core (`/api/targets`) or another plugin. It is **not** how probes run, how the scheduler ticks, or how alerts fire. Those stay `check(url)`, `ctx.run(id)`, and `notify(event)`.
+That is the whole job: attach plugin HTTP under a namespace so it cannot collide with core (`/api/targets`) or another plugin. It is **not** how probes run, how the scheduler ticks, or how alerts fire. Those stay `check(ctx)`, `ctx.run(id)`, and `notify(event)`.
 
 If you omit `registerRoutes`, the plugin still loads and still appears in `GET /api/plugins` with `routes: []`. Duplicate method+path *within* one plugin fails Fastify at startup.
 
@@ -496,10 +496,10 @@ import type { FastifyInstance } from 'fastify'
 const helloCheck: CheckPlugin = {
   id: 'hello',
 
-  async check(url: string): Promise<CheckOutcome> {
+  async check(ctx): Promise<CheckOutcome> {
     const startedAt = Date.now()
     try {
-      const res = await fetch(url, {
+      const res = await fetch(ctx.target.url, {
         method: 'GET',
         redirect: 'follow',
         signal: AbortSignal.timeout(5_000),
@@ -683,13 +683,13 @@ function warnDays(): number {
 const tlsCheck: CheckPlugin = {
   id: 'tls',
 
-  check(url: string): Promise<CheckOutcome> {
+  check(ctx): Promise<CheckOutcome> {
     const startedAt = Date.now()
     return new Promise((resolve) => {
       let hostname: string
       let port: number
       try {
-        const u = new URL(url)
+        const u = new URL(ctx.target.url)
         hostname = u.hostname
         port = u.port ? Number(u.port) : u.protocol === 'http:' ? 80 : 443
       } catch {
@@ -745,7 +745,7 @@ Enable: `"checks": ["http", "tls"]`. Per-target: tick both, or only `tls` for ce
 
 ### 2. Check: keyword in response body (plugin config API + UI)
 
-When the probe needs **settings** (needle string, JSON path), store them in a plugin file and expose CRUD. `check(url)` still receives only `url` — look up config by URL or use one global needle.
+When the probe needs **settings** (needle string, JSON path), use per-target check config in core and expose target-scoped CRUD routes. `check(ctx)` reads `ctx.config`.
 
 Shape:
 
@@ -756,12 +756,12 @@ check/keyword/
   ui/index.tsx + SettingsPage.tsx
 ```
 
-`GET/PUT /api/plugins/check/keyword/config` with `{ needle: string, minStatus?: number }`. In `check()`:
+`GET/PUT /api/plugins/check/keyword-body/targets/:targetId/config` with `{ keyword: string, caseSensitive: boolean }`. In `check()`:
 
 1. `GET` the URL (timeout, user-agent).
 2. Fail if status is not 2xx.
-3. `text = await res.text()`; `ok = text.includes(config.needle)`.
-4. Return `error: 'needle not found'` when missing.
+3. `text = await res.text()`; `ok = text.includes(config.keyword)` (or case-insensitive variant).
+4. Return `error: 'keyword not found'` when missing.
 
 UI: one panel, input for needle, Save → `PUT`. Use `api` helpers if you add them to `web/src/api.ts`, otherwise `fetch`.
 
@@ -866,10 +866,11 @@ Optional `GET /api/plugins/scheduler/<id>/timers` that returns `{ id, nextRunAt 
 Hello world can `fetch`. Once you have several endpoints, add a namespace on [`web/src/api.ts`](../web/src/api.ts) next to `tokens`:
 
 ```ts
-keyword: {
-  get: () => request<{ needle: string }>('/api/plugins/check/keyword/config'),
-  put: (data: { needle: string }) =>
-    request<{ needle: string }>('/api/plugins/check/keyword/config', {
+keywordBody: {
+  get: (targetId: number) =>
+    request<{ keyword: string; caseSensitive: boolean }>(`/api/plugins/check/keyword-body/targets/${targetId}/config`),
+  put: (targetId: number, data: { keyword: string; caseSensitive: boolean }) =>
+    request<{ keyword: string; caseSensitive: boolean }>(`/api/plugins/check/keyword-body/targets/${targetId}/config`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),

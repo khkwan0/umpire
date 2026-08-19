@@ -1,10 +1,10 @@
 import type { FastifyInstance } from 'fastify'
+import { getCore } from '../../../core/index.js'
 import {
   HTTP_METHODS,
   STATUS_RANGES,
   normalizeConfig,
-  readConfig,
-  writeConfig,
+  resolveHttpCheckConfig,
 } from './config.js'
 import { runHttpCheck } from './evaluate.js'
 
@@ -44,18 +44,35 @@ export async function registerHttpCheckRoutes(
   } as const
 
   app.get(
-    '/config',
+    '/targets/:targetId/config',
     {
       schema: {
         tags: ['http-check'],
-        summary: 'Get HTTP check plugin config',
+        summary: 'Get HTTP check config for one target',
+        params: {
+          type: 'object',
+          required: ['targetId'],
+          properties: { targetId: { type: 'string' } },
+        },
         response: { 200: configSchema },
       },
     },
-    async () => readConfig(),
+    async (req, reply) => {
+      const targetId = Number((req.params as { targetId: string }).targetId)
+      if (!Number.isInteger(targetId) || targetId < 1) {
+        return reply.code(400).send({ error: 'invalid targetId' })
+      }
+      if (!getCore().getTarget(targetId)) {
+        return reply.code(404).send({ error: 'target not found' })
+      }
+      return resolveHttpCheckConfig(
+        getCore().getTargetCheckConfig(targetId, 'http'),
+      )
+    },
   )
 
   app.put<{
+    Params: { targetId: string }
     Body: {
       method?: string
       headers?: Record<string, string>
@@ -64,11 +81,16 @@ export async function registerHttpCheckRoutes(
       maxLatencyMs?: number | null
     }
   }>(
-    '/config',
+    '/targets/:targetId/config',
     {
       schema: {
         tags: ['http-check'],
-        summary: 'Set HTTP check plugin config',
+        summary: 'Set HTTP check config for one target',
+        params: {
+          type: 'object',
+          required: ['targetId'],
+          properties: { targetId: { type: 'string' } },
+        },
         body: configSchema,
         response: {
           200: configSchema,
@@ -77,8 +99,17 @@ export async function registerHttpCheckRoutes(
       },
     },
     async (req, reply) => {
+      const targetId = Number(req.params.targetId)
+      if (!Number.isInteger(targetId) || targetId < 1) {
+        return reply.code(400).send({ error: 'invalid targetId' })
+      }
+      if (!getCore().getTarget(targetId)) {
+        return reply.code(404).send({ error: 'target not found' })
+      }
       try {
-        return writeConfig(normalizeConfig(req.body))
+        const config = normalizeConfig(req.body)
+        getCore().setTargetCheckConfig(targetId, 'http', config)
+        return config
       } catch (err) {
         return reply
           .code(400)
@@ -88,6 +119,7 @@ export async function registerHttpCheckRoutes(
   )
 
   app.post<{
+    Params: { targetId: string }
     Body: {
       url?: string
       method?: string
@@ -97,15 +129,18 @@ export async function registerHttpCheckRoutes(
       maxLatencyMs?: number | null
     }
   }>(
-    '/test',
+    '/targets/:targetId/test',
     {
       schema: {
         tags: ['http-check'],
-        summary:
-          'Run one HTTP check now using current or provided method/headers/body',
+        summary: 'Run one HTTP check now using target config and optional overrides',
+        params: {
+          type: 'object',
+          required: ['targetId'],
+          properties: { targetId: { type: 'string' } },
+        },
         body: {
           type: 'object',
-          required: ['url'],
           properties: {
             url: { type: 'string', format: 'uri' },
             method: { type: 'string', enum: [...HTTP_METHODS] },
@@ -129,20 +164,18 @@ export async function registerHttpCheckRoutes(
       },
     },
     async (req, reply) => {
-      const url = req.body?.url?.trim()
-      if (!url) {
-        return reply.code(400).send({ error: 'url is required' })
+      const targetId = Number(req.params.targetId)
+      if (!Number.isInteger(targetId) || targetId < 1) {
+        return reply.code(400).send({ error: 'invalid targetId' })
       }
-      try {
-        const parsed = new URL(url)
-        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-          return reply.code(400).send({ error: 'url must be http(s)' })
-        }
-      } catch {
-        return reply.code(400).send({ error: 'url is invalid' })
+      const target = getCore().getTarget(targetId)
+      if (!target) {
+        return reply.code(404).send({ error: 'target not found' })
       }
-
-      const base = readConfig()
+      const url = req.body?.url?.trim() || target.url
+      const base = resolveHttpCheckConfig(
+        getCore().getTargetCheckConfig(targetId, 'http'),
+      )
       let config = base
       if (
         req.body?.method !== undefined ||
@@ -151,17 +184,23 @@ export async function registerHttpCheckRoutes(
         req.body?.acceptedStatusRanges !== undefined ||
         req.body?.maxLatencyMs !== undefined
       ) {
-        config = normalizeConfig({
-          method: req.body.method ?? base.method,
-          headers: req.body.headers ?? base.headers,
-          body: req.body.body ?? base.body,
-          acceptedStatusRanges:
-            req.body.acceptedStatusRanges ?? base.acceptedStatusRanges,
-          maxLatencyMs:
-            req.body.maxLatencyMs !== undefined
-              ? req.body.maxLatencyMs
-              : base.maxLatencyMs,
-        })
+        try {
+          config = normalizeConfig({
+            method: req.body.method ?? base.method,
+            headers: req.body.headers ?? base.headers,
+            body: req.body.body ?? base.body,
+            acceptedStatusRanges:
+              req.body.acceptedStatusRanges ?? base.acceptedStatusRanges,
+            maxLatencyMs:
+              req.body.maxLatencyMs !== undefined
+                ? req.body.maxLatencyMs
+                : base.maxLatencyMs,
+          })
+        } catch (err) {
+          return reply
+            .code(400)
+            .send({ error: err instanceof Error ? err.message : String(err) })
+        }
       }
       return runHttpCheck(url, config)
     },

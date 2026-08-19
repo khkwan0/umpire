@@ -166,6 +166,10 @@ type TargetRow = Omit<Target, 'check_ids' | 'notifier_ids'> & {
   notifier_ids?: string | null
 }
 
+interface TargetCheckConfigRow {
+  config_json: string
+}
+
 function mapTarget(row: TargetRow | undefined): Target | undefined {
   if (!row) return undefined
   const { check_ids: rawChecks, notifier_ids: rawNotifiers, ...rest } = row
@@ -348,6 +352,49 @@ export const core: CoreStore = {
       .prepare(`SELECT * FROM targets WHERE id = ?`)
       .get(id) as TargetRow | undefined
     return mapTarget(row)
+  },
+
+  getTargetCheckConfig(targetId: number, checkId: string): unknown | null {
+    const row = getDb()
+      .prepare(
+        `SELECT config_json FROM target_check_configs WHERE target_id = ? AND check_id = ?`,
+      )
+      .get(targetId, checkId) as TargetCheckConfigRow | undefined
+    if (!row) return null
+    try {
+      return JSON.parse(row.config_json) as unknown
+    } catch {
+      return null
+    }
+  },
+
+  setTargetCheckConfig(targetId: number, checkId: string, config: unknown): void {
+    if (!Number.isInteger(targetId) || targetId < 1) {
+      throw new Error('target_id must be a positive integer')
+    }
+    if (typeof checkId !== 'string' || !checkId.trim()) {
+      throw new Error('check_id is required')
+    }
+    const target = core.getTarget(targetId)
+    if (!target) throw new Error(`target ${targetId} not found`)
+    const normalizedCheckId = checkId.trim()
+    getDb()
+      .prepare(
+        `INSERT INTO target_check_configs (target_id, check_id, config_json, updated_at)
+         VALUES (?, ?, ?, datetime('now'))
+         ON CONFLICT(target_id, check_id) DO UPDATE SET
+           config_json = excluded.config_json,
+           updated_at = excluded.updated_at`,
+      )
+      .run(targetId, normalizedCheckId, JSON.stringify(config))
+  },
+
+  deleteTargetCheckConfig(targetId: number, checkId: string): void {
+    getDb()
+      .prepare(
+        `DELETE FROM target_check_configs WHERE target_id = ? AND check_id = ?`,
+      )
+      .run(targetId, checkId)
   },
 
   createTarget(
@@ -583,6 +630,17 @@ export function initCore(databasePath: string): void {
       last_error TEXT,
       last_latency_ms INTEGER
     );
+
+    CREATE TABLE IF NOT EXISTS target_check_configs (
+      target_id INTEGER NOT NULL REFERENCES targets(id) ON DELETE CASCADE,
+      check_id TEXT NOT NULL,
+      config_json TEXT NOT NULL DEFAULT '{}',
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(target_id, check_id)
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_target_check_configs_target_check
+      ON target_check_configs(target_id, check_id);
   `)
 
   ensureColumn(

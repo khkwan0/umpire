@@ -1,6 +1,3 @@
-import fs from 'node:fs'
-import path from 'node:path'
-
 export const HTTP_METHODS = [
   'GET',
   'HEAD',
@@ -26,17 +23,12 @@ export interface HttpCheckConfig {
 export const STATUS_RANGES = ['1xx', '2xx', '3xx', '4xx', '5xx'] as const
 export type StatusRange = (typeof STATUS_RANGES)[number]
 
-const empty: HttpCheckConfig = {
+export const defaultHttpCheckConfig: HttpCheckConfig = {
   method: 'GET',
   headers: {},
   body: '',
   acceptedStatusRanges: ['2xx'],
   maxLatencyMs: null,
-}
-
-function configPath(): string {
-  const databasePath = process.env.DATABASE_PATH || './data/monitor.sqlite'
-  return path.resolve(path.dirname(databasePath), 'http-check.json')
 }
 
 export function parseHeaders(input: unknown): Record<string, string> {
@@ -123,20 +115,9 @@ export function normalizeConfig(input: unknown): HttpCheckConfig {
   }
 }
 
-export function readConfig(): HttpCheckConfig {
-  const file = configPath()
-  if (!fs.existsSync(file)) return { ...empty, headers: {} }
-  try {
-    return normalizeConfig(JSON.parse(fs.readFileSync(file, 'utf8')) as unknown)
-  } catch (err) {
-    console.error('[check:http] failed to read config file', err)
-    return { ...empty, headers: {} }
+export function resolveHttpCheckConfig(input: unknown): HttpCheckConfig {
+  if (input === null || input === undefined) {
+    return { ...defaultHttpCheckConfig, headers: {} }
   }
-}
-
-export function writeConfig(config: HttpCheckConfig): HttpCheckConfig {
-  const file = configPath()
-  fs.mkdirSync(path.dirname(file), { recursive: true })
-  fs.writeFileSync(file, JSON.stringify(config, null, 2), 'utf8')
-  return config
+  return normalizeConfig(input)
 }

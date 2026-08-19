@@ -132,4 +132,30 @@ export const CORE_TABLES: CoreTableDef[] = [
       { name: 'last_latency_ms', type: 'integer' },
     ],
   },
+  {
+    name: 'target_check_configs',
+    columns: [
+      {
+        name: 'target_id',
+        type: 'integer',
+        notNull: true,
+        references: { table: 'targets', column: 'id', onDelete: 'CASCADE' },
+      },
+      { name: 'check_id', type: 'text', notNull: true },
+      { name: 'config_json', type: 'text', notNull: true, default: '{}' },
+      {
+        name: 'updated_at',
+        type: 'text',
+        notNull: true,
+        default: { type: 'now' },
+      },
+    ],
+    indexes: [
+      {
+        name: 'idx_target_check_configs_target_check',
+        columns: ['target_id', 'check_id'],
+        unique: true,
+      },
+    ],
+  },
 ]

@@ -110,6 +110,21 @@ export interface PluginCatalogEntry {
   routes: PluginRouteRef[]
 }
 
+export interface HttpCheckConfig {
+  method: 'GET' | 'HEAD' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIONS' | 'TRACE' | 'CONNECT'
+  headers: Record<string, string>
+  body: string
+  acceptedStatusRanges: Array<'1xx' | '2xx' | '3xx' | '4xx' | '5xx'>
+  maxLatencyMs: number | null
+}
+
+export interface HttpCheckTestResult {
+  ok: boolean
+  statusCode: number | null
+  error: string | null
+  latencyMs: number
+}
+
 export interface StatusResponse {
   core: { engine: string }
   checks: PluginRef[]
@@ -223,6 +238,23 @@ export const api = {
       request<void>(`/api/targets/${id}`, { method: 'DELETE' }),
     results: (id: number) =>
       request<CheckResult[]>(`/api/targets/${id}/results`),
+    httpCheck: {
+      getConfig: (id: number) =>
+        request<HttpCheckConfig>(`/api/plugins/check/http/targets/${id}/config`),
+      putConfig: (id: number, data: HttpCheckConfig) =>
+        request<HttpCheckConfig>(`/api/plugins/check/http/targets/${id}/config`, {
+          method: 'PUT',
+          body: JSON.stringify(data),
+        }),
+      test: (
+        id: number,
+        data: Partial<HttpCheckConfig> & { url?: string },
+      ) =>
+        request<HttpCheckTestResult>(`/api/plugins/check/http/targets/${id}/test`, {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+    },
   },
   tokens: {
     list: () => request<FcmToken[]>('/api/plugins/notify/fcm/tokens'),

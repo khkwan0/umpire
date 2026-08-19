@@ -2,14 +2,15 @@ import { aggregateCheckOutcomes, alertCopy, shouldAlert } from './alert.js'
 import { getCore } from './core/index.js'
 import { getChecks, getNotifiers } from './plugins/registry.js'
 import { isPluginEnabled } from './plugins/manager.js'
-import type { AggregatedCheck, HealthStatus } from './plugins/types.js'
+import type { AggregatedCheck, HealthStatus, Target } from './plugins/types.js'
 import { healthFromDb } from './plugins/types.js'
 
 /** Aggregate check plugins: all ok → up; none ok → down; mixed → partial. */
 async function runAllChecks(
-  url: string,
+  target: Target,
   checkIds: string[],
 ): Promise<AggregatedCheck> {
+  const store = getCore()
   const loaded = getChecks()
     .filter((c) => isPluginEnabled('check', c.id))
   const checks =
@@ -33,7 +34,10 @@ async function runAllChecks(
 
   const outcomes = await Promise.all(
     checks.map(async (plugin) => {
-      const outcome = await plugin.check(url)
+      const outcome = await plugin.check({
+        target,
+        config: store.getTargetCheckConfig(target.id, plugin.id),
+      })
       return {
         id: plugin.id,
         ok: outcome.ok,
@@ -55,7 +59,7 @@ export async function runCheck(targetId: number): Promise<void> {
   const stateBefore = store.getTargetState(target.id)
   const previous = healthFromDb(stateBefore?.is_up)
 
-  const result = await runAllChecks(target.url, target.check_ids)
+  const result = await runAllChecks(target, target.check_ids)
   store.recordCheckResult({
     targetId: target.id,
     status: result.status,

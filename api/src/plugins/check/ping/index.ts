@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { URL } from 'node:url'
-import type { CheckOutcome, CheckPlugin } from '../../types.js'
+import type { CheckContext, CheckOutcome, CheckPlugin } from '../../types.js'
 
 function timeoutMs(): number {
   const n = Number(process.env.CHECK_TIMEOUT_MS)
@@ -14,7 +14,10 @@ function parseLatencyMs(output: string): number | null {
   return Number.isFinite(n) ? n : null
 }
 
-function runPing(host: string, timeout: number): Promise<{ ok: boolean; error: string | null; latencyMs: number | null }> {
+function runPing(
+  host: string,
+  timeout: number,
+): Promise<{ ok: boolean; error: string | null; latencyMs: number | null }> {
   return new Promise((resolve) => {
     execFile(
       'ping',
@@ -34,11 +37,11 @@ function runPing(host: string, timeout: number): Promise<{ ok: boolean; error: s
 
 const pingCheck: CheckPlugin = {
   id: 'ping',
-  async check(url: string): Promise<CheckOutcome> {
+  async check(ctx: CheckContext): Promise<CheckOutcome> {
     const startedAt = Date.now()
     let parsed: URL
     try {
-      parsed = new URL(url)
+      parsed = new URL(ctx.target.url)
     } catch {
       const latencyMs = Date.now() - startedAt
       return { ok: false, statusCode: null, error: 'invalid URL', latencyMs }

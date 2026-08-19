@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify'
+import { getCore } from '../../../core/index.js'
 import {
   normalizeKeywordBodyConfig,
-  readKeywordBodyConfig,
-  writeKeywordBodyConfig,
+  resolveKeywordBodyConfig,
 } from './config.js'
 
 const configSchema = {
@@ -18,23 +18,47 @@ export async function registerKeywordBodyCheckRoutes(
   app: FastifyInstance,
 ): Promise<void> {
   app.get(
-    '/config',
+    '/targets/:targetId/config',
     {
       schema: {
         tags: ['keyword-body-check'],
-        summary: 'Get keyword/body check config',
+        summary: 'Get keyword/body check config for one target',
+        params: {
+          type: 'object',
+          required: ['targetId'],
+          properties: { targetId: { type: 'string' } },
+        },
         response: { 200: configSchema },
       },
     },
-    async () => readKeywordBodyConfig(),
+    async (req, reply) => {
+      const targetId = Number((req.params as { targetId: string }).targetId)
+      if (!Number.isInteger(targetId) || targetId < 1) {
+        return reply.code(400).send({ error: 'invalid targetId' })
+      }
+      if (!getCore().getTarget(targetId)) {
+        return reply.code(404).send({ error: 'target not found' })
+      }
+      return resolveKeywordBodyConfig(
+        getCore().getTargetCheckConfig(targetId, 'keyword-body'),
+      )
+    },
   )
 
-  app.put<{ Body: { keyword?: string; caseSensitive?: boolean } }>(
-    '/config',
+  app.put<{
+    Params: { targetId: string }
+    Body: { keyword?: string; caseSensitive?: boolean }
+  }>(
+    '/targets/:targetId/config',
     {
       schema: {
         tags: ['keyword-body-check'],
-        summary: 'Set keyword/body check config',
+        summary: 'Set keyword/body check config for one target',
+        params: {
+          type: 'object',
+          required: ['targetId'],
+          properties: { targetId: { type: 'string' } },
+        },
         body: configSchema,
         response: {
           200: configSchema,
@@ -46,8 +70,17 @@ export async function registerKeywordBodyCheckRoutes(
       },
     },
     async (req, reply) => {
+      const targetId = Number(req.params.targetId)
+      if (!Number.isInteger(targetId) || targetId < 1) {
+        return reply.code(400).send({ error: 'invalid targetId' })
+      }
+      if (!getCore().getTarget(targetId)) {
+        return reply.code(404).send({ error: 'target not found' })
+      }
       try {
-        return writeKeywordBodyConfig(normalizeKeywordBodyConfig(req.body))
+        const config = normalizeKeywordBodyConfig(req.body)
+        getCore().setTargetCheckConfig(targetId, 'keyword-body', config)
+        return config
       } catch (err) {
         return reply.code(400).send({
           error: err instanceof Error ? err.message : String(err),

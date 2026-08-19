@@ -25,6 +25,9 @@ export interface CoreStore {
   deleteGroup(id: number): boolean
   listTargets(): Target[]
   getTarget(id: number): Target | undefined
+  getTargetCheckConfig(targetId: number, checkId: string): unknown | null
+  setTargetCheckConfig(targetId: number, checkId: string, config: unknown): void
+  deleteTargetCheckConfig(targetId: number, checkId: string): void
   createTarget(
     url: string,
     intervalSeconds: number,

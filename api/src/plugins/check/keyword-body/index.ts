@@ -1,5 +1,7 @@
-import type { CheckOutcome, CheckPlugin } from '../../types.js'
-import { readKeywordBodyConfig } from './config.js'
+import type { CheckContext, CheckOutcome, CheckPlugin } from '../../types.js'
+import {
+  resolveKeywordBodyConfig,
+} from './config.js'
 import { registerKeywordBodyCheckRoutes } from './routes.js'
 
 function timeoutMs(): number {
@@ -14,13 +16,13 @@ const keywordBodyCheck: CheckPlugin = {
     await registerKeywordBodyCheckRoutes(app)
   },
 
-  async check(url: string): Promise<CheckOutcome> {
-    const cfg = readKeywordBodyConfig()
+  async check(ctx: CheckContext): Promise<CheckOutcome> {
+    const cfg = resolveKeywordBodyConfig(ctx.config)
     const startedAt = Date.now()
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), timeoutMs())
     try {
-      const res = await fetch(url, {
+      const res = await fetch(ctx.target.url, {
         method: 'GET',
         redirect: 'follow',
         signal: controller.signal,

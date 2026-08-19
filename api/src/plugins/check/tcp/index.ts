@@ -1,6 +1,6 @@
 import net from 'node:net'
 import { URL } from 'node:url'
-import type { CheckOutcome, CheckPlugin } from '../../types.js'
+import type { CheckContext, CheckOutcome, CheckPlugin } from '../../types.js'
 
 function timeoutMs(): number {
   const n = Number(process.env.CHECK_TIMEOUT_MS)
@@ -18,11 +18,11 @@ function fail(latencyMs: number, error: string): CheckOutcome {
 
 const tcpCheck: CheckPlugin = {
   id: 'tcp',
-  async check(url: string): Promise<CheckOutcome> {
+  async check(ctx: CheckContext): Promise<CheckOutcome> {
     const startedAt = Date.now()
     let parsed: URL
     try {
-      parsed = new URL(url)
+      parsed = new URL(ctx.target.url)
     } catch {
       return fail(Date.now() - startedAt, 'invalid URL')
     }

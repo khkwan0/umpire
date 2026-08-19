@@ -23,6 +23,11 @@ interface HttpCheckConfig {
   maxLatencyMs: number | null
 }
 
+interface TargetRef {
+  id: number
+  url: string
+}
+
 type StatusRange = '1xx' | '2xx' | '3xx' | '4xx' | '5xx'
 const STATUS_RANGES: StatusRange[] = ['1xx', '2xx', '3xx', '4xx', '5xx']
 
@@ -71,7 +76,9 @@ function parseHeadersText(raw: string): Record<string, string> {
 
 export default function HttpCheckPage() {
   const [method, setMethod] = useState<HttpMethod>('GET')
-  const [testUrl, setTestUrl] = useState('https://')
+  const [targets, setTargets] = useState<TargetRef[]>([])
+  const [targetId, setTargetId] = useState<number | null>(null)
+  const [testUrl, setTestUrl] = useState('')
   const [headersText, setHeadersText] = useState('')
   const [bodyText, setBodyText] = useState('')
   const [acceptedStatusRanges, setAcceptedStatusRanges] = useState<StatusRange[]>([
@@ -86,7 +93,19 @@ export default function HttpCheckPage() {
   const [loaded, setLoaded] = useState(false)
 
   const load = useCallback(async () => {
-    const config = await request<HttpCheckConfig>('/api/plugins/check/http/config')
+    const nextTargets = await request<TargetRef[]>('/api/targets')
+    setTargets(nextTargets)
+    if (nextTargets.length === 0) {
+      setLoaded(true)
+      return
+    }
+    const selectedId = targetId ?? nextTargets[0]!.id
+    const selected = nextTargets.find((t) => t.id === selectedId) ?? nextTargets[0]!
+    const config = await request<HttpCheckConfig>(
+      `/api/plugins/check/http/targets/${selected.id}/config`,
+    )
+    setTargetId(selected.id)
+    setTestUrl(selected.url)
     setMethod(config.method)
     setHeadersText(headersToText(config.headers))
     setBodyText(config.body)
@@ -95,7 +114,7 @@ export default function HttpCheckPage() {
       config.maxLatencyMs == null ? '' : String(Math.floor(config.maxLatencyMs)),
     )
     setLoaded(true)
-  }, [])
+  }, [targetId])
 
   useEffect(() => {
     void load().catch((err) =>
@@ -110,16 +129,20 @@ export default function HttpCheckPage() {
     setMessage(null)
     setTestResult(null)
     try {
-      const saved = await request<HttpCheckConfig>('/api/plugins/check/http/config', {
-        method: 'PUT',
-        body: JSON.stringify({
-          method,
-          headers: parseHeadersText(headersText),
-          body: bodyText,
-          acceptedStatusRanges,
-          maxLatencyMs: maxLatencyMs.trim() ? Number(maxLatencyMs) : null,
-        }),
-      })
+      if (!targetId) throw new Error('Select a target first')
+      const saved = await request<HttpCheckConfig>(
+        `/api/plugins/check/http/targets/${targetId}/config`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({
+            method,
+            headers: parseHeadersText(headersText),
+            body: bodyText,
+            acceptedStatusRanges,
+            maxLatencyMs: maxLatencyMs.trim() ? Number(maxLatencyMs) : null,
+          }),
+        },
+      )
       setMethod(saved.method)
       setHeadersText(headersToText(saved.headers))
       setBodyText(saved.body)
@@ -141,17 +164,21 @@ export default function HttpCheckPage() {
     setMessage(null)
     setTestResult(null)
     try {
-      const result = await request<HttpCheckTestResult>('/api/plugins/check/http/test', {
-        method: 'POST',
-        body: JSON.stringify({
-          url: testUrl.trim(),
-          method,
-          headers: parseHeadersText(headersText),
-          body: bodyText,
-          acceptedStatusRanges,
-          maxLatencyMs: maxLatencyMs.trim() ? Number(maxLatencyMs) : null,
-        }),
-      })
+      if (!targetId) throw new Error('Select a target first')
+      const result = await request<HttpCheckTestResult>(
+        `/api/plugins/check/http/targets/${targetId}/test`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            url: testUrl.trim(),
+            method,
+            headers: parseHeadersText(headersText),
+            body: bodyText,
+            acceptedStatusRanges,
+            maxLatencyMs: maxLatencyMs.trim() ? Number(maxLatencyMs) : null,
+          }),
+        },
+      )
       setTestResult(result)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -167,10 +194,29 @@ export default function HttpCheckPage() {
       <section className="panel">
         <h2>HTTP check</h2>
         <p className="muted">
-          Configure request method, headers, and body for all targets using this
-          check plugin. You can also configure accepted status ranges and an
-          optional latency SLO threshold.
+          Configure request method, headers, body, and pass/fail criteria per
+          target for this HTTP check plugin.
         </p>
+        {targets.length === 0 ? (
+          <p className="muted">No targets available. Add a target first.</p>
+        ) : (
+          <label>
+            Target
+            <select
+              value={targetId ?? ''}
+              onChange={(e) => {
+                const next = Number(e.target.value)
+                setTargetId(Number.isFinite(next) ? next : null)
+              }}
+            >
+              {targets.map((t) => (
+                <option key={t.id} value={t.id}>
+                  #{t.id} {t.url}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <form className="form-col" onSubmit={onSave}>
           <label>
             Method
@@ -235,7 +281,7 @@ export default function HttpCheckPage() {
               spellCheck={false}
             />
           </label>
-          <button type="submit" disabled={busy}>
+          <button type="submit" disabled={busy || !targetId}>
             Save
           </button>
         </form>

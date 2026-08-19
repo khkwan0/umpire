@@ -5,6 +5,10 @@ interface KeywordBodyConfig {
   keyword: string
   caseSensitive: boolean
 }
+interface TargetRef {
+  id: number
+  url: string
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
@@ -22,19 +26,30 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export default function KeywordBodyCheckPage() {
   const [keyword, setKeyword] = useState('ok')
   const [caseSensitive, setCaseSensitive] = useState(false)
+  const [targets, setTargets] = useState<TargetRef[]>([])
+  const [targetId, setTargetId] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
   const load = useCallback(async () => {
+    const nextTargets = await request<TargetRef[]>('/api/targets')
+    setTargets(nextTargets)
+    if (nextTargets.length === 0) {
+      setLoaded(true)
+      return
+    }
+    const selectedId = targetId ?? nextTargets[0]!.id
+    const selected = nextTargets.find((t) => t.id === selectedId) ?? nextTargets[0]!
     const config = await request<KeywordBodyConfig>(
-      '/api/plugins/check/keyword-body/config',
+      `/api/plugins/check/keyword-body/targets/${selected.id}/config`,
     )
+    setTargetId(selected.id)
     setKeyword(config.keyword)
     setCaseSensitive(config.caseSensitive)
     setLoaded(true)
-  }, [])
+  }, [targetId])
 
   useEffect(() => {
     void load().catch((err) =>
@@ -48,8 +63,9 @@ export default function KeywordBodyCheckPage() {
     setError(null)
     setMessage(null)
     try {
+      if (!targetId) throw new Error('Select a target first')
       const saved = await request<KeywordBodyConfig>(
-        '/api/plugins/check/keyword-body/config',
+        `/api/plugins/check/keyword-body/targets/${targetId}/config`,
         {
           method: 'PUT',
           body: JSON.stringify({ keyword, caseSensitive }),
@@ -71,9 +87,28 @@ export default function KeywordBodyCheckPage() {
     <section className="panel stack">
       <h2>Keyword/body check</h2>
       <p className="muted">
-        Sends an HTTP GET request and marks the check healthy only when the
-        response body contains the configured keyword.
+        Configure a per-target keyword match on HTTP response body.
       </p>
+      {targets.length === 0 ? (
+        <p className="muted">No targets available. Add a target first.</p>
+      ) : (
+        <label>
+          Target
+          <select
+            value={targetId ?? ''}
+            onChange={(e) => {
+              const next = Number(e.target.value)
+              setTargetId(Number.isFinite(next) ? next : null)
+            }}
+          >
+            {targets.map((t) => (
+              <option key={t.id} value={t.id}>
+                #{t.id} {t.url}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <form className="form-col" onSubmit={onSave}>
         <label>
           Keyword
@@ -92,7 +127,7 @@ export default function KeywordBodyCheckPage() {
           />
           <span>Case sensitive matching</span>
         </label>
-        <button type="submit" disabled={busy}>
+        <button type="submit" disabled={busy || !targetId}>
           Save
         </button>
       </form>
