@@ -15,7 +15,7 @@ import {
   type PluginManagerState,
 } from './api'
 import ReconnectBanner from './ReconnectBanner'
-import {useRealtimeMode, useRealtimeRefresh} from './RealtimeProvider'
+import {useRealtimeMode, useRealtimeRefresh} from './realtime'
 import {
   hasDashboardWidget,
   isPluginUiModule,
@@ -195,10 +195,10 @@ export default function App() {
         <div className="brand">
           <img
             className="brand-logo"
-            src="/umpire-logo.png"
+            src="/umpire_logo.svg"
             alt="UMPIRE"
-            width={56}
-            height={56}
+            width={128}
+            height={128}
           />
           <div>
             <h1>UMPIRE</h1>

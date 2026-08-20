@@ -1,14 +1,5 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react'
-
-export type RealtimeMode = 'sse' | 'reconnecting' | 'polling'
+import {useCallback, useEffect, useRef, useState, type ReactNode} from 'react'
+import {RealtimeContext, type RealtimeMode} from './realtime'
 
 const REFRESH_EVENTS = [
   'plugin-manager.updated',
@@ -19,21 +10,6 @@ const REFRESH_EVENTS = [
 
 const DEGRADE_AFTER_MS = 8000
 const POLL_INTERVAL_MS = 5000
-
-type RealtimeContextValue = {
-  mode: RealtimeMode
-  subscribe: (handler: () => void) => () => void
-}
-
-const RealtimeContext = createContext<RealtimeContextValue | null>(null)
-
-function useRealtimeContext(): RealtimeContextValue {
-  const ctx = useContext(RealtimeContext)
-  if (!ctx) {
-    throw new Error('useRealtimeContext must be used within RealtimeProvider')
-  }
-  return ctx
-}
 
 export function RealtimeProvider({children}: {children: ReactNode}) {
   const [mode, setMode] = useState<RealtimeMode>('sse')
@@ -126,22 +102,4 @@ export function RealtimeProvider({children}: {children: ReactNode}) {
       {children}
     </RealtimeContext.Provider>
   )
-}
-
-export function useRealtimeMode(): RealtimeMode {
-  return useRealtimeContext().mode
-}
-
-export function useRealtimeRefresh(
-  onRefresh: () => void | Promise<void>,
-): void {
-  const {subscribe} = useRealtimeContext()
-  const onRefreshRef = useRef(onRefresh)
-  onRefreshRef.current = onRefresh
-
-  useEffect(() => {
-    return subscribe(() => {
-      void onRefreshRef.current()
-    })
-  }, [subscribe])
 }

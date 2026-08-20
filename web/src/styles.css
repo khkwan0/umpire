@@ -144,10 +144,10 @@ button.theme-switcher-option.active {
 }
 
 .brand-logo {
-  width: 3.5rem;
-  height: 3.5rem;
+  width: 8rem;
+  height: 8rem;
   object-fit: contain;
-  border-radius: 0.65rem;
+  border-radius: 0.85rem;
   background: var(--logo-bg);
   box-shadow: 0 0 0 1px var(--line);
 }

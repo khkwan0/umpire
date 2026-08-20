@@ -10,7 +10,7 @@ import {
   type Target,
 } from '../api'
 import ReconnectBanner from '../ReconnectBanner'
-import {useRealtimeRefresh} from '../RealtimeProvider'
+import {useRealtimeRefresh} from '../realtime'
 
 function toggleId(list: string[], id: string): string[] {
   return list.includes(id) ? list.filter(x => x !== id) : [...list, id]

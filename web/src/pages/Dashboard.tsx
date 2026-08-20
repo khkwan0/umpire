@@ -9,7 +9,7 @@ import {
 } from '../api'
 import ReconnectBanner from '../ReconnectBanner'
 import {FormattedTimestamp} from '../FormattedTimestamp'
-import {useRealtimeRefresh} from '../RealtimeProvider'
+import {useRealtimeRefresh} from '../realtime'
 import type {DashboardWidgetModule} from '../plugin-ui'
 
 function statusLabel(isUp: number | null, enabled: number): string {
