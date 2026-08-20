@@ -6,6 +6,10 @@
 
 Default process-wide set in [`api/plugins.json`](api/plugins.json) + [`data/plugin-manager.json`](data/plugin-manager.json): **`http`** check, **`interval`** scheduler, **`webhook`** notifier. Other shipped notifiers (FCM, Slack, …) load but stay off until you enable them in **Settings → Plugin manager**.
 
+## Getting started
+
+To run the stack locally (deploy script or Docker Compose), see **[Run locally](#run-locally)**.
+
 ## Plugin architecture
 
 ```text
