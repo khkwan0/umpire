@@ -14,6 +14,8 @@ Operator setup and the HTTP API list live in [`README.md`](README.md).
 
 ## Development setup
 
+To **run the packaged stack** locally (Docker), use [`./scripts/deploy.sh`](scripts/deploy.sh) or `docker compose up --build -d` — see [`README.md`](README.md). The commands below are the two-process watch path for changing code.
+
 - From repo root:
   - `cp .env.example .env`
   - Optional, only if you enable FCM: `cp plugins/notify/fcm/fcm-service-account.json.example data/fcm-service-account.json`
@@ -31,6 +33,8 @@ Run web UI (second terminal):
 ```bash
 cd web && npm install && npm run dev
 ```
+
+UI: [http://localhost:8089](http://localhost:8089) (`web/vite.config.ts` `server.port`). That is the same host port Compose publishes (`WEB_PORT` in `.env`, default 8089). Do not run `npm run dev` and `docker compose` together — only one process can bind 8089.
 
 ## Testing and CI expectations
 

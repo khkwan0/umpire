@@ -144,7 +144,42 @@ docs/             plugin guide, core guide, Jenkins
 
 Do not confuse filesystem `plugins/` with HTTP `/api/plugins/<kind>/<id>/…` (the host namespace).
 
-## Quick start (local — preferred for development)
+## Run locally
+
+Two ways to run the full stack (API + UI). Both build from the **repo root** so Docker can copy [`plugins/`](plugins/).
+
+### Deploy script (recommended)
+
+[`scripts/deploy.sh`](scripts/deploy.sh) copies `.env` from [`.env.example`](.env.example) if needed, formats API and web sources, runs `docker compose up -d --build`, then waits for `/api/health`:
+
+```bash
+./scripts/deploy.sh
+```
+
+UI: [http://localhost:8089](http://localhost:8089). Custom host port:
+
+```bash
+WEB_PORT=8090 ./scripts/deploy.sh
+```
+
+(`WEB_PORT` is read from `.env` for Compose; the script also uses it for the health-check URL.)
+
+### Docker Compose
+
+Same images and volumes, without the format step or health wait:
+
+```bash
+cp .env.example .env   # skip if you already have .env
+docker compose up --build -d
+```
+
+Stop with `docker compose down`. Data stays in `./data`.
+
+Then open the UI, add a target URL + interval, set a webhook URL, pick an alert policy. Webhook stays `ready: false` until you set a URL on the **Webhook** page. FCM is off by default; enable it in **Settings → Plugin manager** and add `data/fcm-service-account.json` if you want push delivery.
+
+### `npm run dev` (writing plugins or core)
+
+The two-process Node path is for **development** (hot reload, no image rebuild). It is not the local deploy path — use the script or Compose above to run the packaged stack.
 
 ```bash
 cp .env.example .env
@@ -159,6 +194,8 @@ In another terminal:
 ```bash
 cd web && npm install && npm run dev
 ```
+
+Vite serves the UI on [http://localhost:8089](http://localhost:8089) (same host port as Compose; `strictPort` so it will not silently pick another). Stop Compose first if 8089 is already bound. `/api` is proxied to the API on port 3000. Details: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Scripts
 
@@ -201,24 +238,7 @@ cd api && npm ci && npm run lint && npm run format:check && npm run test:ci && n
 cd ../web && npm ci && npm run lint && npm run format:check && npm run build
 ```
 
-Deploy helper:
-
-```bash
-./scripts/deploy.sh
-WEB_PORT=8090 ./scripts/deploy.sh
-```
-
 Pushes and pull requests run [GitHub Actions](.github/workflows/ci.yml) (current Node LTS). Optional on-host deploy: Jenkins Pipeline in `Jenkinsfile` — [setup](docs/jenkins.md).
-
-Or run with Docker Compose (optional deploy path). **Build context is the repo root** so the API and web images can copy [`plugins/`](plugins/):
-
-```bash
-docker compose up --build -d
-```
-
-Open the UI, add a target URL + interval, set a webhook URL, pick an alert policy.
-
-Webhook stays `ready: false` until you set a URL on the **Webhook** page. FCM is off by default; enable it in **Settings → Plugin manager** and add `data/fcm-service-account.json` if you want push delivery.
 
 ## Alert policies
 
@@ -280,7 +300,7 @@ SQLite file: `./data/monitor.sqlite` (bind-mounted in Compose at `/data/monitor.
 
 - No auth on the UI — bind to localhost or put it behind a VPN/firewall
 - Default branch for this repo is `master`
-- Docker Compose is optional; prefer host `npm run dev` when writing plugins. Compose builds `api` and `web` from the **repo root** (`api/Dockerfile`, `web/Dockerfile`) so they can copy `plugins/`.
+- Local run: [`./scripts/deploy.sh`](scripts/deploy.sh) or `docker compose up --build -d` (repo-root build context). Use host `npm run dev` only when writing plugins or core — [CONTRIBUTING.md](CONTRIBUTING.md)
 - CI: GitHub Actions on push/PR ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)). Optional CD: Jenkins — [setup](docs/jenkins.md)
 - Dependency updates: Dependabot (`.github/dependabot.yml`) for npm, Docker, and GitHub Actions
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)

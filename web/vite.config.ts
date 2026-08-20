@@ -19,6 +19,8 @@ export default defineConfig({
     },
   },
   server: {
+    port: 8089,
+    strictPort: true,
     fs: {
       allow: [root, path.resolve(root, '../plugins')],
     },

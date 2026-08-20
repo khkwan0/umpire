@@ -275,7 +275,7 @@ interface SchedulerPlugin {
 5. Restart API (`tsx watch` reloads on save). Restart/rebuild **web** if you added UI.
 6. **Enable it.** New **check** ids default to enabled. New **notifier** ids default to **disabled** except `webhook` — turn yours on in **Settings → Plugin manager** (or it never runs in the pipeline and stays hidden from Notifiers nav).
 
-Docker: both `api` and `web` images copy `plugins/` and must be built from the **repo root** ([`api/Dockerfile`](../api/Dockerfile), [`web/Dockerfile`](../web/Dockerfile)). Plugin UI is globbed at Vite build time from `plugins/*/*/ui/index.tsx` — rebuild **web** after adding UI. Prefer host `npm run dev` while iterating.
+Docker: both `api` and `web` images copy `plugins/` and must be built from the **repo root** ([`api/Dockerfile`](../api/Dockerfile), [`web/Dockerfile`](../web/Dockerfile)). Plugin UI is globbed at Vite build time from `plugins/*/*/ui/index.tsx` — rebuild **web** after adding UI. Prefer host `npm run dev` while iterating. Do **not** run `npm run dev` and `docker compose` (or `./scripts/deploy.sh`) at the same time: both bind host port **8089** (`WEB_PORT` / Vite `server.port`). Stop Compose before starting Vite, or the opposite.
 
 Config path override: `PLUGINS_CONFIG`. Implementations directory override: `PLUGINS_ROOT` (default: repo `plugins/`).
 
@@ -983,7 +983,7 @@ After enabling a plugin:
    - scheduler UIs as top-level links
    - for check/notifier kinds, the plugin must also be **enabled** in plugin manager settings
 6. If the UI module exports `Dashboard`, `/` shows a panel titled with `label` (under the stats, before Targets)
-7. Docker: rebuild **api** and **web** from the repo root after adding code/UI; Vite glob is build-time
+7. Docker: rebuild **api** and **web** from the repo root after adding code/UI; Vite glob is build-time. Stop Compose before `npm run dev` (both use 8089).
 8. Target checkboxes show the new check/notifier id
 9. For notifiers: fire a test alert; confirm delivery or an honest log skip
 

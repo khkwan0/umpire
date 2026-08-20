@@ -88,7 +88,7 @@ web/src/
 
 Sidecar JSON next to the SQLite file (`webhook.json`, `plugin-manager.json`, …) is **plugin-owned** (or host flags for the manager). Do not move plugin secrets into core `.env` or frozen tables.
 
-Docker: [`api/Dockerfile`](../api/Dockerfile) and [`web/Dockerfile`](../web/Dockerfile) must be built with **repo-root context** (`docker compose build`, or `docker build -f api/Dockerfile .`) so they can copy `plugins/`. Do not build with `api/` or `web/` as the context.
+Docker: [`api/Dockerfile`](../api/Dockerfile) and [`web/Dockerfile`](../web/Dockerfile) must be built with **repo-root context** (`docker compose build`, or `docker build -f api/Dockerfile .`) so they can copy `plugins/`. Do not build with `api/` or `web/` as the context. Do not run Compose and host `npm run dev` at the same time — both use host port **8089**.
 
 [`api/tsconfig.json`](../api/tsconfig.json) uses `module: ES2022` so files under `plugins/` emit ESM. `module: NodeNext` would compile those files as CommonJS (no `"type": "module"` outside `api/`) and crash production Node (`exports is not defined`).
 
