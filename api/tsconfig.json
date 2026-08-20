@@ -1,16 +1,32 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
     "outDir": "dist",
-    "rootDir": "src",
+    "rootDir": "..",
+    "baseUrl": ".",
+    "paths": {
+      "fastify": ["./node_modules/fastify"],
+      "fastify/*": ["./node_modules/fastify/*"],
+      "firebase-admin": ["./node_modules/firebase-admin"],
+      "firebase-admin/app": ["./node_modules/firebase-admin/lib/app"],
+      "firebase-admin/messaging": [
+        "./node_modules/firebase-admin/lib/messaging"
+      ],
+      "firebase-admin/*": ["./node_modules/firebase-admin/*"]
+    },
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "declaration": false
   },
-  "include": ["src/**/*"],
-  "exclude": ["src/**/ui/**", "src/**/*.test.ts"]
+  "include": ["src/**/*.ts", "../plugins/**/*.ts"],
+  "exclude": [
+    "src/**/ui/**",
+    "src/**/*.test.ts",
+    "../plugins/**/ui/**",
+    "../plugins/**/*.test.ts"
+  ]
 }

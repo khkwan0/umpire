@@ -4,30 +4,34 @@
 
 **Universal Monitoring Plugin & Incident Reporter** is a **plugin architecture** for monitoring. Core is the host: it stores data, runs the pipeline, and enforces contracts. **Check**, **scheduler**, and **notifier** plugins do the actual probing, timing, and delivery. Swap or add plugins without changing core.
 
-Default process-wide set in [`api/plugins.json`](api/plugins.json): **`http`** check, **`interval`** scheduler, **`fcm`** and **`webhook`** notifiers.
+Default process-wide set in [`api/plugins.json`](api/plugins.json) + [`data/plugin-manager.json`](data/plugin-manager.json): **`http`** check, **`interval`** scheduler, **`webhook`** notifier. Other shipped notifiers (FCM, Slack, …) load but stay off until you enable them in **Settings → Plugin manager**.
 
 ## Plugin architecture
 
 ```text
-plugins.json     → which modules load (process-wide pool)
-targets[]        → what to watch (url, interval, enabled, group)
-check_ids        → which loaded checks run for that target ([] = all)
-notifier_ids     → which loaded notifiers get alerts ([] = all)
-scheduler        → when to call core run(targetId)
-core pipeline    → checks → record SQLite → alert policy → notifiers
+plugins/                 → check / notify / scheduler implementations
+api/plugins.json         → which of those modules load (process-wide pool)
+data/plugin-manager.json → which loaded plugins are enabled at runtime
+targets[]                → what to watch (url, interval, enabled, group)
+check_ids                → which enabled checks run for that target ([] = all enabled)
+notifier_ids             → which enabled notifiers get alerts ([] = all enabled)
+scheduler                → when to call core run(targetId)
+core pipeline            → checks → record SQLite → alert policy → notifiers
 ```
 
 Everything that probes a target, decides *when* to run, or delivers an alert is a plugin. Core never HTTP-checks a URL or sends a push itself.
 
+Implementations live in [`plugins/`](plugins/) at the repo root. The API **host** (contracts, loader, enable/disable) stays in [`api/src/plugins/`](api/src/plugins/). See [`plugins/README.md`](plugins/README.md).
+
 ### Default plugins (by kind)
 
-Enabled out of the box by [`api/plugins.json`](api/plugins.json) (override with `PLUGINS_CONFIG`):
+Enabled out of the box (`http` check, `interval` scheduler, `webhook` notifier):
 
 ```json
 {
   "checks": ["http"],
   "scheduler": "interval",
-  "notifiers": ["fcm", "webhook"]
+  "notifiers": ["webhook"]
 }
 ```
 
@@ -35,11 +39,11 @@ Enabled out of the box by [`api/plugins.json`](api/plugins.json) (override with 
 |------|-------------|---------|--------------|
 | **Check** | One or more | `http` | HTTP check plugin: method, headers, body, accepted status ranges/codes, optional max latency (`CHECK_TIMEOUT_MS`, default 10s) |
 | **Scheduler** | **Exactly one** | `interval` | Per-target `interval_seconds` timers; honors Pause |
-| **Notifier** | Zero or more | `fcm`, `webhook` | FCM to stored FIDs; HTTP call (GET/POST/PUT/PATCH/…) with `AlertEvent` |
+| **Notifier** | Zero or more | `webhook` | HTTP call (GET/POST/PUT/PATCH/…) with `AlertEvent` |
 
 The scheduler is a plugin so timing *can* be replaced, but **leave `interval` in place for almost every deployment**. Per-target frequency is already a core field (`interval_seconds` on each target, including Pause). Write a different scheduler only if you need a different *kind* of clock (cron, business hours, a global tick). You cannot load two schedulers.
 
-Both notifiers load together. Each reports `ready: false` until it is configured in its own UI (FCM FIDs + Firebase credentials; Webhook URL). An unready notifier is skipped on send. On each target, leave check/notifier boxes unchecked to use **all** loaded plugins of that kind, or tick a subset. Empty allowlists are stored as `[]`.
+The default notifier is **webhook**. It reports `ready: false` until you set a URL on the **Webhook** page. Other loaded notifiers (FCM, Slack, Telegram, Discord, email) stay disabled until you turn them on in **Settings → Plugin manager**. On each target, leave check/notifier boxes unchecked to use **all enabled** plugins of that kind, or tick a subset. Empty allowlists are stored as `[]`.
 
 ### HTTP check: global defaults and per-target overrides
 
@@ -70,7 +74,7 @@ File-backed notifiers (**webhook**, **slack**, **discord**, **telegram**, **emai
 
 At alert time, each notifier resolves **effective plugin config** = global defaults merged with any per-target override. Core then filters on `check_ids` before delivery.
 
-**FCM** stores device FIDs on the FCM page (`fcm-tokens.json`). Per-target **destination** allowlists (`token_ids`) are configured on **Targets → fcm settings** when using custom settings.
+**FCM** (optional) stores the Admin SDK service account in `data/fcm-service-account.json` and device FIDs on the FCM page (`fcm-tokens.json`). Enable it in **Settings → Plugin manager**, then configure destinations. Per-target **destination** allowlists (`token_ids`) are on **Targets → fcm settings** when using custom settings.
 
 ### Plugin manager (runtime enable/disable)
 
@@ -88,18 +92,18 @@ For **notifier UI plugins** specifically:
 
 In short: `plugins.json` controls what is available to manage; Settings controls what is active/visible at runtime.
 
-**Writing plugins** (contracts, HTTP APIs, UI, dashboard widgets, cookbooks): **[Plugin developer guide](docs/plugins.md)**.
+**Writing plugins** (contracts, HTTP APIs, UI, dashboard widgets, cookbooks): **[Plugin developer guide](docs/plugins.md)**. **Changing core** (pipeline, schema, host APIs): **[Core developer guide](docs/core.md)**.
 
 ### What core does
 
 Core owns the monitoring **host**, not the implementations:
 
 - **Pipeline** — `run(targetId)`: selected checks → aggregate health → write SQLite → apply alert policy → call selected notifiers
-- **Frozen SQLite** — `groups`, `targets` (including `check_ids` / `notifier_ids`), `settings`, `check_results`, `target_state`. Plugins must not `ALTER` these tables. Plugin-owned data (FCM tokens, webhook URL) lives in sidecar files next to the DB and is edited in the plugin UI — not `.env`
+- **Frozen SQLite** — `groups`, `targets` (including `check_ids` / `notifier_ids`), `settings`, `check_results`, `target_state`, plus override tables `target_check_configs` / `target_notifier_configs`. Plugins must not `ALTER` these tables. Plugin-owned data (FCM tokens and service account, webhook URL) lives in sidecar files next to the DB and is edited in the plugin UI — not `.env`
 - **HTTP API + UI shell** — CRUD for groups, targets, settings, history, status; dashboard (including an outage/recovery log) and nav. Plugin screens, dashboard widgets, and routes are optional add-ons
-- **Plugin host** — loads `plugins.json`, mounts plugin HTTP under `/api/plugins/<kind>/<id>/…`, catalogs them at `GET /api/plugins`
+- **Plugin host** — loads modules from [`plugins/`](plugins/) listed in `plugins.json`, mounts plugin HTTP under `/api/plugins/<kind>/<id>/…`, catalogs them at `GET /api/plugins`
 - **Alert policy** — decides *whether* to notify (`state_change`, `every_fail`, `throttle`). Notifiers only deliver
-- **Allowlists** — empty `check_ids` / `notifier_ids` = all loaded plugins of that kind
+- **Allowlists** — empty `check_ids` / `notifier_ids` = all **enabled** plugins of that kind
 
 ### Contracts core guarantees
 
@@ -127,16 +131,26 @@ Also guaranteed:
 
 UI default: [http://localhost:8089](http://localhost:8089)
 
+## Repo layout
+
+```text
+plugins/          implementations (check / notify / scheduler)
+api/src/plugins/  host only (types, loader, manager, route namespace)
+api/plugins.json  which implementations load
+web/              UI shell; globs plugins/*/*/ui at build time
+data/             SQLite + plugin sidecar JSON (not in git)
+docs/             plugin guide, core guide, Jenkins
+```
+
+Do not confuse filesystem `plugins/` with HTTP `/api/plugins/<kind>/<id>/…` (the host namespace).
+
 ## Quick start (local — preferred for development)
 
 ```bash
 cp .env.example .env
-cp firebase-service-account.json.example firebase-service-account.json
-# edit firebase-service-account.json with a real Firebase Admin service account
 
 cd api && npm install && \
   DATABASE_PATH=../data/monitor.sqlite \
-  GOOGLE_APPLICATION_CREDENTIALS=../firebase-service-account.json \
   npm run dev
 ```
 
@@ -156,10 +170,10 @@ cd web && npm install && npm run dev
 ### API (`api/package.json`)
 
 - `npm run dev` — run API in watch mode
-- `npm run build` — compile TypeScript
+- `npm run build` — compile TypeScript (`api/src` + repo `plugins/`)
 - `npm run start` — start compiled API from `dist`
-- `npm run lint` — run ESLint on API source
-- `npm run format` — format API files with Prettier
+- `npm run lint` — run ESLint on `api/src` (plugin implementations are formatted/tested, not linted from this script)
+- `npm run format` — format API + `plugins/**/*.ts` with Prettier
 - `npm run format:check` — verify API formatting
 - `npm test` — run API tests
 - `npm run test:ci` — run API tests in CI mode + JUnit output
@@ -196,15 +210,15 @@ WEB_PORT=8090 ./scripts/deploy.sh
 
 Pushes and pull requests run [GitHub Actions](.github/workflows/ci.yml) (current Node LTS). Optional on-host deploy: Jenkins Pipeline in `Jenkinsfile` — [setup](docs/jenkins.md).
 
-Or run with Docker Compose (optional deploy path):
+Or run with Docker Compose (optional deploy path). **Build context is the repo root** so the API and web images can copy [`plugins/`](plugins/):
 
 ```bash
 docker compose up --build -d
 ```
 
-Open the UI, add a target URL + interval, add an FCM FID and/or a webhook URL, pick an alert policy.
+Open the UI, add a target URL + interval, set a webhook URL, pick an alert policy.
 
-Without Firebase credentials the API still runs and checks targets; FCM reports `ready: false`. Webhook stays `ready: false` until you set a URL on the **Webhook** page.
+Webhook stays `ready: false` until you set a URL on the **Webhook** page. FCM is off by default; enable it in **Settings → Plugin manager** and add `data/fcm-service-account.json` if you want push delivery.
 
 ## Alert policies
 
@@ -217,13 +231,13 @@ Without Firebase credentials the API still runs and checks targets; FCM reports 
 Swagger UI: [http://localhost:8089/documentation](http://localhost:8089/documentation) (or API directly at `:3000/documentation`). OpenAPI JSON: `/documentation/json`.
 
 - `GET/POST/PATCH/DELETE /api/groups` (`GET /api/groups?tree=1` for nested trees)
-- `GET/POST/PATCH/DELETE /api/targets` (optional `group_id`, optional `check_ids` / `notifier_ids`; empty allowlist = all of that kind)
+- `GET/POST/PATCH/DELETE /api/targets` (optional `group_id`, optional `check_ids` / `notifier_ids`; empty allowlist = all **enabled** of that kind)
 - `GET /api/notifiers/check-ids` — which targets have a per-notifier override (check allowlist and/or custom plugin settings)
 - `GET/PUT /api/targets/:id/notifiers/:notifierId/check-ids` — core check allowlist for one target + notifier
 - `GET /api/targets/:id/results`
 - `GET /api/incidents` — outage and recovery log (newest first; optional `?limit=`)
-- `GET /api/checks` — loaded check plugins `{ id }`
-- `GET /api/notifiers` — loaded notifier plugins `{ id, ready }`
+- `GET /api/checks` — loaded check plugins `{ id }` (pipeline still skips disabled ones)
+- `GET /api/notifiers` — loaded notifier plugins `{ id, ready }` (pipeline still skips disabled ones)
 - `GET /api/plugins` — loaded plugins + namespaced HTTP routes
 - `GET /api/plugin-manager` — runtime plugin enable/disable state
 - `PUT /api/plugin-manager/:kind/:id` — toggle a loaded plugin (`kind` = `check` | `notify` | `scheduler`) without restart
@@ -260,13 +274,15 @@ Targets attach to **child** groups via `group_id` (not roots). Deleting a group 
 
 ## Data
 
-SQLite file: `./data/monitor.sqlite` (bind-mounted in Compose at `/data/monitor.sqlite`). Plugin sidecars next to the DB: `./data/http-check-defaults.json`, `./data/webhook.json`, `./data/slack.json`, `./data/fcm-tokens.json`, `./data/plugin-manager.json`, and other plugin config files as documented in [docs/plugins.md](docs/plugins.md). Per-target check and notifier overrides are stored in SQLite (`target_check_configs`, `target_notifier_configs`).
+SQLite file: `./data/monitor.sqlite` (bind-mounted in Compose at `/data/monitor.sqlite`). Plugin sidecars next to the DB: `./data/http-check-defaults.json`, `./data/webhook.json`, `./data/slack.json`, `./data/fcm-tokens.json`, `./data/fcm-service-account.json`, `./data/plugin-manager.json`, and other plugin config files as documented in [docs/plugins.md](docs/plugins.md). Per-target check and notifier overrides are stored in SQLite (`target_check_configs`, `target_notifier_configs`).
 
 ## Notes
 
 - No auth on the UI — bind to localhost or put it behind a VPN/firewall
 - Default branch for this repo is `master`
-- Docker Compose is optional; prefer host `npm run dev` when writing plugins
+- Docker Compose is optional; prefer host `npm run dev` when writing plugins. Compose builds `api` and `web` from the **repo root** (`api/Dockerfile`, `web/Dockerfile`) so they can copy `plugins/`.
 - CI: GitHub Actions on push/PR ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)). Optional CD: Jenkins — [setup](docs/jenkins.md)
 - Dependency updates: Dependabot (`.github/dependabot.yml`) for npm, Docker, and GitHub Actions
-- Plugin authoring (API + UI + dashboard widgets): [docs/plugins.md](docs/plugins.md)
+- Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Plugin authoring (API + UI + dashboard widgets): [docs/plugins.md](docs/plugins.md) — implementations live in [`plugins/`](plugins/)
+- Core host (pipeline, schema, plugin host, UI shell): [docs/core.md](docs/core.md)

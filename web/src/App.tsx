@@ -30,7 +30,7 @@ import HttpCheckTargetOverride from './pages/HttpCheckTargetOverride'
 import NotifierTargetOverride from './pages/NotifierTargetOverride'
 
 const uiModules = Object.values(
-  import.meta.glob('../../api/src/plugins/*/*/ui/index.tsx', {
+  import.meta.glob('../../plugins/*/*/ui/index.tsx', {
     eager: true,
   }),
 )

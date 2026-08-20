@@ -12,7 +12,7 @@ import {
   type FormValues,
   type HttpCheckTargetConfigView,
   type HttpCheckTestResult,
-} from '../../../api/src/plugins/check/http/ui/httpCheckUiShared'
+} from '../../../plugins/check/http/ui/httpCheckUiShared'
 
 interface TargetRef {
   id: number

@@ -20,7 +20,7 @@ export default defineConfig({
   },
   server: {
     fs: {
-      allow: [root, path.resolve(root, '../api/src/plugins')],
+      allow: [root, path.resolve(root, '../plugins')],
     },
     proxy: {
       '/api': 'http://localhost:3000',

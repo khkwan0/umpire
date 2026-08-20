@@ -83,10 +83,6 @@ pipeline {
       steps {
         sh '''
           set -eu
-          if [ ! -f firebase-service-account.json ]; then
-            cp firebase-service-account.json.example firebase-service-account.json
-            echo "Using example Firebase credentials (FCM will report ready=false)"
-          fi
           if [ ! -f .env ] && [ -f .env.example ]; then
             cp .env.example .env
           fi

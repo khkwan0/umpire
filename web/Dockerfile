@@ -10,8 +10,8 @@ RUN npm install
 
 WORKDIR /src
 COPY web ./web
-# App.tsx globs ../../api/src/plugins/*/*/ui/index.tsx from web/src
-COPY api/src/plugins ./api/src/plugins
+# App.tsx globs ../../plugins/*/*/ui/index.tsx from web/src
+COPY plugins ./plugins
 
 WORKDIR /src/web
 RUN npm run build

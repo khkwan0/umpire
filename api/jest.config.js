@@ -23,6 +23,9 @@ export default {
       },
     ],
   },
-  testMatch: ['**/src/**/*.test.ts'],
+  testMatch: [
+    '<rootDir>/src/**/*.test.ts',
+    '<rootDir>/../plugins/**/*.test.ts',
+  ],
   clearMocks: true,
 }

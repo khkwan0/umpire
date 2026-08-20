@@ -15,7 +15,9 @@ This Jenkins pipeline is optional **on-host** CD. The repo ships a Declarative P
 
 Jest writes `api/junit.xml`. The **JUnit** publisher shows pass/fail history on the job.
 
-Deploy copies `firebase-service-account.json.example` when the real file is missing so Compose can start; FCM stays `ready: false` until you mount a real service account on the agent.
+FCM is **off by default**. Deploy does not need a Firebase file. To use FCM: enable it in **Settings → Plugin manager**, then put a real Admin SDK JSON at `data/fcm-service-account.json` on the agent (copy from `plugins/notify/fcm/fcm-service-account.json.example`). Until both are done, FCM stays disabled / `ready: false`.
+
+Compose builds `api` and `web` from the **repo root** so the images can copy [`plugins/`](../plugins/). Do not change the build context to `api/` or `web/`.
 
 ## Jenkins plugins
 
@@ -44,7 +46,7 @@ The agent that runs the job needs a Docker engine (the Node stages pull `node:lt
 2. **Pipeline script from SCM** → Git → this remote → script path `Jenkinsfile`
 3. For `master`-only Docker builds, set the branch to `master`. `BRANCH_NAME` is often empty here; the Jenkinsfile also treats `GIT_BRANCH=origin/master` as master.
 
-Run **Build with Parameters** and check **DEPLOY** only on an agent that should host the stack (ports, `./data`, Firebase file).
+Run **Build with Parameters** and check **DEPLOY** only on an agent that should host the stack (ports, `./data`, and `data/fcm-service-account.json` only if you enable FCM).
 
 ## Agent notes
 
@@ -52,6 +54,7 @@ Run **Build with Parameters** and check **DEPLOY** only on an agent that should 
 - `node:lts-bookworm` includes `python3` / `make` / `g++`, so `better-sqlite3` compiles and the SQLite store tests run.
 - The Node stages run as root in the container (`-u root:root`) so `npm ci` can write `node_modules` in the workspace.
 - Compose publish port defaults to **8089** (`WEB_PORT` in `.env`). Health check uses `http://127.0.0.1:${WEB_PORT:-8089}/api/health`.
+- Image builds use repo-root context (`api/Dockerfile`, `web/Dockerfile`) so `plugins/` is copied. The workspace must include that folder.
 
 ## Local equivalent
 

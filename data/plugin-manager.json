@@ -7,10 +7,10 @@
     "ping": false
   },
   "notify": {
-    "fcm": true,
+    "fcm": false,
     "webhook": true,
-    "slack": true,
-    "telegram": true,
+    "slack": false,
+    "telegram": false,
     "discord": false,
     "email": false
   },

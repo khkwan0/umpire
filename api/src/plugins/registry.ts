@@ -5,7 +5,6 @@ import {
   getChecks,
   getNotifiers,
   getScheduler,
-  hasNotifier,
   setChecks,
   setNotifiers,
   setScheduler,
@@ -23,14 +22,31 @@ interface PluginsConfig {
   notifiers: string[]
 }
 
-const pluginsRoot = path.dirname(fileURLToPath(import.meta.url))
+const hostDir = path.dirname(fileURLToPath(import.meta.url))
+
+function firstExisting(paths: string[], fallback: string): string {
+  for (const candidate of paths) {
+    if (fs.existsSync(candidate)) return candidate
+  }
+  return fallback
+}
 
 function pluginsConfigPath(): string {
   if (process.env.PLUGINS_CONFIG) {
     return path.resolve(process.env.PLUGINS_CONFIG)
   }
-  // api/src/plugins → api/plugins.json
-  return path.resolve(pluginsRoot, '../../plugins.json')
+  const fromSrc = path.resolve(hostDir, '../../plugins.json')
+  const fromDist = path.resolve(hostDir, '../../../../plugins.json')
+  return firstExisting([fromSrc, fromDist], fromSrc)
+}
+
+function implementationRoot(): string {
+  if (process.env.PLUGINS_ROOT) {
+    return path.resolve(process.env.PLUGINS_ROOT)
+  }
+  // api/src/plugins → repo/plugins
+  // api/dist/api/src/plugins → api/dist/plugins
+  return path.resolve(hostDir, '../../../plugins')
 }
 
 function loadConfig(): PluginsConfig {
@@ -60,7 +76,7 @@ function loadConfig(): PluginsConfig {
 }
 
 function resolvePluginFile(kind: PluginKind, id: string): string {
-  const kindRoot = path.join(pluginsRoot, kind)
+  const kindRoot = path.join(implementationRoot(), kind)
   const candidates = [
     path.join(kindRoot, id, 'index.ts'),
     path.join(kindRoot, id, 'index.js'),

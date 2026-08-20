@@ -103,7 +103,7 @@ export default function Dashboard({
         </div>
         <div>
           <strong className={partial ? 'warn' : ''}>{partial}</strong>
-          <span>wanring</span>
+          <span>warning</span>
         </div>
         <div>
           <strong className={down ? 'bad' : ''}>{down}</strong>

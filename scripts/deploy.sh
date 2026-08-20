@@ -20,11 +20,6 @@ log() {
 log "Preparing env files"
 cd "${ROOT_DIR}"
 
-if [[ ! -f firebase-service-account.json && -f firebase-service-account.json.example ]]; then
-  cp firebase-service-account.json.example firebase-service-account.json
-  echo "Using example Firebase credentials (FCM will report ready=false)"
-fi
-
 if [[ ! -f .env && -f .env.example ]]; then
   cp .env.example .env
 fi

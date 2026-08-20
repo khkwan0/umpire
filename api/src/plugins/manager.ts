@@ -47,7 +47,8 @@ function ensureDefaults(): void {
     if (flags.check[c.id] === undefined) flags.check[c.id] = true
   }
   for (const n of getNotifiers()) {
-    if (flags.notify[n.id] === undefined) flags.notify[n.id] = true
+    if (flags.notify[n.id] === undefined)
+      flags.notify[n.id] = n.id === 'webhook'
   }
   const s = getScheduler()
   if (flags.scheduler[s.id] === undefined) flags.scheduler[s.id] = true
