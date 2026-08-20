@@ -2,7 +2,6 @@ import {useCallback, useEffect, useState, type FormEvent} from 'react'
 import {Link, useParams} from 'react-router-dom'
 import {
   api,
-  CONFIGURABLE_NOTIFIERS,
   isConfigurableNotifier,
   type ConfigurableNotifierId,
   type NotifierTargetConfigView,
@@ -76,10 +75,7 @@ function buildPayload(
   useCustom: boolean,
   form: Record<string, unknown>,
 ): Record<string, unknown> {
-  const base = {
-    useCustom,
-    check_ids: parseList(str(form.checkIdsText)),
-  }
+  const base = {useCustom}
   switch (notifierId) {
     case 'webhook':
       return {
@@ -176,19 +172,19 @@ function formFromEffective(
 
 function NotifierCheckAllowlist({
   checks,
-  form,
+  checkIdsText,
   onChange,
 }: {
   checks: Array<{id: string}>
-  form: Record<string, unknown>
-  onChange: (next: Record<string, unknown>) => void
+  checkIdsText: string
+  onChange: (next: string) => void
 }) {
-  const selectedChecks = parseList(str(form.checkIdsText))
+  const selectedChecks = parseList(checkIdsText)
   const toggleCheckId = (id: string) => {
     const next = selectedChecks.includes(id)
       ? selectedChecks.filter(x => x !== id)
       : [...selectedChecks, id]
-    onChange({...form, checkIdsText: next.join('\n')})
+    onChange(next.join('\n'))
   }
 
   if (checks.length === 0) return null
@@ -488,44 +484,53 @@ export default function NotifierTargetOverride() {
     Array<{id: number; label: string; fid: string}>
   >([])
   const [checks, setChecks] = useState<Array<{id: string}>>([])
+  const [checkIdsText, setCheckIdsText] = useState('')
+  const [loadedNotifiers, setLoadedNotifiers] = useState<string[]>([])
 
-  const validNotifier = isConfigurableNotifier(notifierId)
+  const hasPluginConfig = isConfigurableNotifier(notifierId)
+  const knownNotifier =
+    loadedNotifiers.includes(notifierId) || hasPluginConfig
 
-  const applyView = useCallback(
+  const applyPluginView = useCallback(
     (view: NotifierTargetConfigView) => {
-      if (!validNotifier) return
+      if (!hasPluginConfig) return
       setUseCustom(view.useCustom)
       setDefaultsForm(formFromEffective(notifierId, view.defaults))
-      const pluginForm = formFromEffective(
-        notifierId,
-        view.useCustom ? (view.override ?? view.effective) : view.effective,
+      setTargetForm(
+        formFromEffective(
+          notifierId,
+          view.useCustom ? (view.override ?? view.effective) : view.effective,
+        ),
       )
-      setTargetForm({
-        ...pluginForm,
-        checkIdsText: strList(view.check_ids),
-      })
     },
-    [notifierId, validNotifier],
+    [hasPluginConfig, notifierId],
   )
 
   const load = useCallback(async () => {
-    if (!validNotifier || !Number.isFinite(targetId) || targetId <= 0) {
+    if (!Number.isFinite(targetId) || targetId <= 0 || !notifierId) {
       setError('Invalid target or notifier')
       setLoaded(true)
       return
     }
 
-    const [targets, view, fcmTokens, checkPlugins] = await Promise.all([
-      api.targets.list(),
-      api.targets.notifier.getConfig(notifierId, targetId),
-      notifierId === 'fcm' ? api.tokens.list() : Promise.resolve([]),
-      api.checks.list(),
-    ])
+    const [targets, notifiers, checkPlugins, checkIds, pluginView, fcmTokens] =
+      await Promise.all([
+        api.targets.list(),
+        api.notifiers.list(),
+        api.checks.list(),
+        api.targets.notifier.getCheckIds(notifierId, targetId),
+        hasPluginConfig
+          ? api.targets.notifier.getConfig(notifierId, targetId)
+          : Promise.resolve(null),
+        notifierId === 'fcm' ? api.tokens.list() : Promise.resolve([]),
+      ])
 
+    setLoadedNotifiers(notifiers.map(n => n.id))
     if (notifierId === 'fcm') {
       setFcmDestinations(fcmTokens)
     }
     setChecks(checkPlugins)
+    setCheckIdsText(checkIds.check_ids.join('\n'))
 
     const selected = targets.find(t => t.id === targetId)
     if (!selected) {
@@ -535,9 +540,9 @@ export default function NotifierTargetOverride() {
     }
 
     setTarget({id: selected.id, url: selected.url})
-    applyView(view)
+    if (pluginView) applyPluginView(pluginView)
     setLoaded(true)
-  }, [applyView, notifierId, targetId, validNotifier])
+  }, [applyPluginView, hasPluginConfig, notifierId, targetId])
 
   useEffect(() => {
     void load().catch(err =>
@@ -547,24 +552,38 @@ export default function NotifierTargetOverride() {
 
   async function onSave(e: FormEvent) {
     e.preventDefault()
-    if (!target || !validNotifier) return
+    if (!target || !knownNotifier) return
     setBusy(true)
     setSaveError(null)
     setSaveMessage(null)
     try {
-      const view = await api.targets.notifier.putConfig(
+      const savedChecks = await api.targets.notifier.putCheckIds(
         notifierId,
         target.id,
-        buildPayload(notifierId, useCustom, targetForm),
+        parseList(checkIdsText),
       )
-      applyView(view)
-      setSaveMessage(
-        view.useCustom
-          ? `Saved — this target uses custom ${notifierId} settings`
-          : view.check_ids.length > 0
+      setCheckIdsText(savedChecks.check_ids.join('\n'))
+      if (hasPluginConfig) {
+        const view = await api.targets.notifier.putConfig(
+          notifierId,
+          target.id,
+          buildPayload(notifierId, useCustom, targetForm),
+        )
+        applyPluginView(view)
+        setSaveMessage(
+          view.useCustom
+            ? `Saved — this target uses custom ${notifierId} settings`
+            : savedChecks.check_ids.length > 0
+              ? `Saved — check allowlist for ${notifierId} on this target`
+              : `Saved — this target uses default ${notifierId} settings`,
+        )
+      } else {
+        setSaveMessage(
+          savedChecks.check_ids.length > 0
             ? `Saved — check allowlist for ${notifierId} on this target`
-            : `Saved — this target uses default ${notifierId} settings`,
-      )
+            : `Saved — ${notifierId} receives any alert for this target`,
+        )
+      }
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -573,13 +592,20 @@ export default function NotifierTargetOverride() {
   }
 
   async function onClearOverride() {
-    if (!target || !validNotifier) return
+    if (!target || !knownNotifier) return
     setBusy(true)
     setSaveError(null)
     setSaveMessage(null)
     try {
-      const view = await api.targets.notifier.clearConfig(notifierId, target.id)
-      applyView(view)
+      await api.targets.notifier.putCheckIds(notifierId, target.id, [])
+      setCheckIdsText('')
+      if (hasPluginConfig) {
+        const view = await api.targets.notifier.clearConfig(
+          notifierId,
+          target.id,
+        )
+        applyPluginView(view)
+      }
       setSaveMessage(
         `Override cleared — target uses default ${notifierId} settings`,
       )
@@ -591,7 +617,7 @@ export default function NotifierTargetOverride() {
   }
 
   async function onTest() {
-    if (!target || !validNotifier) return
+    if (!target || !hasPluginConfig) return
     setTesting(true)
     setTestResult(null)
     try {
@@ -613,12 +639,11 @@ export default function NotifierTargetOverride() {
 
   if (!loaded && !error) return <p className="muted">Loading…</p>
 
-  if (!validNotifier) {
+  if (!knownNotifier && loaded) {
     return (
       <div className="stack">
         <p className="error">
-          Notifier &quot;{notifierId}&quot; does not support per-target
-          overrides.
+          Notifier &quot;{notifierId}&quot; is not loaded.
         </p>
         <Link to="/targets">Back to targets</Link>
       </div>
@@ -642,92 +667,100 @@ export default function NotifierTargetOverride() {
       <section className="panel">
         <p className="muted">
           <Link to="/targets">Targets</Link>
-          {' · '}
-          {notifierId === 'fcm' ? (
-            <Link to={fcmDestinationsPath}>Manage FCM destinations</Link>
-          ) : (
-            <Link to={defaultsPath}>{notifierId} defaults</Link>
-          )}
+          {hasPluginConfig ? (
+            <>
+              {' · '}
+              {notifierId === 'fcm' ? (
+                <Link to={fcmDestinationsPath}>Manage FCM destinations</Link>
+              ) : (
+                <Link to={defaultsPath}>{notifierId} defaults</Link>
+              )}
+            </>
+          ) : null}
         </p>
         <h2>
           {notifierId} notifier — target #{target!.id}
         </h2>
         <p className="mono">{target!.url}</p>
         <p className="muted">
-          {notifierId === 'fcm' ? (
-            <>
-              Optionally restrict which FCM destinations and check failures
-              trigger push for this target.{' '}
-              <Link to={fcmDestinationsPath}>Manage destinations</Link>.
-            </>
+          {hasPluginConfig ? (
+            notifierId === 'fcm' ? (
+              <>
+                Optionally restrict which FCM destinations receive this
+                target&apos;s alerts.{' '}
+                <Link to={fcmDestinationsPath}>Manage destinations</Link>. Check
+                filtering is configured below (core).
+              </>
+            ) : (
+              <>
+                Override global {notifierId} defaults for this target only.{' '}
+                <Link to={defaultsPath}>Edit defaults</Link>. Check filtering is
+                configured below (core).
+              </>
+            )
           ) : (
             <>
-              Override global {notifierId} defaults for this target only.{' '}
-              <Link to={defaultsPath}>Edit defaults</Link>.
+              Restrict which check failures trigger this notifier for this
+              target. Empty = any alert (including recovery).
             </>
           )}
         </p>
 
         <form className="form-col" onSubmit={onSave}>
-          <label className="check-ids-item">
-            <input
-              type="checkbox"
-              checked={useCustom}
-              onChange={e => {
-                const next = e.target.checked
-                setUseCustom(next)
-                setSaveMessage(null)
-                setSaveError(null)
-                if (!next) {
-                  setTargetForm(prev => ({
-                    ...defaultsForm,
-                    checkIdsText: str(prev.checkIdsText),
-                  }))
-                }
-              }}
-            />
-            Use custom settings for this target
-          </label>
-          {!useCustom && (
-            <p className="muted small">
-              {notifierId === 'fcm'
-                ? 'Default FCM destinations; any alert unless a check allowlist is set below.'
-                : `This target uses the default ${notifierId} notifier parameters unless a check allowlist is set below.`}
-            </p>
-          )}
-
-          <NotifierFields
-            notifierId={notifierId}
-            form={targetForm}
-            onChange={next => {
-              setTargetForm(next)
-              setSaveMessage(null)
-              setSaveError(null)
-            }}
-            disabled={!useCustom}
-            fcmDestinations={fcmDestinations}
-          />
-
-          <button
-            type="button"
-            disabled={testing}
-            onClick={() => void onTest()}
-          >
-            {testing ? 'Sending…' : 'Send test'}
-          </button>
-          {testResult && (
-            <p className={testResult.ok ? 'ok-text' : 'error'}>
-              {testResult.ok
-                ? 'Test notification sent'
-                : `Test failed: ${testResult.error ?? 'unknown error'}`}
-            </p>
-          )}
+          {hasPluginConfig ? (
+            <>
+              <label className="check-ids-item">
+                <input
+                  type="checkbox"
+                  checked={useCustom}
+                  onChange={e => {
+                    const next = e.target.checked
+                    setUseCustom(next)
+                    setSaveMessage(null)
+                    setSaveError(null)
+                    if (!next) setTargetForm(defaultsForm)
+                  }}
+                />
+                Use custom settings for this target
+              </label>
+              {!useCustom && (
+                <p className="muted small">
+                  This target uses the default {notifierId} notifier parameters.
+                </p>
+              )}
+              <NotifierFields
+                notifierId={notifierId}
+                form={targetForm}
+                onChange={next => {
+                  setTargetForm(next)
+                  setSaveMessage(null)
+                  setSaveError(null)
+                }}
+                disabled={!useCustom}
+                fcmDestinations={fcmDestinations}
+              />
+              <button
+                type="button"
+                disabled={testing}
+                onClick={() => void onTest()}
+              >
+                {testing ? 'Sending…' : 'Send test'}
+              </button>
+              {testResult && (
+                <p className={testResult.ok ? 'ok-text' : 'error'}>
+                  {testResult.ok
+                    ? 'Test notification sent'
+                    : `Test failed: ${testResult.error ?? 'unknown error'}`}
+                </p>
+              )}
+            </>
+          ) : null}
 
           <NotifierCheckAllowlist
             checks={checks}
-            form={targetForm}
+            checkIdsText={checkIdsText}
             onChange={next => {
-              setTargetForm(next)
+              setCheckIdsText(next)
               setSaveMessage(null)
               setSaveError(null)
             }}
@@ -741,8 +774,7 @@ export default function NotifierTargetOverride() {
               type="button"
               disabled={
                 busy ||
-                (!useCustom &&
-                  parseList(str(targetForm.checkIdsText)).length === 0)
+                (!useCustom && parseList(checkIdsText).length === 0)
               }
               onClick={() => void onClearOverride()}
             >
@@ -764,5 +796,3 @@ export default function NotifierTargetOverride() {
     </div>
   )
 }
-
-export {CONFIGURABLE_NOTIFIERS}

@@ -1,5 +1,6 @@
 import type {AlertEvent} from '../plugins/types.js'
 import {
+  applyNotifierCheckIds,
   eventMatchesNotifierCheckFilter,
   extractNotifierCheckIds,
   hasNotifierTargetOverride,
@@ -55,5 +56,17 @@ describe('notifierRouting', () => {
       hasNotifierTargetOverride({useCustom: false, check_ids: ['http']}),
     ).toBe(true)
     expect(hasNotifierTargetOverride({useCustom: true, url: 'x'})).toBe(true)
+  })
+
+  it('merges check_ids onto stored plugin config', () => {
+    expect(applyNotifierCheckIds(null, ['http'])).toEqual({
+      check_ids: ['http'],
+    })
+    expect(
+      applyNotifierCheckIds({useCustom: true, url: 'x', check_ids: ['tls']}, []),
+    ).toEqual({useCustom: true, url: 'x'})
+    expect(applyNotifierCheckIds({useCustom: false, check_ids: ['http']}, [])).toBe(
+      null,
+    )
   })
 })

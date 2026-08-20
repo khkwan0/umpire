@@ -270,12 +270,10 @@ export default function App() {
               element={<HttpCheckTargetOverride />}
             />
           )}
-          {activeUi.some(ui => ui.kind === 'notify') && (
-            <Route
-              path="/targets/:targetId/notifiers/:notifierId"
-              element={<NotifierTargetOverride />}
-            />
-          )}
+          <Route
+            path="/targets/:targetId/notifiers/:notifierId"
+            element={<NotifierTargetOverride />}
+          />
           {activeUi.map(ui => (
             <Route
               key={`${ui.kind}:${ui.id}`}

@@ -66,7 +66,7 @@ File-backed notifiers (**webhook**, **slack**, **discord**, **telegram**, **emai
 
 2. **Per-target overrides** — optional delivery settings for one target. On **Targets**, use **&lt;notifier&gt; settings** (`/targets/:id/notifiers/:notifierId`). Enable **Use custom settings for this target** to override plugin-specific destinations (URL, chat ID, email recipients, FCM device list, etc.). **Clear override** removes the custom config.
 
-**Check allowlist (core)** — every notifier target page includes an optional **Checks** allowlist. Core applies it in the pipeline before calling `notify()`: empty = any alert (including recovery); non-empty = only when a listed check failed (recoveries skipped). Stored in `target_notifier_configs` as `check_ids`, independent of plugin-specific settings.
+**Check allowlist (core)** — every loaded notifier automatically gets an optional **Checks** allowlist on **Targets → &lt;notifier&gt; settings**. It is owned by core (`GET/PUT /api/targets/:id/notifiers/:notifierId/check-ids`), not by plugin code. Empty = any alert (including recovery); non-empty = only when a listed check failed (recoveries skipped). Core applies it in the pipeline before calling `notify()`.
 
 At alert time, each notifier resolves **effective plugin config** = global defaults merged with any per-target override. Core then filters on `check_ids` before delivery.
 
@@ -218,6 +218,8 @@ Swagger UI: [http://localhost:8089/documentation](http://localhost:8089/document
 
 - `GET/POST/PATCH/DELETE /api/groups` (`GET /api/groups?tree=1` for nested trees)
 - `GET/POST/PATCH/DELETE /api/targets` (optional `group_id`, optional `check_ids` / `notifier_ids`; empty allowlist = all of that kind)
+- `GET /api/notifiers/check-ids` — which targets have a per-notifier override (check allowlist and/or custom plugin settings)
+- `GET/PUT /api/targets/:id/notifiers/:notifierId/check-ids` — core check allowlist for one target + notifier
 - `GET /api/targets/:id/results`
 - `GET /api/incidents` — outage and recovery log (newest first; optional `?limit=`)
 - `GET /api/checks` — loaded check plugins `{ id }`

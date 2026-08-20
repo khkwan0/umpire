@@ -145,8 +145,6 @@ export interface HttpCheckTestResult {
 
 export interface NotifierTargetConfigView {
   useCustom: boolean
-  /** Core check allowlist for this target+notifier. Empty = any alert. */
-  check_ids: string[]
   defaults: Record<string, unknown>
   override: Record<string, unknown> | null
   effective: Record<string, unknown>
@@ -363,6 +361,26 @@ export const api = {
         ),
     },
     notifier: {
+      listCheckIds: () =>
+        request<{items: Array<{notifierId: string; targetIds: number[]}>}>(
+          '/api/notifiers/check-ids',
+        ),
+      getCheckIds: (notifierId: string, targetId: number) =>
+        request<{check_ids: string[]}>(
+          `/api/targets/${targetId}/notifiers/${notifierId}/check-ids`,
+        ),
+      putCheckIds: (
+        notifierId: string,
+        targetId: number,
+        checkIds: string[],
+      ) =>
+        request<{check_ids: string[]}>(
+          `/api/targets/${targetId}/notifiers/${notifierId}/check-ids`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({check_ids: checkIds}),
+          },
+        ),
       listOverrides: (notifierId: string) =>
         request<{targetIds: number[]}>(
           `/api/plugins/notify/${notifierId}/overrides`,

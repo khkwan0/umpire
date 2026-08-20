@@ -2,8 +2,6 @@ import {useCallback, useEffect, useMemo, useState, type FormEvent} from 'react'
 import {Link} from 'react-router-dom'
 import {
   api,
-  CONFIGURABLE_NOTIFIERS,
-  isConfigurableNotifier,
   isTransientApiError,
   type Group,
   type NotifierStatus,
@@ -26,12 +24,8 @@ function targetUsesHttpCheck(t: Target, httpEnabled: boolean): boolean {
   return checkIds.length === 0 || checkIds.includes('http')
 }
 
-function targetUsesNotifier(
-  t: Target,
-  notifierId: string,
-  enabled: boolean,
-): boolean {
-  if (!enabled || !isConfigurableNotifier(notifierId)) return false
+function targetUsesNotifier(t: Target, notifierId: string, enabled: boolean): boolean {
+  if (!enabled) return false
   const ids = t.notifier_ids ?? []
   return ids.length === 0 || ids.includes(notifierId)
 }
@@ -138,19 +132,10 @@ export default function Targets() {
           api.notifiers.list(),
           api.pluginManager.get(),
         ])
-      const configurableNotifiers = CONFIGURABLE_NOTIFIERS.filter(id =>
-        (nextManager?.notifiers ?? []).some(n => n.id === id && n.enabled),
-      )
-      const [nextHttpOverrides, ...notifierOverrideResults] = await Promise.all(
-        [
-          api.targets.httpCheck.listOverrides().catch(() => ({targetIds: []})),
-          ...configurableNotifiers.map(id =>
-            api.targets.notifier
-              .listOverrides(id)
-              .catch(() => ({targetIds: []})),
-          ),
-        ],
-      )
+      const [nextHttpOverrides, checkIdOverrides] = await Promise.all([
+        api.targets.httpCheck.listOverrides().catch(() => ({targetIds: []})),
+        api.targets.notifier.listCheckIds().catch(() => ({items: []})),
+      ])
       setTargets(nextTargets)
       setGroups(nextGroups)
       setChecks(nextChecks)
@@ -158,9 +143,9 @@ export default function Targets() {
       setPluginManager(nextManager)
       setHttpCustomTargetIds(new Set(nextHttpOverrides.targetIds))
       const customMap = new Map<string, Set<number>>()
-      configurableNotifiers.forEach((id, index) => {
-        customMap.set(id, new Set(notifierOverrideResults[index]!.targetIds))
-      })
+      for (const item of checkIdOverrides.items) {
+        customMap.set(item.notifierId, new Set(item.targetIds))
+      }
       setNotifierCustomTargetIds(customMap)
       setError(null)
       setReconnecting(false)

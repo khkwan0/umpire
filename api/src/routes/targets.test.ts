@@ -10,6 +10,10 @@ const core = {
   deleteTarget: jest.fn(),
   getTarget: jest.fn(),
   listRecentResults: jest.fn(),
+  getTargetNotifierConfig: jest.fn(),
+  setTargetNotifierConfig: jest.fn(),
+  deleteTargetNotifierConfig: jest.fn(),
+  listAllTargetNotifierConfigs: jest.fn(),
 }
 
 const scheduler = {
@@ -22,6 +26,8 @@ jest.unstable_mockModule('../core/index.js', () => ({
 
 jest.unstable_mockModule('../plugins/registry.js', () => ({
   getScheduler: () => scheduler,
+  getChecks: () => [],
+  getNotifiers: () => [{id: 'webhook', isReady: () => true}],
 }))
 
 const {targetsRoutes} = await import('./targets.js')
@@ -88,6 +94,39 @@ describe('targets routes', () => {
     expect(res.statusCode).toBe(400)
     expect(core.createTarget).not.toHaveBeenCalled()
     expect(scheduler.reschedule).not.toHaveBeenCalled()
+    await app.close()
+  })
+
+  it('saves a core notifier check allowlist', async () => {
+    const row: Target = {
+      id: 1,
+      url: 'https://example.com',
+      interval_seconds: 60,
+      enabled: 1,
+      group_id: null,
+      check_ids: [],
+      notifier_ids: [],
+      created_at: '2026-01-01T00:00:00.000Z',
+      updated_at: '2026-01-01T00:00:00.000Z',
+    }
+    core.getTarget.mockReturnValue(row)
+    core.getTargetNotifierConfig.mockReturnValue(null)
+
+    const app = Fastify()
+    await registerOpenApi(app)
+    await app.register(targetsRoutes)
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/targets/1/notifiers/webhook/check-ids',
+      payload: {check_ids: ['http']},
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({check_ids: ['http']})
+    expect(core.setTargetNotifierConfig).toHaveBeenCalledWith(1, 'webhook', {
+      check_ids: ['http'],
+    })
     await app.close()
   })
 })

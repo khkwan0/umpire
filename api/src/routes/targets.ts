@@ -1,7 +1,13 @@
 import type {FastifyInstance} from 'fastify'
 import {getCore} from '../core/index.js'
+import {
+  applyNotifierCheckIds,
+  extractNotifierCheckIds,
+  hasNotifierTargetOverride,
+  normalizeNotifierCheckIds,
+} from '../core/notifierRouting.js'
 import {normalizePluginIds} from '../core/sqlite.js'
-import {getChecks, getScheduler} from '../plugins/registry.js'
+import {getChecks, getNotifiers, getScheduler} from '../plugins/registry.js'
 import {publishRealtime} from '../realtime.js'
 
 const errorResponse = {
@@ -435,6 +441,170 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
         checkId,
       })
       return reply.code(204).send()
+    },
+  )
+
+  const notifierCheckIdsSchema = {
+    type: 'object',
+    required: ['check_ids'],
+    properties: {
+      check_ids: {
+        type: 'array',
+        items: {type: 'string', minLength: 1},
+        description:
+          'Check plugin ids this notifier receives for the target. Empty = any alert (incl. recovery). Non-empty = only listed failures.',
+      },
+    },
+  } as const
+
+  app.get(
+    '/api/notifiers/check-ids',
+    {
+      schema: {
+        tags: ['notifiers'],
+        summary:
+          'List per-target notifier check allowlists (core; all notifiers)',
+        response: {
+          200: {
+            type: 'object',
+            required: ['items'],
+            properties: {
+              items: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  required: ['notifierId', 'targetIds'],
+                  properties: {
+                    notifierId: {type: 'string'},
+                    targetIds: {type: 'array', items: {type: 'integer'}},
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    async () => {
+      const grouped = new Map<string, number[]>()
+      for (const row of getCore().listAllTargetNotifierConfigs()) {
+        if (!hasNotifierTargetOverride(row.config)) continue
+        const ids = grouped.get(row.notifierId) ?? []
+        ids.push(row.targetId)
+        grouped.set(row.notifierId, ids)
+      }
+      return {
+        items: [...grouped.entries()].map(([notifierId, targetIds]) => ({
+          notifierId,
+          targetIds,
+        })),
+      }
+    },
+  )
+
+  app.get<{Params: {id: string; notifierId: string}}>(
+    '/api/targets/:id/notifiers/:notifierId/check-ids',
+    {
+      schema: {
+        tags: ['notifiers'],
+        summary: 'Get core check allowlist for one target and notifier',
+        params: {
+          type: 'object',
+          required: ['id', 'notifierId'],
+          properties: {
+            id: {type: 'string'},
+            notifierId: {type: 'string'},
+          },
+        },
+        response: {
+          200: notifierCheckIdsSchema,
+          400: errorResponse,
+          404: errorResponse,
+        },
+      },
+    },
+    async (req, reply) => {
+      const id = Number(req.params.id)
+      if (!Number.isInteger(id) || id < 1) {
+        return reply.code(400).send({error: 'invalid id'})
+      }
+      if (!getCore().getTarget(id)) {
+        return reply.code(404).send({error: 'target not found'})
+      }
+      const notifierId = req.params.notifierId.trim()
+      if (!notifierId) {
+        return reply.code(400).send({error: 'invalid notifierId'})
+      }
+      return {
+        check_ids: extractNotifierCheckIds(
+          getCore().getTargetNotifierConfig(id, notifierId),
+        ),
+      }
+    },
+  )
+
+  app.put<{
+    Params: {id: string; notifierId: string}
+    Body: {check_ids?: unknown}
+  }>(
+    '/api/targets/:id/notifiers/:notifierId/check-ids',
+    {
+      schema: {
+        tags: ['notifiers'],
+        summary: 'Set core check allowlist for one target and notifier',
+        params: {
+          type: 'object',
+          required: ['id', 'notifierId'],
+          properties: {
+            id: {type: 'string'},
+            notifierId: {type: 'string'},
+          },
+        },
+        body: notifierCheckIdsSchema,
+        response: {
+          200: notifierCheckIdsSchema,
+          400: errorResponse,
+          404: errorResponse,
+        },
+      },
+    },
+    async (req, reply) => {
+      const id = Number(req.params.id)
+      if (!Number.isInteger(id) || id < 1) {
+        return reply.code(400).send({error: 'invalid id'})
+      }
+      if (!getCore().getTarget(id)) {
+        return reply.code(404).send({error: 'target not found'})
+      }
+      const notifierId = req.params.notifierId.trim()
+      if (!notifierId) {
+        return reply.code(400).send({error: 'invalid notifierId'})
+      }
+      if (!getNotifiers().some(n => n.id === notifierId)) {
+        return reply.code(404).send({error: 'notifier not found'})
+      }
+      try {
+        const checkIds = normalizeNotifierCheckIds(req.body?.check_ids)
+        const next = applyNotifierCheckIds(
+          getCore().getTargetNotifierConfig(id, notifierId),
+          checkIds,
+        )
+        if (next === null) {
+          getCore().deleteTargetNotifierConfig(id, notifierId)
+        } else {
+          getCore().setTargetNotifierConfig(id, notifierId, next)
+        }
+        publishRealtime('targets.updated', {
+          action: 'notifier-check-ids',
+          targetId: id,
+          notifierId,
+        })
+        return {check_ids: checkIds}
+      } catch (err) {
+        return reply
+          .code(400)
+          .send({error: err instanceof Error ? err.message : String(err)})
+      }
     },
   )
 }

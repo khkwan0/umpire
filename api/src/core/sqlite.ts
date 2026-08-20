@@ -67,6 +67,9 @@ function buildStatements(database: Database.Database) {
     selectTargetNotifierConfigsByNotifier: database.prepare(
       `SELECT target_id, config_json FROM target_notifier_configs WHERE notifier_id = ? ORDER BY target_id ASC`,
     ),
+    selectAllTargetNotifierConfigs: database.prepare(
+      `SELECT target_id, notifier_id, config_json FROM target_notifier_configs ORDER BY notifier_id ASC, target_id ASC`,
+    ),
     upsertTargetNotifierConfig: database.prepare(
       `INSERT INTO target_notifier_configs (target_id, notifier_id, config_json, updated_at)
        VALUES (?, ?, ?, datetime('now'))
@@ -314,6 +317,12 @@ interface TargetNotifierConfigListRow {
   config_json: string
 }
 
+interface TargetNotifierConfigAllRow {
+  target_id: number
+  notifier_id: string
+  config_json: string
+}
+
 function parseConfigJson(raw: string): unknown | null {
   try {
     return JSON.parse(raw) as unknown
@@ -536,6 +545,26 @@ export const core: CoreStore = {
       const config = parseConfigJson(row.config_json)
       if (config === null) continue
       out.push({targetId: row.target_id, config})
+    }
+    return out
+  },
+
+  listAllTargetNotifierConfigs(): Array<{
+    targetId: number
+    notifierId: string
+    config: unknown
+  }> {
+    const rows = getStmts().selectAllTargetNotifierConfigs.all() as TargetNotifierConfigAllRow[]
+    const out: Array<{targetId: number; notifierId: string; config: unknown}> =
+      []
+    for (const row of rows) {
+      const config = parseConfigJson(row.config_json)
+      if (config === null) continue
+      out.push({
+        targetId: row.target_id,
+        notifierId: row.notifier_id,
+        config,
+      })
     }
     return out
   },

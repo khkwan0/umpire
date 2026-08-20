@@ -142,7 +142,8 @@ export interface NotifyContext {
   event: AlertEvent
   /**
    * Stored per-target override JSON, or null when using defaults only.
-   * Core reads `check_ids` from this object before calling notify().
+   * Core reads `check_ids` from this object before calling notify();
+   * plugins must not implement check allowlists.
    */
   config: unknown
 }

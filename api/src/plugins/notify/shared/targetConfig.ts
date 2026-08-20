@@ -1,7 +1,5 @@
 export interface NotifierTargetConfigView<T> {
   useCustom: boolean
-  /** Core per-notifier check filter (empty = any alert). Set by target route wrapper. */
-  check_ids?: string[]
   defaults: T
   override: T | null
   effective: T

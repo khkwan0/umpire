@@ -1,10 +1,8 @@
 import type {FastifyInstance} from 'fastify'
 import {getCore} from '../../../core/index.js'
 import {
-  extractNotifierCheckIds,
-  hasNotifierTargetOverride,
-  normalizeNotifierCheckIds,
-  stripNotifierRoutingFields,
+  hasPluginCustomOverride,
+  preserveNotifierCheckIds,
 } from '../../../core/notifierRouting.js'
 import {publishRealtime} from '../../../realtime.js'
 import type {NotifierTargetConfigView} from './targetConfig.js'
@@ -12,13 +10,6 @@ import type {NotifierTargetConfigView} from './targetConfig.js'
 const errorResponse = {
   type: 'object',
   properties: {error: {type: 'string'}},
-} as const
-
-const checkIdsSchema = {
-  type: 'array',
-  items: {type: 'string', minLength: 1},
-  description:
-    'Check plugin ids (core). Empty = any alert (incl. recovery). Non-empty = only listed failures.',
 } as const
 
 export interface NotifierTargetRouteOptions<T> {
@@ -35,27 +26,15 @@ export interface NotifierTargetRouteOptions<T> {
   publishDefaultsReason: string
 }
 
-function enrichTargetConfigView<T>(
-  stored: unknown,
-  build: (stored: unknown) => NotifierTargetConfigView<T>,
-): NotifierTargetConfigView<T> {
-  const view = build(stored)
-  return {
-    ...view,
-    check_ids: extractNotifierCheckIds(stored),
-  }
-}
-
 export async function registerNotifierTargetRoutes<T>(
   app: FastifyInstance,
   opts: NotifierTargetRouteOptions<T>,
 ): Promise<void> {
   const targetConfigViewSchema = {
     type: 'object',
-    required: ['useCustom', 'check_ids', 'defaults', 'override', 'effective'],
+    required: ['useCustom', 'defaults', 'override', 'effective'],
     properties: {
       useCustom: {type: 'boolean'},
-      check_ids: checkIdsSchema,
       defaults: opts.configSchema,
       override: {type: ['object', 'null'], additionalProperties: true},
       effective: opts.configSchema,
@@ -82,7 +61,7 @@ export async function registerNotifierTargetRoutes<T>(
     async () => {
       const rows = getCore().listTargetNotifierConfigs(opts.notifierId)
       const targetIds = rows
-        .filter(row => hasNotifierTargetOverride(row.config))
+        .filter(row => hasPluginCustomOverride(row.config))
         .map(row => row.targetId)
       return {targetIds}
     },
@@ -114,9 +93,8 @@ export async function registerNotifierTargetRoutes<T>(
       if (!getCore().getTarget(targetId)) {
         return reply.code(404).send({error: 'target not found'})
       }
-      return enrichTargetConfigView(
+      return opts.buildTargetConfigView(
         getCore().getTargetNotifierConfig(targetId, opts.notifierId),
-        opts.buildTargetConfigView,
       )
     },
   )
@@ -137,7 +115,6 @@ export async function registerNotifierTargetRoutes<T>(
           required: ['useCustom'],
           properties: {
             useCustom: {type: 'boolean'},
-            check_ids: checkIdsSchema,
             ...(opts.configSchema as {properties?: Record<string, unknown>})
               .properties,
           },
@@ -158,32 +135,34 @@ export async function registerNotifierTargetRoutes<T>(
         return reply.code(404).send({error: 'target not found'})
       }
       try {
-        const checkIds = normalizeNotifierCheckIds(req.body.check_ids)
-        const useCustom = req.body.useCustom === true
-
-        if (!useCustom && checkIds.length === 0) {
-          getCore().deleteTargetNotifierConfig(targetId, opts.notifierId)
-        } else if (!useCustom) {
-          getCore().setTargetNotifierConfig(targetId, opts.notifierId, {
-            useCustom: false,
-            check_ids: checkIds,
-          })
+        const existing = getCore().getTargetNotifierConfig(
+          targetId,
+          opts.notifierId,
+        )
+        if (req.body.useCustom !== true) {
+          const kept = preserveNotifierCheckIds(existing, {useCustom: false})
+          if (!hasPluginCustomOverride(kept) && !kept.check_ids) {
+            getCore().deleteTargetNotifierConfig(targetId, opts.notifierId)
+          } else {
+            getCore().setTargetNotifierConfig(targetId, opts.notifierId, kept)
+          }
         } else {
-          const override = opts.normalizeTargetOverride(
-            stripNotifierRoutingFields(req.body),
+          const override = opts.normalizeTargetOverride(req.body)
+          getCore().setTargetNotifierConfig(
+            targetId,
+            opts.notifierId,
+            preserveNotifierCheckIds(
+              existing,
+              override as Record<string, unknown>,
+            ),
           )
-          getCore().setTargetNotifierConfig(targetId, opts.notifierId, {
-            ...(override as Record<string, unknown>),
-            check_ids: checkIds,
-          })
         }
         publishRealtime('targets.updated', {
           action: `${opts.notifierId}-notifier-config`,
           targetId,
         })
-        return enrichTargetConfigView(
+        return opts.buildTargetConfigView(
           getCore().getTargetNotifierConfig(targetId, opts.notifierId),
-          opts.buildTargetConfigView,
         )
       } catch (err) {
         return reply
@@ -219,12 +198,23 @@ export async function registerNotifierTargetRoutes<T>(
       if (!getCore().getTarget(targetId)) {
         return reply.code(404).send({error: 'target not found'})
       }
-      getCore().deleteTargetNotifierConfig(targetId, opts.notifierId)
+      const existing = getCore().getTargetNotifierConfig(
+        targetId,
+        opts.notifierId,
+      )
+      const kept = preserveNotifierCheckIds(existing, {useCustom: false})
+      if (!kept.check_ids) {
+        getCore().deleteTargetNotifierConfig(targetId, opts.notifierId)
+      } else {
+        getCore().setTargetNotifierConfig(targetId, opts.notifierId, kept)
+      }
       publishRealtime('targets.updated', {
         action: `${opts.notifierId}-notifier-config-clear`,
         targetId,
       })
-      return enrichTargetConfigView(null, opts.buildTargetConfigView)
+      return opts.buildTargetConfigView(
+        getCore().getTargetNotifierConfig(targetId, opts.notifierId),
+      )
     },
   )
 
@@ -243,7 +233,6 @@ export async function registerNotifierTargetRoutes<T>(
           type: 'object',
           properties: {
             useCustom: {type: 'boolean'},
-            check_ids: checkIdsSchema,
             ...(opts.configSchema as {properties?: Record<string, unknown>})
               .properties,
           },
@@ -273,9 +262,7 @@ export async function registerNotifierTargetRoutes<T>(
       try {
         let config: T
         if (req.body?.useCustom === true) {
-          const override = opts.normalizeTargetOverride(
-            stripNotifierRoutingFields(req.body),
-          )
+          const override = opts.normalizeTargetOverride(req.body)
           config = opts.resolveForTarget(override)
         } else if (req.body?.useCustom === false) {
           config = opts.resolveForTarget(null)

@@ -821,13 +821,13 @@ Production pattern: **FCM**. Copy this when users manage a list of destinations 
 |-------|----------|------------|
 | Storage | `data/fcm-tokens.json` (`FCM_TOKENS_PATH`) | Sidecar file next to `DATABASE_PATH`, not a core table |
 | CRUD | `GET/POST/PATCH/DELETE /tokens` | Relative paths on `registerRoutes` |
-| Per-target routing | `token_ids` on override (destinations); `check_ids` is **core** | Destination allowlists in plugin config; check allowlist is automatic via shared target routes |
+| Per-target routing | `token_ids` on override (destinations) | Destination allowlists in plugin config; **check** allowlist is core (do not add it to the plugin) |
 | Test | `POST /tokens/:id/test` | Optional; record last error on the row |
 | Send | Admin SDK `sendEachForMulticast` | Your provider; throw only if *all* sends fail |
 | UI | `ui/TokensPage.tsx` + `api.tokens` in `web/src/api.ts` | Nav via `PluginUiModule`; typed client optional |
 | OpenAPI | Fastify `schema` + `FcmDestination` component | Add schemas so Swagger lists your routes |
 
-**Core check allowlist (all notifiers)** — stored in `target_notifier_configs` as `check_ids`. Empty = any alert (including recovery). Non-empty = only when a listed check **failed**; recoveries skipped. Core applies this in [`api/src/core/notifierRouting.ts`](../api/src/core/notifierRouting.ts) before `notify()`. Shared target routes ([`notify/shared/targetRoutes.ts`](../api/src/plugins/notify/shared/targetRoutes.ts)) expose `check_ids` on every configurable notifier’s `GET/PUT …/targets/:targetId/config`. Plugins must **not** reimplement check filtering in `notify()`.
+**Core check allowlist (all notifiers)** — stored in `target_notifier_configs` as `check_ids`. Empty = any alert (including recovery). Non-empty = only when a listed check **failed**; recoveries skipped. Core applies this in [`api/src/core/notifierRouting.ts`](../api/src/core/notifierRouting.ts) before `notify()`. Operators edit it on **Targets → &lt;notifier&gt; settings**; the host UI and `GET/PUT /api/targets/:id/notifiers/:notifierId/check-ids` are core. Plugins must **not** reimplement check filtering or ship their own check-allowlist UI.
 
 FCM destination matching:
 
@@ -939,7 +939,7 @@ export default {
 | Honest `isReady()` | Assume you are the only notifier |
 | Secrets in plugin sidecar files (or host credentials for SDKs) | Put notifier tables into core SQLite |
 | Relative paths (`/tokens`, `/config`) | Absolute core paths (`/api/targets`); plugin settings in `.env` |
-| Use `registerNotifierTargetRoutes` for per-target plugin config | Reimplement check allowlists in `notify()` |
+| Use `registerNotifierTargetRoutes` for per-target **plugin** config | Reimplement check allowlists in `notify()` or plugin UI |
 
 ### Schedulers
 

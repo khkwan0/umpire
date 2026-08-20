@@ -32,19 +32,48 @@ export function eventMatchesNotifierCheckFilter(
   return checkIds.some(id => failed.has(id))
 }
 
-/** True when stored JSON has custom plugin settings and/or a check allowlist. */
-export function hasNotifierTargetOverride(stored: unknown): boolean {
+/** True when stored JSON has custom plugin settings (not check allowlist). */
+export function hasPluginCustomOverride(stored: unknown): boolean {
   if (!stored || typeof stored !== 'object' || Array.isArray(stored)) {
     return false
   }
-  const row = stored as Record<string, unknown>
-  if (row.useCustom === true) return true
-  return extractNotifierCheckIds(stored).length > 0
+  return (stored as Record<string, unknown>).useCustom === true
 }
 
-export function stripNotifierRoutingFields(
-  body: Record<string, unknown>,
+/** True when stored JSON has custom plugin settings and/or a check allowlist. */
+export function hasNotifierTargetOverride(stored: unknown): boolean {
+  return (
+    hasPluginCustomOverride(stored) ||
+    extractNotifierCheckIds(stored).length > 0
+  )
+}
+
+export function applyNotifierCheckIds(
+  stored: unknown,
+  checkIds: string[],
+): Record<string, unknown> | null {
+  const row =
+    stored && typeof stored === 'object' && !Array.isArray(stored)
+      ? {...(stored as Record<string, unknown>)}
+      : {}
+  if (checkIds.length === 0) {
+    delete row.check_ids
+    if (row.useCustom === true) return row
+    const leftover = Object.keys(row).filter(k => k !== 'useCustom')
+    return leftover.length === 0 ? null : row
+  }
+  return {...row, check_ids: checkIds}
+}
+
+export function preserveNotifierCheckIds(
+  stored: unknown,
+  next: Record<string, unknown>,
 ): Record<string, unknown> {
-  const {check_ids: _checkIds, ...rest} = body
-  return rest
+  const checkIds = extractNotifierCheckIds(stored)
+  if (checkIds.length === 0) {
+    const rest = {...next}
+    delete rest.check_ids
+    return rest
+  }
+  return {...next, check_ids: checkIds}
 }

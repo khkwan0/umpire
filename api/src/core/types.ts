@@ -33,6 +33,11 @@ export interface CoreStore {
   listTargetNotifierConfigs(
     notifierId: string,
   ): Array<{targetId: number; config: unknown}>
+  listAllTargetNotifierConfigs(): Array<{
+    targetId: number
+    notifierId: string
+    config: unknown
+  }>
   setTargetNotifierConfig(
     targetId: number,
     notifierId: string,
