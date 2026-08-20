@@ -56,18 +56,6 @@ export interface Target {
   updated_at: string
 }
 
-export interface FcmToken {
-  id: number
-  fid: string
-  label: string
-  enabled: number
-  created_at: string
-  /** 1=confirmed received, 2=FCM accepted (not confirmed), 0=error, null=never tested */
-  last_test_ok: number | null
-  last_test_error: string | null
-  last_tested_at: string | null
-}
-
 export interface Settings {
   alert_policy: AlertPolicy
   throttle_minutes: number

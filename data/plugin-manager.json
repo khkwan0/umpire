@@ -9,8 +9,8 @@
   "notify": {
     "fcm": true,
     "webhook": true,
-    "slack": false,
-    "telegram": false,
+    "slack": true,
+    "telegram": true,
     "discord": false,
     "email": false
   },
