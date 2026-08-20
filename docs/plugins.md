@@ -146,7 +146,8 @@ Example (shipped FCM):
 api/src/plugins/notify/fcm/
   index.ts
   send.ts
-  tokens.ts
+  destinations.ts
+  config.ts
   routes.ts
   ui/index.tsx
   ui/TokensPage.tsx
@@ -312,7 +313,7 @@ Add it when the plugin owns **runtime data or actions** that do not belong in fr
 | **Yes** | Shipped `http` check | Method/headers/body, accepted status ranges, and latency threshold are plugin-owned config |
 | **No** | Shipped `interval` scheduler | Timing uses core `interval_seconds` |
 | **Yes** | Shipped `webhook` notifier | URL, HTTP method, and headers are plugin-owned (`data/webhook.json` + Webhook page) |
-| **Yes** | Shipped `fcm` notifier | Many device FIDs, enable/disable, per-token filters, test push |
+| **Yes** | Shipped `fcm` notifier | Many device FIDs, enable/disable, test push |
 | **Yes** | Keyword check (cookbook below) | Needle string is plugin config, not a core column |
 
 UI (`ui/index.tsx`) and routes are independent: a help page needs no API; curl/Swagger CRUD needs no UI. Together they are the usual pair when humans edit plugin-owned data.
@@ -825,7 +826,7 @@ Production pattern: **FCM**. Copy this when users manage a list of destinations 
 | Test | `POST /tokens/:id/test` | Optional; record last error on the row |
 | Send | Admin SDK `sendEachForMulticast` | Your provider; throw only if *all* sends fail |
 | UI | `ui/TokensPage.tsx` + `api.tokens` in `web/src/api.ts` | Nav via `PluginUiModule`; typed client optional |
-| OpenAPI | Fastify `schema` + `FcmDestination` component | Add schemas so Swagger lists your routes |
+| OpenAPI | Fastify `schema` on FCM routes | Add schemas so Swagger lists your routes |
 
 **Core check allowlist (all notifiers)** — stored in `target_notifier_configs` as `check_ids`. Empty = any alert (including recovery). Non-empty = only when a listed check **failed**; recoveries skipped. Core applies this in [`api/src/core/notifierRouting.ts`](../api/src/core/notifierRouting.ts) before `notify()`. Operators edit it on **Targets → &lt;notifier&gt; settings**; the host UI and `GET/PUT /api/targets/:id/notifiers/:notifierId/check-ids` are core. Plugins must **not** reimplement check filtering or ship their own check-allowlist UI.
 

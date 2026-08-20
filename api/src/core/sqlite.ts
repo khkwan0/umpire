@@ -273,11 +273,6 @@ export function normalizePluginIds(
   return out
 }
 
-/** @deprecated use normalizePluginIds */
-export function normalizeCheckIds(input: unknown): string[] {
-  return normalizePluginIds(input, 'check_ids')
-}
-
 function parsePluginIdsJson(raw: unknown, fieldName: string): string[] {
   if (raw === null || raw === undefined) return []
   if (typeof raw !== 'string') {

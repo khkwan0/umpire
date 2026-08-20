@@ -139,11 +139,6 @@ export function writeDefaults(config: WebhookConfig): WebhookConfig {
   return next
 }
 
-/** @deprecated use readDefaults */
-export const readConfig = readDefaults
-/** @deprecated use writeDefaults */
-export const writeConfig = writeDefaults
-
 function isFullWebhookConfig(row: Record<string, unknown>): boolean {
   return typeof row.url === 'string' && !('useCustom' in row)
 }

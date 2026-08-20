@@ -27,7 +27,7 @@ export interface GroupTreeNode extends Group {
   children: GroupTreeNode[]
 }
 
-export interface FcmToken {
+export interface FcmDestination {
   id: number
   fid: string
   label: string
@@ -39,13 +39,13 @@ export interface FcmToken {
   last_tested_at: string | null
 }
 
-export interface FcmTokenTestResult {
+export interface FcmDestinationTestResult {
   ok: boolean
   error: string | null
 }
 
-export interface FcmTokenImportResult {
-  created: FcmToken[]
+export interface FcmDestinationImportResult {
+  created: FcmDestination[]
   skipped: Array<{fid: string; reason: string}>
 }
 
@@ -421,9 +421,9 @@ export const api = {
     },
   },
   tokens: {
-    list: () => request<FcmToken[]>('/api/plugins/notify/fcm/tokens'),
+    list: () => request<FcmDestination[]>('/api/plugins/notify/fcm/tokens'),
     create: (data: {fid: string; label?: string}) =>
-      request<FcmToken>('/api/plugins/notify/fcm/tokens', {
+      request<FcmDestination>('/api/plugins/notify/fcm/tokens', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
@@ -431,7 +431,7 @@ export const api = {
       id: number,
       data: Partial<{fid: string; label: string; enabled: boolean}>,
     ) =>
-      request<FcmToken>(`/api/plugins/notify/fcm/tokens/${id}`, {
+      request<FcmDestination>(`/api/plugins/notify/fcm/tokens/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(data),
       }),
@@ -440,24 +440,27 @@ export const api = {
         method: 'DELETE',
       }),
     test: (id: number) =>
-      request<FcmToken>(`/api/plugins/notify/fcm/tokens/${id}/test`, {
+      request<FcmDestination>(`/api/plugins/notify/fcm/tokens/${id}/test`, {
         method: 'POST',
       }),
     received: (id: number, received: boolean) =>
-      request<FcmToken>(`/api/plugins/notify/fcm/tokens/${id}/received`, {
+      request<FcmDestination>(`/api/plugins/notify/fcm/tokens/${id}/received`, {
         method: 'POST',
         body: JSON.stringify({received}),
       }),
     testRaw: (fid: string) =>
-      request<FcmTokenTestResult>('/api/plugins/notify/fcm/tokens/test', {
+      request<FcmDestinationTestResult>('/api/plugins/notify/fcm/tokens/test', {
         method: 'POST',
         body: JSON.stringify({fid}),
       }),
     import: (data: unknown) =>
-      request<FcmTokenImportResult>('/api/plugins/notify/fcm/tokens/import', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
+      request<FcmDestinationImportResult>(
+        '/api/plugins/notify/fcm/tokens/import',
+        {
+          method: 'POST',
+          body: JSON.stringify(data),
+        },
+      ),
   },
   settings: {
     get: () => request<Settings>('/api/settings'),

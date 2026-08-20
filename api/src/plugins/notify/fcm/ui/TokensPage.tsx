@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   api,
-  type FcmToken,
-  type FcmTokenImportResult,
-  type FcmTokenTestResult,
+  type FcmDestination,
+  type FcmDestinationImportResult,
+  type FcmDestinationTestResult,
 } from '@umpire/web-api'
 
 function DestinationField({
@@ -65,17 +65,17 @@ function DestinationField({
 }
 
 export default function TokensPage() {
-  const [tokens, setTokens] = useState<FcmToken[]>([])
+  const [tokens, setTokens] = useState<FcmDestination[]>([])
   const [fid, setFid] = useState('')
   const [label, setLabel] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [draftTest, setDraftTest] = useState<FcmTokenTestResult | null>(null)
+  const [draftTest, setDraftTest] = useState<FcmDestinationTestResult | null>(null)
   const [testingId, setTestingId] = useState<number | 'draft' | null>(null)
   const [importText, setImportText] = useState('')
   const [importBusy, setImportBusy] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
-  const [importResult, setImportResult] = useState<FcmTokenImportResult | null>(
+  const [importResult, setImportResult] = useState<FcmDestinationImportResult | null>(
     null,
   )
   const fileRef = useRef<HTMLInputElement>(null)
@@ -107,7 +107,7 @@ export default function TokensPage() {
     }
   }
 
-  async function changeLabel(t: FcmToken, next: string) {
+  async function changeLabel(t: FcmDestination, next: string) {
     setError(null)
     try {
       await api.tokens.update(t.id, { label: next })
@@ -118,7 +118,7 @@ export default function TokensPage() {
     }
   }
 
-  async function changeDestination(t: FcmToken, next: string) {
+  async function changeDestination(t: FcmDestination, next: string) {
     setError(null)
     try {
       await api.tokens.update(t.id, { fid: next })
@@ -129,7 +129,7 @@ export default function TokensPage() {
     }
   }
 
-  async function toggleEnabled(t: FcmToken) {
+  async function toggleEnabled(t: FcmDestination) {
     setError(null)
     try {
       await api.tokens.update(t.id, { enabled: !t.enabled })
@@ -163,7 +163,7 @@ export default function TokensPage() {
     }
   }
 
-  async function testSaved(t: FcmToken) {
+  async function testSaved(t: FcmDestination) {
     setTestingId(t.id)
     setError(null)
     try {
@@ -196,7 +196,7 @@ export default function TokensPage() {
     )
   }
 
-  async function markReceived(t: FcmToken, received: boolean) {
+  async function markReceived(t: FcmDestination, received: boolean) {
     setError(null)
     try {
       const updated = await api.tokens.received(t.id, received)
