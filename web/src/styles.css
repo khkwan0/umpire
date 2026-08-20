@@ -318,6 +318,18 @@ label.check-ids-item {
   color: var(--ink);
 }
 
+.http-settings-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.http-settings-link.custom {
+  color: var(--warn);
+  font-weight: 600;
+}
+
 .status-codes-list {
   display: flex;
   flex-direction: column;

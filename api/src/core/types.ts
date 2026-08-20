@@ -26,6 +26,9 @@ export interface CoreStore {
   listTargets(): Target[]
   getTarget(id: number): Target | undefined
   getTargetCheckConfig(targetId: number, checkId: string): unknown | null
+  listTargetCheckConfigs(
+    checkId: string,
+  ): Array<{ targetId: number; config: unknown }>
   setTargetCheckConfig(targetId: number, checkId: string, config: unknown): void
   deleteTargetCheckConfig(targetId: number, checkId: string): void
   createTarget(

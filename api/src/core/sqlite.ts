@@ -58,6 +58,9 @@ function buildStatements(database: Database.Database) {
     selectTargetCheckConfig: database.prepare(
       `SELECT config_json FROM target_check_configs WHERE target_id = ? AND check_id = ?`,
     ),
+    selectTargetCheckConfigsByCheck: database.prepare(
+      `SELECT target_id, config_json FROM target_check_configs WHERE check_id = ? ORDER BY target_id ASC`,
+    ),
     upsertTargetCheckConfig: database.prepare(
       `INSERT INTO target_check_configs (target_id, check_id, config_json, updated_at)
        VALUES (?, ?, ?, datetime('now'))
@@ -281,6 +284,19 @@ interface TargetCheckConfigRow {
   config_json: string
 }
 
+interface TargetCheckConfigListRow {
+  target_id: number
+  config_json: string
+}
+
+function parseConfigJson(raw: string): unknown | null {
+  try {
+    return JSON.parse(raw) as unknown
+  } catch {
+    return null
+  }
+}
+
 function mapTarget(row: TargetRow | undefined): Target | undefined {
   if (!row) return undefined
   const { check_ids: rawChecks, notifier_ids: rawNotifiers, ...rest } = row
@@ -456,11 +472,20 @@ export const core: CoreStore = {
       checkId,
     ) as TargetCheckConfigRow | undefined
     if (!row) return null
-    try {
-      return JSON.parse(row.config_json) as unknown
-    } catch {
-      return null
+    return parseConfigJson(row.config_json)
+  },
+
+  listTargetCheckConfigs(
+    checkId: string,
+  ): Array<{ targetId: number; config: unknown }> {
+    const rows = getStmts().selectTargetCheckConfigsByCheck.all(checkId) as TargetCheckConfigListRow[]
+    const out: Array<{ targetId: number; config: unknown }> = []
+    for (const row of rows) {
+      const config = parseConfigJson(row.config_json)
+      if (config === null) continue
+      out.push({ targetId: row.target_id, config })
     }
+    return out
   },
 
   setTargetCheckConfig(targetId: number, checkId: string, config: unknown): void {

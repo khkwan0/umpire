@@ -7,6 +7,7 @@ import {
   buildTargetConfigView,
   normalizeConfig,
   normalizeTargetOverride,
+  parseStoredOverride,
   readDefaults,
   resolveHttpCheckConfigForTarget,
   writeDefaults,
@@ -79,6 +80,32 @@ export async function registerHttpCheckRoutes(
       },
     },
     async () => readDefaults(),
+  )
+
+  app.get(
+    '/overrides',
+    {
+      schema: {
+        tags: ['http-check'],
+        summary: 'List target ids that have a custom HTTP check override',
+        response: {
+          200: {
+            type: 'object',
+            required: ['targetIds'],
+            properties: {
+              targetIds: { type: 'array', items: { type: 'integer' } },
+            },
+          },
+        },
+      },
+    },
+    async () => {
+      const rows = getCore().listTargetCheckConfigs('http')
+      const targetIds = rows
+        .filter((row) => parseStoredOverride(row.config)?.useCustom === true)
+        .map((row) => row.targetId)
+      return { targetIds }
+    },
   )
 
   app.put<{

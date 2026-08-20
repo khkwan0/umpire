@@ -294,6 +294,8 @@ export const api = {
           method: 'PUT',
           body: JSON.stringify(data),
         }),
+      listOverrides: () =>
+        request<{ targetIds: number[] }>('/api/plugins/check/http/overrides'),
       getConfig: (id: number) =>
         request<HttpCheckTargetConfigView>(
           `/api/plugins/check/http/targets/${id}/config`,

@@ -96,6 +96,9 @@ export default function Targets() {
   const [pluginManager, setPluginManager] = useState<PluginManagerState | null>(
     null,
   )
+  const [httpCustomTargetIds, setHttpCustomTargetIds] = useState<Set<number>>(
+    () => new Set(),
+  )
   const [url, setUrl] = useState('https://')
   const [interval, setIntervalSeconds] = useState(60)
   const [groupId, setGroupId] = useState<number | ''>('')
@@ -118,19 +121,27 @@ export default function Targets() {
 
   const load = useCallback(async () => {
     try {
-      const [nextTargets, nextGroups, nextChecks, nextNotifiers, nextManager] =
-        await Promise.all([
+      const [
+        nextTargets,
+        nextGroups,
+        nextChecks,
+        nextNotifiers,
+        nextManager,
+        nextHttpOverrides,
+      ] = await Promise.all([
           api.targets.list(),
           api.groups.list(),
           api.checks.list(),
           api.notifiers.list(),
           api.pluginManager.get(),
+          api.targets.httpCheck.listOverrides().catch(() => ({ targetIds: [] })),
         ])
       setTargets(nextTargets)
       setGroups(nextGroups)
       setChecks(nextChecks)
       setNotifiers(nextNotifiers)
       setPluginManager(nextManager)
+      setHttpCustomTargetIds(new Set(nextHttpOverrides.targetIds))
       setError(null)
       setReconnecting(false)
     } catch (err) {
@@ -424,8 +435,23 @@ export default function Targets() {
                               : checkIds.join(', ')}
                           </div>
                           {targetUsesHttpCheck(t, enabledCheckIds.has('http')) && (
-                            <Link to={`/targets/${t.id}/checks/http`}>
+                            <Link
+                              className={
+                                httpCustomTargetIds.has(t.id)
+                                  ? 'http-settings-link custom'
+                                  : 'http-settings-link'
+                              }
+                              to={`/targets/${t.id}/checks/http`}
+                              title={
+                                httpCustomTargetIds.has(t.id)
+                                  ? 'This target uses custom HTTP check parameters'
+                                  : 'HTTP check settings for this target'
+                              }
+                            >
                               HTTP settings
+                              {httpCustomTargetIds.has(t.id) && (
+                                <span className="pill pending">custom</span>
+                              )}
                             </Link>
                           )}
                         </div>

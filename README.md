@@ -47,7 +47,7 @@ The **http** check plugin supports two layers of configuration:
 
 1. **Global defaults** — apply to every target unless that target has a custom override. Configure under **Checks → HTTP check** (`/plugins/check/http`). Saved to `data/http-check-defaults.json` next to the SQLite file.
 
-2. **Per-target overrides** — optional settings for one target only. Open **Targets**, find the row, and use **HTTP settings** (`/targets/:id/checks/http`). Enable **Use custom settings for this target** to override method, headers, body, accepted status ranges/codes, and max latency. **Clear override** removes the custom config and the target falls back to globals.
+2. **Per-target overrides** — optional settings for one target only. Open **Targets**, find the row, and use **HTTP settings** (`/targets/:id/checks/http`). Targets with an override show a **custom** badge next to that link. Enable **Use custom settings for this target** to override method, headers, body, accepted status ranges/codes, and max latency. **Clear override** removes the custom config and the target falls back to globals.
 
 At check time, core resolves **effective config** = global defaults merged with any per-target override. The test button on the override page runs a one-shot check with the current form values without waiting for the scheduler.
 
@@ -212,6 +212,7 @@ Swagger UI: [http://localhost:8089/documentation](http://localhost:8089/document
 - `GET /api/plugin-manager` — runtime plugin enable/disable state
 - `PUT /api/plugin-manager/:kind/:id` — toggle a loaded plugin (`kind` = `check` | `notify` | `scheduler`) without restart
 - `GET/PUT /api/plugins/check/http/config` — global default HTTP check parameters (`data/http-check-defaults.json`)
+- `GET /api/plugins/check/http/overrides` — `{ targetIds }` for targets with a custom HTTP override
 - `GET/PUT/DELETE /api/plugins/check/http/targets/:targetId/config` — per-target override (`useCustom` + optional fields merged over defaults); `POST .../test` — one-shot test with effective or form config
 - `GET/PUT /api/plugins/check/keyword-body/targets/:targetId/config` — per-target keyword/body check config
 - `GET/POST/PATCH/DELETE /api/plugins/notify/fcm/tokens` — FCM destinations (FID preferred; `target_ids` / `check_ids`)
