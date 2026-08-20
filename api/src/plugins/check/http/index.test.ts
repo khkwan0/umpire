@@ -1,4 +1,4 @@
-import { jest } from '@jest/globals'
+import {jest} from '@jest/globals'
 import httpCheck from './index.js'
 
 const target = {
@@ -90,7 +90,7 @@ describe('http check plugin', () => {
       target,
       config: {
         method: 'POST',
-        headers: { 'x-test': 'ok' },
+        headers: {'x-test': 'ok'},
         body: '{"ping":true}',
         acceptedStatusRanges: ['2xx', '3xx'],
         acceptedStatusCodes: [],
@@ -135,8 +135,8 @@ describe('http check plugin', () => {
   it('fails when latency exceeds max latency threshold', async () => {
     jest.spyOn(globalThis, 'fetch').mockImplementation(
       async () =>
-        new Promise<Response>((resolve) => {
-          setTimeout(() => resolve({ status: 200 } as Response), 5)
+        new Promise<Response>(resolve => {
+          setTimeout(() => resolve({status: 200} as Response), 5)
         }),
     )
 

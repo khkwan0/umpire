@@ -1,14 +1,14 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { api, isTransientApiError, type Group, type GroupTreeNode } from '../api'
+import {useCallback, useEffect, useState, type FormEvent} from 'react'
+import {api, isTransientApiError, type Group, type GroupTreeNode} from '../api'
 import ReconnectBanner from '../ReconnectBanner'
 
 function flattenGroups(
   nodes: GroupTreeNode[],
   depth = 0,
-): Array<Group & { depth: number }> {
-  const out: Array<Group & { depth: number }> = []
+): Array<Group & {depth: number}> {
+  const out: Array<Group & {depth: number}> = []
   for (const node of nodes) {
-    out.push({ ...node, depth })
+    out.push({...node, depth})
     out.push(...flattenGroups(node.children, depth + 1))
   }
   return out
@@ -30,7 +30,7 @@ function GroupNode({
   const isRoot = node.parent === 0
   return (
     <li className="group-node">
-      <div className="group-row" style={{ paddingLeft: `${depth * 1.25}rem` }}>
+      <div className="group-row" style={{paddingLeft: `${depth * 1.25}rem`}}>
         <div className="group-main">
           <strong>{node.name || `(untitled #${node.id})`}</strong>
           <span className="mono muted small">{node.tag}</span>
@@ -56,7 +56,7 @@ function GroupNode({
       </div>
       {node.children.length > 0 && (
         <ul className="group-children">
-          {node.children.map((child) => (
+          {node.children.map(child => (
             <GroupNode
               key={child.id}
               node={child}
@@ -129,7 +129,7 @@ export default function Groups() {
     if (childName === null) return
     setError(null)
     try {
-      await api.groups.create({ parent, name: childName.trim() })
+      await api.groups.create({parent, name: childName.trim()})
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -141,7 +141,7 @@ export default function Groups() {
     if (next === null) return
     setError(null)
     try {
-      await api.groups.update(group.id, { name: next.trim() })
+      await api.groups.update(group.id, {name: next.trim()})
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -166,8 +166,8 @@ export default function Groups() {
   }
 
   const parentOptions = [
-    { id: 0, label: 'Root (new tree)' },
-    ...flattenGroups(tree).map((g) => ({
+    {id: 0, label: 'Root (new tree)'},
+    ...flattenGroups(tree).map(g => ({
       id: g.id,
       label: `${'—'.repeat(g.depth)} ${g.name || `#${g.id}`} (${g.tag})`,
     })),
@@ -179,8 +179,8 @@ export default function Groups() {
       <section className="panel">
         <h2>How grouping works</h2>
         <p className="muted">
-          Groups organize targets into trees so you can route and review incidents
-          by environment, service, or team.
+          Groups organize targets into trees so you can route and review
+          incidents by environment, service, or team.
         </p>
         <ul className="muted small">
           <li>
@@ -211,7 +211,7 @@ export default function Groups() {
             Name
             <input
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={e => setName(e.target.value)}
               placeholder="production"
             />
           </label>
@@ -219,9 +219,9 @@ export default function Groups() {
             Parent
             <select
               value={parentId}
-              onChange={(e) => setParentId(Number(e.target.value))}
+              onChange={e => setParentId(Number(e.target.value))}
             >
-              {parentOptions.map((opt) => (
+              {parentOptions.map(opt => (
                 <option key={opt.id} value={opt.id}>
                   {opt.label}
                 </option>
@@ -241,14 +241,14 @@ export default function Groups() {
           <p className="muted">No groups yet. Create a root group above.</p>
         ) : (
           <ul className="group-tree">
-            {tree.map((node) => (
+            {tree.map(node => (
               <GroupNode
                 key={node.id}
                 node={node}
                 depth={0}
-                onAddChild={(id) => void addChild(id)}
-                onRename={(g) => void rename(g)}
-                onRemove={(id) => void remove(id)}
+                onAddChild={id => void addChild(id)}
+                onRename={g => void rename(g)}
+                onRemove={id => void remove(id)}
               />
             ))}
           </ul>

@@ -52,8 +52,8 @@
  * @see ./types.ts — optional `registerRoutes` on check / scheduler / notify
  */
 
-import type { FastifyInstance } from 'fastify'
-import type { CheckPlugin, NotifierPlugin, SchedulerPlugin } from './types.js'
+import type {FastifyInstance} from 'fastify'
+import type {CheckPlugin, NotifierPlugin, SchedulerPlugin} from './types.js'
 
 export type PluginKind = 'check' | 'scheduler' | 'notify'
 
@@ -84,17 +84,17 @@ export function clearPluginRouteCatalog(): void {
 
 /** Snapshot of the catalog (defensive copies so callers cannot mutate state). */
 export function listPluginCatalog(): PluginCatalogEntry[] {
-  return catalog.map((e) => ({
+  return catalog.map(e => ({
     id: e.id,
     kind: e.kind,
-    routes: e.routes.map((r) => ({ ...r })),
+    routes: e.routes.map(r => ({...r})),
   }))
 }
 
 function normalizeMethods(method: string | string[]): string[] {
   const list = Array.isArray(method) ? method : [method]
   // Fastify also registers HEAD alongside GET; omit from the public catalog.
-  return list.map((m) => m.toUpperCase()).filter((m) => m !== 'HEAD')
+  return list.map(m => m.toUpperCase()).filter(m => m !== 'HEAD')
 }
 
 function fullPath(prefix: string, url: string): string {
@@ -119,34 +119,34 @@ export async function mountPluginRoutes(
 
   if (plugin.registerRoutes) {
     await app.register(
-      async (scoped) => {
+      async scoped => {
         // Capture every route the plugin adds on this scoped instance.
-        scoped.addHook('onRoute', (opts) => {
+        scoped.addHook('onRoute', opts => {
           const declared = opts.url.startsWith('/') ? opts.url : `/${opts.url}`
           // Fastify may report url with or without the encapsulation prefix.
           const path = declared.startsWith(prefix)
             ? declared
             : fullPath(opts.prefix || prefix, declared)
           for (const method of normalizeMethods(opts.method)) {
-            routes.push({ method, path })
+            routes.push({method, path})
           }
         })
         await plugin.registerRoutes?.(scoped)
       },
-      { prefix },
+      {prefix},
     )
   }
 
   // Dedupe method+path (Fastify may emit duplicates for some registrations).
   const seen = new Set<string>()
-  const unique = routes.filter((r) => {
+  const unique = routes.filter(r => {
     const key = `${r.method} ${r.path}`
     if (seen.has(key)) return false
     seen.add(key)
     return true
   })
 
-  catalog.push({ id: plugin.id, kind, routes: unique })
+  catalog.push({id: plugin.id, kind, routes: unique})
 }
 
 /**

@@ -4,20 +4,16 @@ import {
   initializeApp,
   type ServiceAccount,
 } from 'firebase-admin/app'
-import { getMessaging } from 'firebase-admin/messaging'
-import type { BaseMessage } from 'firebase-admin/messaging'
+import {getMessaging} from 'firebase-admin/messaging'
+import type {BaseMessage} from 'firebase-admin/messaging'
 
 const TEST_TITLE = 'UMPIRE test'
 const TEST_BODY = 'This device is registered for FCM alerts.'
 
-export function testPushCopy(destination: string): {
-  title: string
-  body: string
-} {
-  const kind = isLegacyRegistrationToken(destination) ? 'token' : 'fid'
+export function testPushCopy(fid: string): {title: string; body: string} {
   return {
     title: TEST_TITLE,
-    body: `${TEST_BODY}\n${kind}: ${destination}`,
+    body: `${TEST_BODY}\nfid: ${fid}`,
   }
 }
 
@@ -27,7 +23,7 @@ export function isMessagingReady(): boolean {
 
 export function initFirebase(account: ServiceAccount): void {
   if (getApps().length) return
-  initializeApp({ credential: cert(account) })
+  initializeApp({credential: cert(account)})
 }
 
 function androidChannelId(): string | undefined {
@@ -35,17 +31,12 @@ function androidChannelId(): string | undefined {
   return id || undefined
 }
 
-/** Legacy FCM registration tokens look like `prefix:APA91b…`. Anything else is treated as a FID. */
-export function isLegacyRegistrationToken(value: string): boolean {
-  return /:APA91/i.test(value)
-}
-
 /** Display payload shared by test sends and real alerts. */
 export function fcmContent(title: string, body: string): BaseMessage {
   const channelId = androidChannelId()
   return {
-    notification: { title, body },
-    data: { title, body },
+    notification: {title, body},
+    data: {title, body},
     android: {
       priority: 'high',
       notification: {
@@ -55,7 +46,7 @@ export function fcmContent(title: string, body: string): BaseMessage {
         defaultSound: true,
         priority: 'high',
         visibility: 'public',
-        ...(channelId ? { channelId } : {}),
+        ...(channelId ? {channelId} : {}),
       },
     },
     apns: {
@@ -65,23 +56,28 @@ export function fcmContent(title: string, body: string): BaseMessage {
       },
       payload: {
         aps: {
-          alert: { title, body },
+          alert: {title, body},
           sound: 'default',
         },
       },
     },
     webpush: {
-      headers: { Urgency: 'high' },
-      notification: { title, body },
+      headers: {Urgency: 'high'},
+      notification: {title, body},
     },
   }
+}
+
+/** Registration tokens contain `:APA91`; Firebase expects these in `tokens`, not `fids`. */
+function isRegistrationToken(value: string): boolean {
+  return /:APA91/i.test(value)
 }
 
 export async function sendToMany(
   destinations: string[],
   title = TEST_TITLE,
   body = TEST_BODY,
-): Promise<{ successCount: number; failureCount: number; errors: string[] }> {
+): Promise<{successCount: number; failureCount: number; errors: string[]}> {
   if (!isMessagingReady()) {
     return {
       successCount: 0,
@@ -90,19 +86,19 @@ export async function sendToMany(
     }
   }
   if (destinations.length === 0) {
-    return { successCount: 0, failureCount: 0, errors: [] }
+    return {successCount: 0, failureCount: 0, errors: []}
   }
 
   const content = fcmContent(title, body)
-  const fids = destinations.filter((id) => !isLegacyRegistrationToken(id))
-  const tokens = destinations.filter((id) => isLegacyRegistrationToken(id))
+  const fids = destinations.filter(id => !isRegistrationToken(id))
+  const tokens = destinations.filter(id => isRegistrationToken(id))
   const messaging = getMessaging()
   let successCount = 0
   let failureCount = 0
   const errors: string[] = []
 
   if (fids.length > 0) {
-    const res = await messaging.sendEachForMulticast({ fids, ...content })
+    const res = await messaging.sendEachForMulticast({fids, ...content})
     console.log('FCM send result:', res)
     successCount += res.successCount
     failureCount += res.failureCount
@@ -111,7 +107,7 @@ export async function sendToMany(
     }
   }
   if (tokens.length > 0) {
-    const res = await messaging.sendEachForMulticast({ tokens, ...content })
+    const res = await messaging.sendEachForMulticast({tokens, ...content})
     console.log('FCM send result:', res)
     successCount += res.successCount
     failureCount += res.failureCount
@@ -120,12 +116,12 @@ export async function sendToMany(
     }
   }
 
-  return { successCount, failureCount, errors }
+  return {successCount, failureCount, errors}
 }
 
 function fcmErrorMessage(err: unknown): string {
   if (err && typeof err === 'object') {
-    const rec = err as { code?: unknown; message?: unknown }
+    const rec = err as {code?: unknown; message?: unknown}
     const code = typeof rec.code === 'string' ? rec.code : ''
     const message =
       typeof rec.message === 'string'

@@ -2,7 +2,8 @@
 set -euo pipefail
 
 # Deploy script for local/on-host use.
-# Builds and starts services with Docker Compose, then waits for health.
+# Formats API and web sources, builds and starts services with Docker Compose,
+# then waits for health.
 #
 # Usage:
 #   ./scripts/deploy.sh
@@ -27,6 +28,21 @@ fi
 if [[ ! -f .env && -f .env.example ]]; then
   cp .env.example .env
 fi
+
+format_pkg() {
+  local dir="$1"
+  log "Formatting ${dir}"
+  (
+    cd "${ROOT_DIR}/${dir}"
+    if [[ ! -d node_modules ]]; then
+      npm ci
+    fi
+    npm run format
+  )
+}
+
+format_pkg api
+format_pkg web
 
 log "Docker compose build + up"
 docker compose up -d --build

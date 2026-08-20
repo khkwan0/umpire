@@ -28,7 +28,7 @@ describe('http check config', () => {
     expect(readDefaults()).toMatchObject(defaultHttpCheckConfig)
     const saved = writeDefaults({
       method: 'POST',
-      headers: { 'x-test': '1' },
+      headers: {'x-test': '1'},
       body: '{"a":1}',
       acceptedStatusRanges: ['2xx', '3xx'],
       maxLatencyMs: 900,
@@ -59,20 +59,20 @@ describe('http check config', () => {
     })
     const legacy = normalizeConfig({
       method: 'POST',
-      headers: { Authorization: 'Bearer x' },
+      headers: {Authorization: 'Bearer x'},
       body: '{}',
       acceptedStatusRanges: ['2xx'],
       maxLatencyMs: 500,
     })
     const effective = resolveHttpCheckConfigForTarget(legacy)
     expect(effective.method).toBe('POST')
-    expect(effective.headers).toEqual({ Authorization: 'Bearer x' })
+    expect(effective.headers).toEqual({Authorization: 'Bearer x'})
   })
 
   it('builds target view with defaults-only target', () => {
     writeDefaults({
       method: 'GET',
-      headers: { accept: 'application/json' },
+      headers: {accept: 'application/json'},
       body: '',
       acceptedStatusRanges: ['2xx'],
       maxLatencyMs: null,
@@ -80,7 +80,7 @@ describe('http check config', () => {
     const view = buildTargetConfigView(null)
     expect(view.useCustom).toBe(false)
     expect(view.override).toBeNull()
-    expect(view.effective.headers).toEqual({ accept: 'application/json' })
+    expect(view.effective.headers).toEqual({accept: 'application/json'})
   })
 
   it('builds target view with custom override', () => {
@@ -94,7 +94,7 @@ describe('http check config', () => {
     const stored = {
       useCustom: true,
       method: 'PUT',
-      headers: { 'x-target': '1' },
+      headers: {'x-target': '1'},
       body: 'ping',
       acceptedStatusRanges: ['2xx', '3xx'],
       maxLatencyMs: 100,

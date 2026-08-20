@@ -154,6 +154,8 @@ nav a.active {
   border: 1px solid var(--line);
   border-radius: 1rem;
   padding: 1rem 1.1rem;
+  min-width: 0;
+  overflow-x: auto;
 }
 
 .panel-head {
@@ -277,6 +279,13 @@ td {
   flex-direction: column;
   align-items: stretch;
   max-width: 28rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.form-col > button {
+  align-self: flex-start;
+  max-width: 100%;
 }
 
 label {
@@ -296,6 +305,9 @@ label.grow {
   border: 1px solid var(--border, #ddd);
   border-radius: 4px;
   padding: 0.5rem 0.75rem;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .check-ids legend {
@@ -316,6 +328,53 @@ label.check-ids-item {
   gap: 0.35rem;
   font-size: 0.85rem;
   color: var(--ink);
+}
+
+.fcm-destination-list {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  min-width: 0;
+  max-width: 100%;
+}
+
+label.check-ids-item.fcm-destination-item {
+  min-width: 0;
+}
+
+.fcm-destination-text {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.fcm-destination-id {
+  flex-shrink: 0;
+}
+
+.fcm-destination-text .truncate {
+  min-width: 0;
+  flex: 1;
+  max-width: 100%;
+  cursor: help;
+}
+
+.plugin-manager-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.plugin-manager-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.plugin-manager-description {
+  margin: 0 0 0 1.45rem;
 }
 
 .http-settings-link {

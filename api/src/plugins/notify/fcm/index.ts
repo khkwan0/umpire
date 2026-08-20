@@ -1,14 +1,15 @@
 import fs from 'node:fs'
-import { getApps } from 'firebase-admin/app'
-import type { AlertEvent, NotifierPlugin } from '../../types.js'
-import { registerFcmRoutes } from './routes.js'
-import { initFirebase, sendToMany } from './send.js'
-import { matchingTokenStrings } from './tokens.js'
+import {getApps} from 'firebase-admin/app'
+import type {NotifierPlugin} from '../../types.js'
+import {registerFcmRoutes} from './routes.js'
+import {initFirebase, sendToMany} from './send.js'
+import {matchingFids, resolveFcmConfigForTarget} from './config.js'
 
 let ready = false
 
 const fcmNotifier: NotifierPlugin = {
   id: 'fcm',
+  description: 'Pushes alerts to Firebase Cloud Messaging FID destinations.',
 
   init(): void {
     const credPath = process.env.GOOGLE_APPLICATION_CREDENTIALS
@@ -54,18 +55,19 @@ const fcmNotifier: NotifierPlugin = {
     await registerFcmRoutes(app)
   },
 
-  async notify(event: AlertEvent): Promise<void> {
+  async notify(ctx) {
     if (!ready) {
       console.warn('[notify:fcm] skip send — not initialized')
       return
     }
-    const destinations = matchingTokenStrings(event)
+    const config = resolveFcmConfigForTarget(ctx.config)
+    const destinations = matchingFids(config)
     if (destinations.length === 0) {
       console.warn('[notify:fcm] skip send — no matching destinations')
       return
     }
 
-    const res = await sendToMany(destinations, event.title, event.body)
+    const res = await sendToMany(destinations, ctx.event.title, ctx.event.body)
     if (res.failureCount > 0) {
       console.warn(
         `[notify:fcm] ${res.failureCount}/${destinations.length} sends failed`,

@@ -61,20 +61,20 @@ function defaultsPath(): string {
 export function readDefaults(): HttpCheckConfig {
   const file = defaultsPath()
   if (!fs.existsSync(file)) {
-    return { ...defaultHttpCheckConfig, headers: {} }
+    return {...defaultHttpCheckConfig, headers: {}}
   }
   try {
     return normalizeConfig(JSON.parse(fs.readFileSync(file, 'utf8')) as unknown)
   } catch (err) {
     console.error('[check:http] failed to read defaults file', err)
-    return { ...defaultHttpCheckConfig, headers: {} }
+    return {...defaultHttpCheckConfig, headers: {}}
   }
 }
 
 export function writeDefaults(input: unknown): HttpCheckConfig {
   const config = normalizeConfig(input)
   const file = defaultsPath()
-  fs.mkdirSync(path.dirname(file), { recursive: true })
+  fs.mkdirSync(path.dirname(file), {recursive: true})
   fs.writeFileSync(file, JSON.stringify(config, null, 2), 'utf8')
   return config
 }
@@ -83,7 +83,9 @@ function isFullHttpCheckConfig(row: Record<string, unknown>): boolean {
   return typeof row.method === 'string' && !('useCustom' in row)
 }
 
-export function parseStoredOverride(stored: unknown): HttpCheckTargetOverride | null {
+export function parseStoredOverride(
+  stored: unknown,
+): HttpCheckTargetOverride | null {
   if (stored === null || stored === undefined) return null
   if (typeof stored !== 'object' || Array.isArray(stored)) return null
   const row = stored as Record<string, unknown>
@@ -101,7 +103,7 @@ export function parseStoredOverride(stored: unknown): HttpCheckTargetOverride | 
     }
   }
   if (row.useCustom !== true) return null
-  const override: HttpCheckTargetOverride = { useCustom: true }
+  const override: HttpCheckTargetOverride = {useCustom: true}
   if (row.method !== undefined) {
     override.method = parseMethod(row.method)
   }
@@ -130,19 +132,21 @@ export function mergeHttpCheckConfig(
   if (!override?.useCustom) {
     return {
       ...defaults,
-      headers: { ...defaults.headers },
+      headers: {...defaults.headers},
       acceptedStatusRanges: [...defaults.acceptedStatusRanges],
       acceptedStatusCodes: [...defaults.acceptedStatusCodes],
     }
   }
   return {
     method: override.method ?? defaults.method,
-    headers: override.headers ?? { ...defaults.headers },
+    headers: override.headers ?? {...defaults.headers},
     body: override.body ?? defaults.body,
-    acceptedStatusRanges:
-      override.acceptedStatusRanges ?? [...defaults.acceptedStatusRanges],
-    acceptedStatusCodes:
-      override.acceptedStatusCodes ?? [...defaults.acceptedStatusCodes],
+    acceptedStatusRanges: override.acceptedStatusRanges ?? [
+      ...defaults.acceptedStatusRanges,
+    ],
+    acceptedStatusCodes: override.acceptedStatusCodes ?? [
+      ...defaults.acceptedStatusCodes,
+    ],
     maxLatencyMs:
       override.maxLatencyMs !== undefined
         ? override.maxLatencyMs
@@ -150,7 +154,9 @@ export function mergeHttpCheckConfig(
   }
 }
 
-export function normalizeTargetOverride(input: unknown): HttpCheckTargetOverride {
+export function normalizeTargetOverride(
+  input: unknown,
+): HttpCheckTargetOverride {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     throw new Error(
       'body must be { useCustom: true, method?, headers?, body?, acceptedStatusRanges?, acceptedStatusCodes?, maxLatencyMs? }',
@@ -172,7 +178,9 @@ export function normalizeTargetOverride(input: unknown): HttpCheckTargetOverride
   }
 }
 
-export function buildTargetConfigView(stored: unknown): HttpCheckTargetConfigView {
+export function buildTargetConfigView(
+  stored: unknown,
+): HttpCheckTargetConfigView {
   const defaults = readDefaults()
   const parsed = parseStoredOverride(stored)
   const useCustom = parsed?.useCustom ?? false
@@ -185,7 +193,9 @@ export function buildTargetConfigView(stored: unknown): HttpCheckTargetConfigVie
   }
 }
 
-export function resolveHttpCheckConfigForTarget(stored: unknown): HttpCheckConfig {
+export function resolveHttpCheckConfigForTarget(
+  stored: unknown,
+): HttpCheckConfig {
   return buildTargetConfigView(stored).effective
 }
 
@@ -218,7 +228,9 @@ function parseMethod(input: unknown): HttpMethod {
 function parseStatusRanges(input: unknown): StatusRange[] {
   if (input === undefined || input === null) return ['2xx']
   if (!Array.isArray(input)) {
-    throw new Error(`acceptedStatusRanges must be an array of ${STATUS_RANGES.join(', ')}`)
+    throw new Error(
+      `acceptedStatusRanges must be an array of ${STATUS_RANGES.join(', ')}`,
+    )
   }
   const out: StatusRange[] = []
   for (const raw of input) {
@@ -241,7 +253,9 @@ function parseStatusRanges(input: unknown): StatusRange[] {
 function parseStatusCodes(input: unknown): number[] {
   if (input === undefined || input === null) return []
   if (!Array.isArray(input)) {
-    throw new Error('acceptedStatusCodes must be an array of integers between 100 and 599')
+    throw new Error(
+      'acceptedStatusCodes must be an array of integers between 100 and 599',
+    )
   }
   const out: number[] = []
   for (const raw of input) {
@@ -252,14 +266,19 @@ function parseStatusCodes(input: unknown): number[] {
           ? Number(raw.trim())
           : Number.NaN
     if (!Number.isInteger(code) || code < 100 || code > 599) {
-      throw new Error('acceptedStatusCodes must be integers between 100 and 599')
+      throw new Error(
+        'acceptedStatusCodes must be integers between 100 and 599',
+      )
     }
     out.push(code)
   }
   return Array.from(new Set(out))
 }
 
-function validateStatusAcceptance(ranges: StatusRange[], codes: number[]): void {
+function validateStatusAcceptance(
+  ranges: StatusRange[],
+  codes: number[],
+): void {
   if (ranges.length === 0 && codes.length === 0) {
     throw new Error(
       'At least one accepted status range or specific status code is required',

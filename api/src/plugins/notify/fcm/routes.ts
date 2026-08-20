@@ -1,48 +1,65 @@
-import type { FastifyInstance } from 'fastify'
+import type {FastifyInstance} from 'fastify'
+import {registerNotifierTargetRoutes} from '../shared/targetRoutes.js'
 import {
-  createToken,
-  deleteToken,
-  getToken,
-  importTokens,
-  listTokens,
-  normalizeCheckIds,
-  normalizeTargetIds,
-  recordTokenTest,
-  updateToken,
-} from './tokens.js'
-import { isUnregisteredTokenError, sendToMany, testPushCopy } from './send.js'
+  buildTargetConfigView,
+  destinationsForConfig,
+  isConfigured,
+  normalizeTargetOverride,
+  readDefaults,
+  resolveFcmConfigForTarget,
+  type FcmConfig,
+} from './config.js'
+import {
+  createDestination,
+  deleteDestination,
+  getDestination,
+  importDestinations,
+  listDestinations,
+  recordDestinationTest,
+  updateDestination,
+} from './destinations.js'
+import {isUnregisteredTokenError, sendToMany, testPushCopy} from './send.js'
 
 const errorResponse = {
   type: 'object',
-  properties: { error: { type: 'string' } },
+  properties: {error: {type: 'string'}},
 } as const
 
-const targetIdsSchema = {
-  type: 'array',
-  items: { type: 'integer', minimum: 1 },
-  description: 'Target ids to receive. Empty = all targets.',
-} as const
-
-const checkIdsSchema = {
-  type: 'array',
-  items: { type: 'string', minLength: 1 },
-  description:
-    'Check plugin ids this token cares about. Empty = any alert (incl. recovery). Non-empty = only when a listed check failed.',
-} as const
-
-const fcmTokenTestSchema = {
+const configSchema = {
   type: 'object',
-  required: ['ok', 'error'],
+  required: ['token_ids'],
   properties: {
-    ok: { type: 'boolean' },
-    error: { type: ['string', 'null'] },
+    token_ids: {
+      type: 'array',
+      items: {type: 'integer', minimum: 1},
+      description:
+        'Destination ids to notify. Empty = all enabled destinations.',
+    },
   },
 } as const
 
-function destinationFromBody(
-  body: { fid?: string; token?: string } | undefined,
-): string {
-  return (body?.fid ?? body?.token ?? '').trim()
+const fcmDestinationSchema = {$ref: 'FcmDestination#'} as const
+
+const fcmDestinationTestSchema = {
+  type: 'object',
+  required: ['ok', 'error'],
+  properties: {
+    ok: {type: 'boolean'},
+    error: {type: ['string', 'null']},
+  },
+} as const
+
+async function testFcmConfig(config: FcmConfig): Promise<void> {
+  const destinations = destinationsForConfig(config)
+  if (destinations.length === 0) {
+    throw new Error('no destinations configured')
+  }
+  const fids = destinations.map(d => d.fid)
+  const copy = testPushCopy(fids[0]!)
+  const res = await sendToMany(fids, copy.title, copy.body)
+  if (res.successCount === 0) {
+    throw new Error(res.errors[0] ?? 'send failed')
+  }
 }
 
 export async function registerFcmRoutes(app: FastifyInstance): Promise<void> {
@@ -51,16 +68,15 @@ export async function registerFcmRoutes(app: FastifyInstance): Promise<void> {
     {
       schema: {
         tags: ['tokens'],
-        summary:
-          'List FCM destinations (FID preferred; legacy registration tokens still stored)',
+        summary: 'List FCM destinations',
         description:
-          'Owned by the fcm notifier. Mounted at /api/plugins/notify/fcm/tokens. Each destination may restrict targets and checks. Send uses fid unless the value looks like a legacy :APA91 registration token.',
+          'Owned by the fcm notifier. Mounted at /api/plugins/notify/fcm/tokens. Routing (which destinations and checks) is configured in FCM defaults and per-target overrides.',
         response: {
-          200: { type: 'array', items: { $ref: 'FcmToken#' } },
+          200: {type: 'array', items: fcmDestinationSchema},
         },
       },
     },
-    async () => listTokens(),
+    async () => listDestinations(),
   )
 
   app.post(
@@ -68,9 +84,9 @@ export async function registerFcmRoutes(app: FastifyInstance): Promise<void> {
     {
       schema: {
         tags: ['tokens'],
-        summary: 'Import FCM FIDs (or legacy tokens) from a JSON array',
+        summary: 'Import FCM FIDs from a JSON array',
         description:
-          'Body is { "fids": [...] } or { "tokens": [...] }. Each item may be a FID string or { fid|token, label?, target_ids?, check_ids? }. Duplicates are skipped.',
+          'Body is { "fids": [...] }. Each item may be a FID string or { fid, label? }. Duplicates are skipped.',
         body: {
           type: 'object',
           properties: {
@@ -79,34 +95,13 @@ export async function registerFcmRoutes(app: FastifyInstance): Promise<void> {
               minItems: 1,
               items: {
                 oneOf: [
-                  { type: 'string' },
+                  {type: 'string'},
                   {
                     type: 'object',
+                    required: ['fid'],
                     properties: {
-                      fid: { type: 'string' },
-                      token: { type: 'string' },
-                      label: { type: 'string' },
-                      target_ids: targetIdsSchema,
-                      check_ids: checkIdsSchema,
-                    },
-                  },
-                ],
-              },
-            },
-            tokens: {
-              type: 'array',
-              minItems: 1,
-              items: {
-                oneOf: [
-                  { type: 'string' },
-                  {
-                    type: 'object',
-                    properties: {
-                      fid: { type: 'string' },
-                      token: { type: 'string' },
-                      label: { type: 'string' },
-                      target_ids: targetIdsSchema,
-                      check_ids: checkIdsSchema,
+                      fid: {type: 'string'},
+                      label: {type: 'string'},
                     },
                   },
                 ],
@@ -119,15 +114,15 @@ export async function registerFcmRoutes(app: FastifyInstance): Promise<void> {
             type: 'object',
             required: ['created', 'skipped'],
             properties: {
-              created: { type: 'array', items: { $ref: 'FcmToken#' } },
+              created: {type: 'array', items: fcmDestinationSchema},
               skipped: {
                 type: 'array',
                 items: {
                   type: 'object',
-                  required: ['token', 'reason'],
+                  required: ['fid', 'reason'],
                   properties: {
-                    token: { type: 'string' },
-                    reason: { type: 'string' },
+                    fid: {type: 'string'},
+                    reason: {type: 'string'},
                   },
                 },
               },
@@ -139,42 +134,39 @@ export async function registerFcmRoutes(app: FastifyInstance): Promise<void> {
     },
     async (req, reply) => {
       try {
-        return importTokens(req.body)
+        return importDestinations(req.body)
       } catch (err) {
         return reply
           .code(400)
-          .send({ error: err instanceof Error ? err.message : String(err) })
+          .send({error: err instanceof Error ? err.message : String(err)})
       }
     },
   )
 
-  app.post<{ Body: { fid?: string; token?: string } }>(
+  app.post<{Body: {fid?: string}}>(
     '/tokens/test',
     {
       schema: {
         tags: ['tokens'],
-        summary:
-          'Send a test push to a raw FID or legacy token (does not persist)',
+        summary: 'Send a test push to a raw FID (does not persist)',
         body: {
           type: 'object',
-          properties: {
-            fid: { type: 'string' },
-            token: { type: 'string' },
-          },
+          required: ['fid'],
+          properties: {fid: {type: 'string'}},
         },
         response: {
-          200: fcmTokenTestSchema,
+          200: fcmDestinationTestSchema,
           400: errorResponse,
         },
       },
     },
     async (req, reply) => {
-      const destination = destinationFromBody(req.body)
-      if (!destination) {
-        return reply.code(400).send({ error: 'fid or token required' })
+      const fid = (req.body?.fid ?? '').trim()
+      if (!fid) {
+        return reply.code(400).send({error: 'fid required'})
       }
-      const copy = testPushCopy(destination)
-      const res = await sendToMany([destination], copy.title, copy.body)
+      const copy = testPushCopy(fid)
+      const res = await sendToMany([fid], copy.title, copy.body)
       return {
         ok: res.successCount > 0,
         error: res.errors[0] ?? null,
@@ -182,20 +174,19 @@ export async function registerFcmRoutes(app: FastifyInstance): Promise<void> {
     },
   )
 
-  app.post<{ Params: { id: string } }>(
+  app.post<{Params: {id: string}}>(
     '/tokens/:id/test',
     {
       schema: {
         tags: ['tokens'],
-        summary:
-          'Send a test push to a stored FID or legacy token and record the result',
+        summary: 'Send a test push to a stored FID and record the result',
         params: {
           type: 'object',
           required: ['id'],
-          properties: { id: { type: 'string' } },
+          properties: {id: {type: 'string'}},
         },
         response: {
-          200: { $ref: 'FcmToken#' },
+          200: fcmDestinationSchema,
           400: errorResponse,
           404: errorResponse,
         },
@@ -204,25 +195,25 @@ export async function registerFcmRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       const id = Number(req.params.id)
       if (!Number.isInteger(id)) {
-        return reply.code(400).send({ error: 'invalid id' })
+        return reply.code(400).send({error: 'invalid id'})
       }
-      const row = getToken(id)
-      if (!row) return reply.code(404).send({ error: 'not found' })
-      const copy = testPushCopy(row.token)
-      const result = await sendToMany([row.token], copy.title, copy.body)
+      const row = getDestination(id)
+      if (!row) return reply.code(404).send({error: 'not found'})
+      const copy = testPushCopy(row.fid)
+      const result = await sendToMany([row.fid], copy.title, copy.body)
       const ok = result.successCount > 0
       const error = result.errors[0] ?? null
       const updated = ok
-        ? recordTokenTest(id, 'sent', null)
-        : recordTokenTest(id, 'error', error, {
+        ? recordDestinationTest(id, 'sent', null)
+        : recordDestinationTest(id, 'error', error, {
             enabled: isUnregisteredTokenError(error || '') ? false : undefined,
           })
-      if (!updated) return reply.code(404).send({ error: 'not found' })
+      if (!updated) return reply.code(404).send({error: 'not found'})
       return updated
     },
   )
 
-  app.post<{ Params: { id: string }; Body: { received?: boolean } }>(
+  app.post<{Params: {id: string}; Body: {received?: boolean}}>(
     '/tokens/:id/received',
     {
       schema: {
@@ -231,15 +222,15 @@ export async function registerFcmRoutes(app: FastifyInstance): Promise<void> {
         params: {
           type: 'object',
           required: ['id'],
-          properties: { id: { type: 'string' } },
+          properties: {id: {type: 'string'}},
         },
         body: {
           type: 'object',
           required: ['received'],
-          properties: { received: { type: 'boolean' } },
+          properties: {received: {type: 'boolean'}},
         },
         response: {
-          200: { $ref: 'FcmToken#' },
+          200: fcmDestinationSchema,
           400: errorResponse,
           404: errorResponse,
         },
@@ -248,105 +239,83 @@ export async function registerFcmRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       const id = Number(req.params.id)
       if (!Number.isInteger(id)) {
-        return reply.code(400).send({ error: 'invalid id' })
+        return reply.code(400).send({error: 'invalid id'})
       }
       if (typeof req.body?.received !== 'boolean') {
-        return reply.code(400).send({ error: 'received required' })
+        return reply.code(400).send({error: 'received required'})
       }
       const updated = req.body.received
-        ? recordTokenTest(id, 'ok', null)
-        : recordTokenTest(id, 'error', 'not received', { enabled: false })
-      if (!updated) return reply.code(404).send({ error: 'not found' })
+        ? recordDestinationTest(id, 'ok', null)
+        : recordDestinationTest(id, 'error', 'not received', {enabled: false})
+      if (!updated) return reply.code(404).send({error: 'not found'})
       return updated
     },
   )
 
-  app.post<{
-    Body: {
-      fid?: string
-      token?: string
-      label?: string
-      target_ids?: number[]
-      check_ids?: string[]
-    }
-  }>(
+  app.post<{Body: {fid?: string; label?: string}}>(
     '/tokens',
     {
       schema: {
         tags: ['tokens'],
-        summary: 'Add an FCM FID (or legacy registration token)',
+        summary: 'Add an FCM FID destination',
         body: {
           type: 'object',
+          required: ['fid'],
           properties: {
-            fid: { type: 'string' },
-            token: { type: 'string' },
-            label: { type: 'string' },
-            target_ids: targetIdsSchema,
-            check_ids: checkIdsSchema,
+            fid: {type: 'string'},
+            label: {type: 'string'},
           },
         },
         response: {
-          201: { $ref: 'FcmToken#' },
+          201: fcmDestinationSchema,
           400: errorResponse,
           409: errorResponse,
         },
       },
     },
     async (req, reply) => {
-      const destination = destinationFromBody(req.body)
+      const fid = (req.body?.fid ?? '').trim()
       const label = (req.body?.label ?? '').trim()
-      if (!destination) {
-        return reply.code(400).send({ error: 'fid or token required' })
+      if (!fid) {
+        return reply.code(400).send({error: 'fid required'})
       }
       try {
-        const targetIds = normalizeTargetIds(req.body?.target_ids)
-        const checkIds = normalizeCheckIds(req.body?.check_ids)
-        const row = createToken(destination, label, targetIds, checkIds)
+        const row = createDestination(fid, label)
         return reply.code(201).send(row)
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         if (message.includes('UNIQUE') || message.includes('already exists')) {
-          return reply.code(409).send({ error: 'token already exists' })
+          return reply.code(409).send({error: 'fid already exists'})
         }
-        return reply.code(400).send({ error: message })
+        return reply.code(400).send({error: message})
       }
     },
   )
 
   app.patch<{
-    Params: { id: string }
-    Body: {
-      fid?: string
-      token?: string
-      label?: string
-      enabled?: boolean
-      target_ids?: number[]
-      check_ids?: string[]
-    }
+    Params: {id: string}
+    Body: {fid?: string; label?: string; enabled?: boolean}
   }>(
     '/tokens/:id',
     {
       schema: {
         tags: ['tokens'],
-        summary: 'Update FCM destination (label, FID/token, enabled, filters)',
+        summary: 'Update FCM destination (label, FID, enabled)',
         params: {
           type: 'object',
           required: ['id'],
-          properties: { id: { type: 'string' } },
+          properties: {id: {type: 'string'}},
         },
         body: {
           type: 'object',
           properties: {
-            fid: { type: 'string' },
-            token: { type: 'string' },
-            label: { type: 'string' },
-            enabled: { type: 'boolean' },
-            target_ids: targetIdsSchema,
-            check_ids: checkIdsSchema,
+            fid: {type: 'string'},
+            label: {type: 'string'},
+            enabled: {type: 'boolean'},
           },
         },
         response: {
-          200: { $ref: 'FcmToken#' },
+          200: fcmDestinationSchema,
           400: errorResponse,
           404: errorResponse,
           409: errorResponse,
@@ -356,57 +325,49 @@ export async function registerFcmRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       const id = Number(req.params.id)
       if (!Number.isInteger(id)) {
-        return reply.code(400).send({ error: 'invalid id' })
+        return reply.code(400).send({error: 'invalid id'})
       }
       try {
         const patch: {
-          token?: string
+          fid?: string
           label?: string
           enabled?: boolean
-          target_ids?: number[]
-          check_ids?: string[]
         } = {}
-        if (req.body?.fid !== undefined || req.body?.token !== undefined) {
-          const destination = destinationFromBody(req.body)
-          if (!destination) {
-            return reply.code(400).send({ error: 'fid or token required' })
+        if (req.body?.fid !== undefined) {
+          const fid = req.body.fid.trim()
+          if (!fid) {
+            return reply.code(400).send({error: 'fid required'})
           }
-          patch.token = destination
+          patch.fid = fid
         }
         if (req.body?.label !== undefined) patch.label = req.body.label
         if (req.body?.enabled !== undefined) patch.enabled = req.body.enabled
-        if (req.body?.target_ids !== undefined) {
-          patch.target_ids = normalizeTargetIds(req.body.target_ids)
-        }
-        if (req.body?.check_ids !== undefined) {
-          patch.check_ids = normalizeCheckIds(req.body.check_ids)
-        }
-        const updated = updateToken(id, patch)
-        if (!updated) return reply.code(404).send({ error: 'not found' })
+        const updated = updateDestination(id, patch)
+        if (!updated) return reply.code(404).send({error: 'not found'})
         return updated
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         if (message.includes('UNIQUE') || message.includes('already exists')) {
-          return reply.code(409).send({ error: 'token already exists' })
+          return reply.code(409).send({error: 'fid already exists'})
         }
-        return reply.code(400).send({ error: message })
+        return reply.code(400).send({error: message})
       }
     },
   )
 
-  app.delete<{ Params: { id: string } }>(
+  app.delete<{Params: {id: string}}>(
     '/tokens/:id',
     {
       schema: {
         tags: ['tokens'],
-        summary: 'Delete FCM token',
+        summary: 'Delete FCM destination',
         params: {
           type: 'object',
           required: ['id'],
-          properties: { id: { type: 'string' } },
+          properties: {id: {type: 'string'}},
         },
         response: {
-          204: { type: 'null', description: 'Deleted' },
+          204: {type: 'null', description: 'Deleted'},
           400: errorResponse,
           404: errorResponse,
         },
@@ -415,11 +376,25 @@ export async function registerFcmRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       const id = Number(req.params.id)
       if (!Number.isInteger(id)) {
-        return reply.code(400).send({ error: 'invalid id' })
+        return reply.code(400).send({error: 'invalid id'})
       }
-      const ok = deleteToken(id)
-      if (!ok) return reply.code(404).send({ error: 'not found' })
+      const ok = deleteDestination(id)
+      if (!ok) return reply.code(404).send({error: 'not found'})
       return reply.code(204).send()
     },
   )
+
+  await registerNotifierTargetRoutes(app, {
+    notifierId: 'fcm',
+    openapiTag: 'fcm',
+    configSchema,
+    readDefaults,
+    writeDefaults: readDefaults,
+    buildTargetConfigView,
+    normalizeTargetOverride,
+    resolveForTarget: resolveFcmConfigForTarget,
+    isConfigured,
+    testSend: testFcmConfig,
+    publishDefaultsReason: 'fcm-config',
+  })
 }

@@ -16,10 +16,11 @@ export function normalizeKeywordBodyConfig(input: unknown): KeywordBodyConfig {
   const keyword = String(row.keyword ?? '').trim()
   if (!keyword) throw new Error('keyword is required')
   const caseSensitive = Boolean(row.caseSensitive)
-  return { keyword, caseSensitive }
+  return {keyword, caseSensitive}
 }
 
 export function resolveKeywordBodyConfig(input: unknown): KeywordBodyConfig {
-  if (input === null || input === undefined) return { ...defaultKeywordBodyConfig }
+  if (input === null || input === undefined)
+    return {...defaultKeywordBodyConfig}
   return normalizeKeywordBodyConfig(input)
 }

@@ -1,5 +1,5 @@
-import type { FastifyInstance } from 'fastify'
-import { subscribeRealtime } from '../realtime.js'
+import type {FastifyInstance} from 'fastify'
+import {subscribeRealtime} from '../realtime.js'
 
 export async function streamRoutes(app: FastifyInstance): Promise<void> {
   app.get(
@@ -22,13 +22,16 @@ export async function streamRoutes(app: FastifyInstance): Promise<void> {
         reply.raw.write(`data: ${JSON.stringify(data)}\n\n`)
       }
 
-      writeEvent('connected', { ok: true, at: new Date().toISOString() })
+      writeEvent('connected', {ok: true, at: new Date().toISOString()})
       const unsubscribe = subscribeRealtime((event, data) => {
-        writeEvent(event, { ...((data as object) ?? {}), at: new Date().toISOString() })
+        writeEvent(event, {
+          ...((data as object) ?? {}),
+          at: new Date().toISOString(),
+        })
       })
 
       const heartbeat = setInterval(() => {
-        writeEvent('heartbeat', { ok: true })
+        writeEvent('heartbeat', {ok: true})
       }, 15000)
 
       reply.raw.on('close', () => {
@@ -37,5 +40,4 @@ export async function streamRoutes(app: FastifyInstance): Promise<void> {
       })
     },
   )
-
 }

@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify'
+import type {FastifyInstance} from 'fastify'
 import swagger from '@fastify/swagger'
 import swaggerUi from '@fastify/swagger-ui'
 
@@ -7,7 +7,7 @@ const errorSchema = {
   type: 'object',
   required: ['error'],
   properties: {
-    error: { type: 'string' },
+    error: {type: 'string'},
   },
 } as const
 
@@ -16,18 +16,18 @@ const groupSchema = {
   type: 'object',
   required: ['id', 'parent', 'name', 'tag', 'created_at', 'updated_at'],
   properties: {
-    id: { type: 'integer' },
+    id: {type: 'integer'},
     parent: {
       type: 'integer',
       description: '0 = root of a tree; otherwise parent group id',
     },
-    name: { type: 'string' },
+    name: {type: 'string'},
     tag: {
       type: 'string',
       description: 'Auto tag: root group_N; child group_group_1_group_2_…',
     },
-    created_at: { type: 'string' },
-    updated_at: { type: 'string' },
+    created_at: {type: 'string'},
+    updated_at: {type: 'string'},
   },
 } as const
 
@@ -44,15 +44,15 @@ const groupTreeNodeSchema = {
     'children',
   ],
   properties: {
-    id: { type: 'integer' },
-    parent: { type: 'integer' },
-    name: { type: 'string' },
-    tag: { type: 'string' },
-    created_at: { type: 'string' },
-    updated_at: { type: 'string' },
+    id: {type: 'integer'},
+    parent: {type: 'integer'},
+    name: {type: 'string'},
+    tag: {type: 'string'},
+    created_at: {type: 'string'},
+    updated_at: {type: 'string'},
     children: {
       type: 'array',
-      items: { $ref: 'GroupTreeNode#' },
+      items: {$ref: 'GroupTreeNode#'},
     },
   },
 } as const
@@ -72,28 +72,28 @@ const targetSchema = {
     'updated_at',
   ],
   properties: {
-    id: { type: 'integer' },
-    url: { type: 'string', format: 'uri' },
-    interval_seconds: { type: 'integer', minimum: 5 },
-    enabled: { type: 'integer', enum: [0, 1] },
+    id: {type: 'integer'},
+    url: {type: 'string', format: 'uri'},
+    interval_seconds: {type: 'integer', minimum: 5},
+    enabled: {type: 'integer', enum: [0, 1]},
     group_id: {
       type: ['integer', 'null'],
       description: 'Must be a child group id when set (not a root)',
     },
     check_ids: {
       type: 'array',
-      items: { type: 'string' },
+      items: {type: 'string'},
       description:
         'Check plugin ids to run for this target. Empty = all loaded checks.',
     },
     notifier_ids: {
       type: 'array',
-      items: { type: 'string' },
+      items: {type: 'string'},
       description:
         'Notifier plugin ids for this target. Empty = all loaded notifiers.',
     },
-    created_at: { type: 'string' },
-    updated_at: { type: 'string' },
+    created_at: {type: 'string'},
+    updated_at: {type: 'string'},
   },
 } as const
 
@@ -118,24 +118,24 @@ const incidentSchema = {
       type: 'integer',
       description: 'check_results.id where the outage began',
     },
-    target_id: { type: 'integer' },
-    url: { type: 'string' },
-    group_tag: { type: ['string', 'null'] },
+    target_id: {type: 'integer'},
+    url: {type: 'string'},
+    group_tag: {type: ['string', 'null']},
     status: {
       type: 'string',
       enum: ['down', 'partial'],
       description: 'Most severe status during the outage window',
     },
-    recovered: { type: 'boolean' },
-    started_at: { type: 'string' },
-    recovered_at: { type: ['string', 'null'] },
+    recovered: {type: 'boolean'},
+    started_at: {type: 'string'},
+    recovered_at: {type: ['string', 'null']},
     duration_seconds: {
       type: ['integer', 'null'],
       description:
         'Elapsed seconds from start to recovery, or to now if still ongoing',
     },
-    error: { type: ['string', 'null'] },
-    status_code: { type: ['integer', 'null'] },
+    error: {type: ['string', 'null']},
+    status_code: {type: ['integer', 'null']},
   },
 } as const
 
@@ -144,64 +144,50 @@ const checkResultSchema = {
   type: 'object',
   required: ['id', 'target_id', 'ok', 'checked_at'],
   properties: {
-    id: { type: 'integer' },
-    target_id: { type: 'integer' },
+    id: {type: 'integer'},
+    target_id: {type: 'integer'},
     ok: {
       type: 'integer',
       description: '1=up, 0=down, 2=partial',
       enum: [0, 1, 2],
     },
-    status_code: { type: ['integer', 'null'] },
-    error: { type: ['string', 'null'] },
-    latency_ms: { type: ['integer', 'null'] },
-    checked_at: { type: 'string' },
+    status_code: {type: ['integer', 'null']},
+    error: {type: ['string', 'null']},
+    latency_ms: {type: ['integer', 'null']},
+    checked_at: {type: 'string'},
   },
 } as const
 
-const fcmTokenSchema = {
-  $id: 'FcmToken',
+const fcmDestinationSchema = {
+  $id: 'FcmDestination',
   type: 'object',
   required: [
     'id',
-    'token',
+    'fid',
     'label',
     'enabled',
-    'target_ids',
-    'check_ids',
     'created_at',
     'last_test_ok',
     'last_test_error',
     'last_tested_at',
   ],
   properties: {
-    id: { type: 'integer' },
-    token: {
+    id: {type: 'integer'},
+    fid: {
       type: 'string',
-      description:
-        'Firebase Installation ID (recommended) or a deprecated FCM registration token. Sends use fid unless the value looks like :APA91…',
+      description: 'Firebase Installation ID from the client app.',
     },
-    label: { type: 'string' },
-    enabled: { type: 'integer', enum: [0, 1] },
-    target_ids: {
-      type: 'array',
-      items: { type: 'integer', minimum: 1 },
-      description: 'Target ids this token receives. Empty = all targets.',
-    },
-    check_ids: {
-      type: 'array',
-      items: { type: 'string' },
-      description:
-        'Check plugin ids. Empty = any alert (incl. recovery). Non-empty = only when a listed check failed.',
-    },
-    created_at: { type: 'string' },
+    label: {type: 'string'},
+    enabled: {type: 'integer', enum: [0, 1]},
+    created_at: {type: 'string'},
     last_test_ok: {
       type: ['integer', 'null'],
       enum: [0, 1, 2, null],
       description:
         '1=confirmed received, 2=FCM accepted (not confirmed), 0=error, null=never tested',
     },
-    last_test_error: { type: ['string', 'null'] },
-    last_tested_at: { type: ['string', 'null'] },
+    last_test_error: {type: ['string', 'null']},
+    last_tested_at: {type: ['string', 'null']},
   },
 } as const
 
@@ -214,7 +200,7 @@ const settingsSchema = {
       type: 'string',
       enum: ['state_change', 'every_fail', 'throttle'],
     },
-    throttle_minutes: { type: 'integer', minimum: 1 },
+    throttle_minutes: {type: 'integer', minimum: 1},
   },
 } as const
 
@@ -223,7 +209,7 @@ const pluginRefSchema = {
   type: 'object',
   required: ['id'],
   properties: {
-    id: { type: 'string' },
+    id: {type: 'string'},
   },
 } as const
 
@@ -232,8 +218,8 @@ const notifierStatusSchema = {
   type: 'object',
   required: ['id', 'ready'],
   properties: {
-    id: { type: 'string' },
-    ready: { type: 'boolean' },
+    id: {type: 'string'},
+    ready: {type: 'boolean'},
   },
 } as const
 
@@ -241,21 +227,21 @@ const statusTargetSchema = {
   $id: 'StatusTarget',
   type: 'object',
   properties: {
-    id: { type: 'integer' },
-    url: { type: 'string' },
-    interval_seconds: { type: 'integer' },
-    enabled: { type: 'integer' },
-    group_id: { type: ['integer', 'null'] },
-    group_tag: { type: ['string', 'null'] },
+    id: {type: 'integer'},
+    url: {type: 'string'},
+    interval_seconds: {type: 'integer'},
+    enabled: {type: 'integer'},
+    group_id: {type: ['integer', 'null']},
+    group_tag: {type: ['string', 'null']},
     is_up: {
       type: ['integer', 'null'],
       description: '1=up, 0=down, 2=partial, null=never checked',
     },
-    last_checked_at: { type: ['string', 'null'] },
-    last_status_code: { type: ['integer', 'null'] },
-    last_error: { type: ['string', 'null'] },
-    last_latency_ms: { type: ['integer', 'null'] },
-    last_alert_at: { type: ['string', 'null'] },
+    last_checked_at: {type: ['string', 'null']},
+    last_status_code: {type: ['integer', 'null']},
+    last_error: {type: ['string', 'null']},
+    last_latency_ms: {type: ['integer', 'null']},
+    last_alert_at: {type: ['string', 'null']},
   },
 } as const
 
@@ -267,13 +253,13 @@ const statusResponseSchema = {
     core: {
       type: 'object',
       required: ['engine'],
-      properties: { engine: { type: 'string' } },
+      properties: {engine: {type: 'string'}},
     },
-    checks: { type: 'array', items: { $ref: 'PluginRef#' } },
-    scheduler: { $ref: 'PluginRef#' },
-    notifiers: { type: 'array', items: { $ref: 'NotifierStatus#' } },
-    settings: { $ref: 'Settings#' },
-    targets: { type: 'array', items: { $ref: 'StatusTarget#' } },
+    checks: {type: 'array', items: {$ref: 'PluginRef#'}},
+    scheduler: {$ref: 'PluginRef#'},
+    notifiers: {type: 'array', items: {$ref: 'NotifierStatus#'}},
+    settings: {$ref: 'Settings#'},
+    targets: {type: 'array', items: {$ref: 'StatusTarget#'}},
   },
 } as const
 
@@ -283,11 +269,11 @@ const alertCheckOutcomeSchema = {
   type: 'object',
   required: ['id', 'ok', 'statusCode', 'error', 'latencyMs'],
   properties: {
-    id: { type: 'string', description: 'Check plugin id' },
-    ok: { type: 'boolean' },
-    statusCode: { type: ['integer', 'null'] },
-    error: { type: ['string', 'null'] },
-    latencyMs: { type: 'number' },
+    id: {type: 'string', description: 'Check plugin id'},
+    ok: {type: 'boolean'},
+    statusCode: {type: ['integer', 'null']},
+    error: {type: ['string', 'null']},
+    latencyMs: {type: 'number'},
   },
 } as const
 
@@ -312,25 +298,25 @@ const alertEventSchema = {
       type: 'object',
       required: ['id', 'url'],
       properties: {
-        id: { type: 'integer' },
-        url: { type: 'string' },
+        id: {type: 'integer'},
+        url: {type: 'string'},
       },
     },
-    status: { type: 'string', enum: ['up', 'down', 'partial'] },
+    status: {type: 'string', enum: ['up', 'down', 'partial']},
     previousStatus: {
       type: 'string',
       enum: ['up', 'down', 'partial', 'unknown'],
     },
-    error: { type: ['string', 'null'] },
-    statusCode: { type: ['integer', 'null'] },
-    checkedAt: { type: 'string', format: 'date-time' },
-    title: { type: 'string' },
-    body: { type: 'string' },
+    error: {type: ['string', 'null']},
+    statusCode: {type: ['integer', 'null']},
+    checkedAt: {type: 'string', format: 'date-time'},
+    title: {type: 'string'},
+    body: {type: 'string'},
     checks: {
       type: 'array',
       description:
         'Per-check outcomes for this run. Empty if no checks ran. Use for routing; do not parse error/body for check ids.',
-      items: { $ref: 'AlertCheckOutcome#' },
+      items: {$ref: 'AlertCheckOutcome#'},
     },
   },
 } as const
@@ -340,19 +326,19 @@ const coreSchemaResponseSchema = {
   type: 'object',
   required: ['engine', 'tables'],
   properties: {
-    engine: { type: 'string', enum: ['sqlite'] },
+    engine: {type: 'string', enum: ['sqlite']},
     tables: {
       type: 'array',
       description:
         'Frozen core tables (includes targets.check_ids and targets.notifier_ids)',
-      items: { type: 'object' },
+      items: {type: 'object'},
     },
     data: {
       type: 'object',
       description: 'Present when ?data=1 — map of table name → row arrays',
       additionalProperties: {
         type: 'array',
-        items: { type: 'object' },
+        items: {type: 'object'},
       },
     },
   },
@@ -363,7 +349,7 @@ const pluginRouteRefSchema = {
   type: 'object',
   required: ['method', 'path'],
   properties: {
-    method: { type: 'string', description: 'HTTP method (e.g. GET)' },
+    method: {type: 'string', description: 'HTTP method (e.g. GET)'},
     path: {
       type: 'string',
       description: 'Fully qualified path (e.g. /api/plugins/notify/fcm/tokens)',
@@ -376,11 +362,11 @@ const pluginCatalogEntrySchema = {
   type: 'object',
   required: ['id', 'kind', 'routes'],
   properties: {
-    id: { type: 'string' },
-    kind: { type: 'string', enum: ['check', 'scheduler', 'notify'] },
+    id: {type: 'string'},
+    kind: {type: 'string', enum: ['check', 'scheduler', 'notify']},
     routes: {
       type: 'array',
-      items: { $ref: 'PluginRouteRef#' },
+      items: {$ref: 'PluginRouteRef#'},
       description:
         'HTTP routes registered under /api/plugins/<kind>/<id>. Empty if the plugin has no registerRoutes.',
     },
@@ -395,7 +381,7 @@ export async function registerOpenApi(app: FastifyInstance): Promise<void> {
     targetSchema,
     incidentSchema,
     checkResultSchema,
-    fcmTokenSchema,
+    fcmDestinationSchema,
     settingsSchema,
     pluginRefSchema,
     notifierStatusSchema,
@@ -420,15 +406,15 @@ export async function registerOpenApi(app: FastifyInstance): Promise<void> {
         version: '1.0.0',
       },
       tags: [
-        { name: 'health', description: 'Liveness' },
-        { name: 'groups', description: 'Group trees and tags' },
+        {name: 'health', description: 'Liveness'},
+        {name: 'groups', description: 'Group trees and tags'},
         {
           name: 'targets',
           description:
             'URLs to monitor; optional check_ids and notifier_ids (empty = all loaded)',
         },
-        { name: 'checks', description: 'Loaded check plugins' },
-        { name: 'notifiers', description: 'Loaded notifier plugins' },
+        {name: 'checks', description: 'Loaded check plugins'},
+        {name: 'notifiers', description: 'Loaded notifier plugins'},
         {
           name: 'plugins',
           description:
@@ -444,13 +430,13 @@ export async function registerOpenApi(app: FastifyInstance): Promise<void> {
           description:
             'Webhook URL, HTTP method, and headers at /api/plugins/notify/webhook/config (webhook notifier)',
         },
-        { name: 'settings', description: 'Alert policy' },
-        { name: 'status', description: 'Dashboard summary' },
+        {name: 'settings', description: 'Alert policy'},
+        {name: 'status', description: 'Dashboard summary'},
         {
           name: 'incidents',
           description: 'Outage and recovery log from check history',
         },
-        { name: 'schema', description: 'Frozen core SQLite schema' },
+        {name: 'schema', description: 'Frozen core SQLite schema'},
       ],
     },
   })

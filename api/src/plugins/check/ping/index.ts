@@ -1,6 +1,6 @@
-import { execFile } from 'node:child_process'
-import { URL } from 'node:url'
-import type { CheckContext, CheckOutcome, CheckPlugin } from '../../types.js'
+import {execFile} from 'node:child_process'
+import {URL} from 'node:url'
+import type {CheckContext, CheckOutcome, CheckPlugin} from '../../types.js'
 
 function timeoutMs(): number {
   const n = Number(process.env.CHECK_TIMEOUT_MS)
@@ -17,19 +17,23 @@ function parseLatencyMs(output: string): number | null {
 function runPing(
   host: string,
   timeout: number,
-): Promise<{ ok: boolean; error: string | null; latencyMs: number | null }> {
-  return new Promise((resolve) => {
+): Promise<{ok: boolean; error: string | null; latencyMs: number | null}> {
+  return new Promise(resolve => {
     execFile(
       'ping',
       ['-c', '1', '-W', String(Math.max(1, Math.ceil(timeout / 1000))), host],
-      { timeout },
+      {timeout},
       (err, stdout, stderr) => {
         if (err) {
           const message = stderr?.trim() || err.message || 'ping failed'
-          resolve({ ok: false, error: message, latencyMs: parseLatencyMs(stdout) })
+          resolve({
+            ok: false,
+            error: message,
+            latencyMs: parseLatencyMs(stdout),
+          })
           return
         }
-        resolve({ ok: true, error: null, latencyMs: parseLatencyMs(stdout) })
+        resolve({ok: true, error: null, latencyMs: parseLatencyMs(stdout)})
       },
     )
   })
@@ -37,6 +41,7 @@ function runPing(
 
 const pingCheck: CheckPlugin = {
   id: 'ping',
+  description: 'ICMP-pings the target hostname and reports round-trip time.',
   async check(ctx: CheckContext): Promise<CheckOutcome> {
     const startedAt = Date.now()
     let parsed: URL
@@ -44,7 +49,7 @@ const pingCheck: CheckPlugin = {
       parsed = new URL(ctx.target.url)
     } catch {
       const latencyMs = Date.now() - startedAt
-      return { ok: false, statusCode: null, error: 'invalid URL', latencyMs }
+      return {ok: false, statusCode: null, error: 'invalid URL', latencyMs}
     }
     const result = await runPing(parsed.hostname, timeoutMs())
     const latencyMs = result.latencyMs ?? Date.now() - startedAt

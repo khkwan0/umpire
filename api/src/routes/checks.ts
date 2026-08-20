@@ -1,5 +1,5 @@
-import type { FastifyInstance } from 'fastify'
-import { getChecks } from '../plugins/registry.js'
+import type {FastifyInstance} from 'fastify'
+import {getChecks} from '../plugins/registry.js'
 
 export async function checksRoutes(app: FastifyInstance): Promise<void> {
   app.get(
@@ -13,11 +13,11 @@ export async function checksRoutes(app: FastifyInstance): Promise<void> {
         response: {
           200: {
             type: 'array',
-            items: { $ref: 'PluginRef#' },
+            items: {$ref: 'PluginRef#'},
           },
         },
       },
     },
-    async () => getChecks().map((c) => ({ id: c.id })),
+    async () => getChecks().map(c => ({id: c.id})),
   )
 }

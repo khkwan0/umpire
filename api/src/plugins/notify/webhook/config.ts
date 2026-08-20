@@ -1,5 +1,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import {
+  buildTargetConfigView as buildGenericTargetConfigView,
+  parseUseCustomOverride,
+  type NotifierTargetConfigView,
+} from '../shared/targetConfig.js'
 
 export const WEBHOOK_METHODS = [
   'GET',
@@ -27,7 +32,16 @@ export interface WebhookConfig {
   headers: Record<string, string>
 }
 
-const empty: WebhookConfig = { url: '', method: 'POST', headers: {} }
+export interface WebhookTargetOverride {
+  useCustom: boolean
+  url?: string
+  method?: WebhookMethod
+  headers?: Record<string, string>
+}
+
+export type WebhookTargetConfigView = NotifierTargetConfigView<WebhookConfig>
+
+const empty: WebhookConfig = {url: '', method: 'POST', headers: {}}
 
 function configPath(): string {
   const databasePath = process.env.DATABASE_PATH || './data/monitor.sqlite'
@@ -101,21 +115,21 @@ export function isConfigured(config: WebhookConfig): boolean {
   return Boolean(config.url) && validateUrl(config.url) === null
 }
 
-export function readConfig(): WebhookConfig {
+export function readDefaults(): WebhookConfig {
   const file = configPath()
-  if (!fs.existsSync(file)) return { ...empty, headers: {} }
+  if (!fs.existsSync(file)) return {...empty, headers: {}}
   try {
     const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as unknown
     return normalizeConfig(raw)
   } catch (err) {
     console.error('[notify:webhook] failed to read config file', err)
-    return { ...empty, headers: {} }
+    return {...empty, headers: {}}
   }
 }
 
-export function writeConfig(config: WebhookConfig): WebhookConfig {
+export function writeDefaults(config: WebhookConfig): WebhookConfig {
   const file = configPath()
-  fs.mkdirSync(path.dirname(file), { recursive: true })
+  fs.mkdirSync(path.dirname(file), {recursive: true})
   const next: WebhookConfig = {
     url: config.url,
     method: config.method,
@@ -123,6 +137,92 @@ export function writeConfig(config: WebhookConfig): WebhookConfig {
   }
   fs.writeFileSync(file, JSON.stringify(next, null, 2), 'utf8')
   return next
+}
+
+/** @deprecated use readDefaults */
+export const readConfig = readDefaults
+/** @deprecated use writeDefaults */
+export const writeConfig = writeDefaults
+
+function isFullWebhookConfig(row: Record<string, unknown>): boolean {
+  return typeof row.url === 'string' && !('useCustom' in row)
+}
+
+export function parseStoredOverride(
+  stored: unknown,
+): WebhookTargetOverride | null {
+  return parseUseCustomOverride(
+    stored,
+    isFullWebhookConfig,
+    input => {
+      const config = normalizeConfig(input)
+      return {
+        useCustom: true,
+        url: config.url,
+        method: config.method,
+        headers: config.headers,
+      }
+    },
+    row => {
+      const override: WebhookTargetOverride = {useCustom: true}
+      if (row.url !== undefined) {
+        const url = String(row.url).trim()
+        const urlError = validateUrl(url)
+        if (urlError) throw new Error(urlError)
+        override.url = url
+      }
+      if (row.method !== undefined) override.method = parseMethod(row.method)
+      if (row.headers !== undefined)
+        override.headers = parseHeaders(row.headers)
+      return override
+    },
+  )
+}
+
+export function mergeWebhookConfig(
+  defaults: WebhookConfig,
+  override: WebhookTargetOverride | null,
+): WebhookConfig {
+  if (!override?.useCustom) {
+    return {...defaults, headers: {...defaults.headers}}
+  }
+  return {
+    url: override.url ?? defaults.url,
+    method: override.method ?? defaults.method,
+    headers: override.headers ?? {...defaults.headers},
+  }
+}
+
+export function normalizeTargetOverride(input: unknown): WebhookTargetOverride {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw new Error('body must be { useCustom: true, url?, method?, headers? }')
+  }
+  const row = input as Record<string, unknown>
+  if (row.useCustom !== true) {
+    throw new Error('useCustom must be true when saving a target override')
+  }
+  const config = normalizeConfig(input)
+  return {
+    useCustom: true,
+    url: config.url,
+    method: config.method,
+    headers: config.headers,
+  }
+}
+
+export function buildTargetConfigView(
+  stored: unknown,
+): WebhookTargetConfigView {
+  return buildGenericTargetConfigView(
+    readDefaults,
+    stored,
+    parseStoredOverride,
+    mergeWebhookConfig,
+  )
+}
+
+export function resolveWebhookConfigForTarget(stored: unknown): WebhookConfig {
+  return buildTargetConfigView(stored).effective
 }
 
 /**
@@ -140,8 +240,8 @@ export function seedFromEnvIfNeeded(): void {
         ? (JSON.parse(process.env.WEBHOOK_HEADERS) as unknown)
         : {},
     )
-    const config = normalizeConfig({ url, method: 'POST', headers })
-    writeConfig(config)
+    const config = normalizeConfig({url, method: 'POST', headers})
+    writeDefaults(config)
     console.warn(
       '[notify:webhook] copied WEBHOOK_URL into webhook.json; configure in the UI going forward',
     )

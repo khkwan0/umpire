@@ -1,4 +1,4 @@
-import type { Incident } from '../incidents.js'
+import type {Incident} from '../incidents.js'
 import type {
   CheckResult,
   Group,
@@ -8,7 +8,7 @@ import type {
   Target,
   TargetState,
 } from '../plugins/types.js'
-import type { CoreTableDef } from './schema.js'
+import type {CoreTableDef} from './schema.js'
 
 /** Core persistence API — SQLite only; not a plugin. */
 export interface CoreStore {
@@ -17,10 +17,10 @@ export interface CoreStore {
   listGroups(): Group[]
   listGroupTree(): GroupTreeNode[]
   getGroup(id: number): Group | undefined
-  createGroup(input: { parent?: number; name?: string; tag?: string }): Group
+  createGroup(input: {parent?: number; name?: string; tag?: string}): Group
   updateGroup(
     id: number,
-    patch: Partial<{ parent: number; name: string; tag: string }>,
+    patch: Partial<{parent: number; name: string; tag: string}>,
   ): Group | undefined
   deleteGroup(id: number): boolean
   listTargets(): Target[]
@@ -28,7 +28,17 @@ export interface CoreStore {
   getTargetCheckConfig(targetId: number, checkId: string): unknown | null
   listTargetCheckConfigs(
     checkId: string,
-  ): Array<{ targetId: number; config: unknown }>
+  ): Array<{targetId: number; config: unknown}>
+  getTargetNotifierConfig(targetId: number, notifierId: string): unknown | null
+  listTargetNotifierConfigs(
+    notifierId: string,
+  ): Array<{targetId: number; config: unknown}>
+  setTargetNotifierConfig(
+    targetId: number,
+    notifierId: string,
+    config: unknown,
+  ): void
+  deleteTargetNotifierConfig(targetId: number, notifierId: string): void
   setTargetCheckConfig(targetId: number, checkId: string, config: unknown): void
   deleteTargetCheckConfig(targetId: number, checkId: string): void
   createTarget(

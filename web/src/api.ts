@@ -29,14 +29,9 @@ export interface GroupTreeNode extends Group {
 
 export interface FcmToken {
   id: number
-  /** FID (recommended) or deprecated FCM registration token */
-  token: string
+  fid: string
   label: string
   enabled: number
-  /** Empty = all targets */
-  target_ids: number[]
-  /** Empty = any alert; non-empty = only listed check failures */
-  check_ids: string[]
   created_at: string
   /** 1=confirmed received, 2=FCM accepted, 0=error, null=never tested */
   last_test_ok: number | null
@@ -51,7 +46,7 @@ export interface FcmTokenTestResult {
 
 export interface FcmTokenImportResult {
   created: FcmToken[]
-  skipped: Array<{ token: string; reason: string }>
+  skipped: Array<{fid: string; reason: string}>
 }
 
 export interface Settings {
@@ -87,6 +82,8 @@ export interface NotifierStatus {
 export interface PluginManagerEntry {
   id: string
   enabled: boolean
+  /** Plugin-authored summary; null when the plugin did not provide one. */
+  description: string | null
 }
 
 export interface PluginManagerNotifierEntry extends PluginManagerEntry {
@@ -111,7 +108,16 @@ export interface PluginCatalogEntry {
 }
 
 export interface HttpCheckConfig {
-  method: 'GET' | 'HEAD' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIONS' | 'TRACE' | 'CONNECT'
+  method:
+    | 'GET'
+    | 'HEAD'
+    | 'POST'
+    | 'PUT'
+    | 'PATCH'
+    | 'DELETE'
+    | 'OPTIONS'
+    | 'TRACE'
+    | 'CONNECT'
   headers: Record<string, string>
   body: string
   acceptedStatusRanges: Array<'1xx' | '2xx' | '3xx' | '4xx' | '5xx'>
@@ -137,8 +143,39 @@ export interface HttpCheckTestResult {
   latencyMs: number
 }
 
+export interface NotifierTargetConfigView {
+  useCustom: boolean
+  /** Core check allowlist for this target+notifier. Empty = any alert. */
+  check_ids: string[]
+  defaults: Record<string, unknown>
+  override: Record<string, unknown> | null
+  effective: Record<string, unknown>
+}
+
+export interface NotifierTestResult {
+  ok: boolean
+  error: string | null
+}
+
+export const CONFIGURABLE_NOTIFIERS = [
+  'webhook',
+  'slack',
+  'discord',
+  'telegram',
+  'email',
+  'fcm',
+] as const
+
+export type ConfigurableNotifierId = (typeof CONFIGURABLE_NOTIFIERS)[number]
+
+export function isConfigurableNotifier(
+  id: string,
+): id is ConfigurableNotifierId {
+  return (CONFIGURABLE_NOTIFIERS as readonly string[]).includes(id)
+}
+
 export interface StatusResponse {
-  core: { engine: string }
+  core: {engine: string}
   checks: PluginRef[]
   scheduler: PluginRef
   notifiers: NotifierStatus[]
@@ -204,7 +241,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   let res: Response
   try {
-    res = await fetch(path, { ...init, headers })
+    res = await fetch(path, {...init, headers})
   } catch {
     throw new ApiError('API temporarily unavailable', 0, true)
   }
@@ -213,7 +250,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!res.ok) {
     const message = apiErrorMessage(
       res.status,
-      (body as { error?: string }).error,
+      (body as {error?: string}).error,
     )
     throw new ApiError(message, res.status, isTransientStatus(res.status))
   }
@@ -237,21 +274,21 @@ export const api = {
     list: () => request<Group[]>('/api/groups'),
     tree: () => request<GroupTreeNode[]>('/api/groups?tree=1'),
     get: (id: number) => request<Group>(`/api/groups/${id}`),
-    create: (data: { parent?: number; name?: string; tag?: string }) =>
+    create: (data: {parent?: number; name?: string; tag?: string}) =>
       request<Group>('/api/groups', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
     update: (
       id: number,
-      data: Partial<{ parent: number; name: string; tag: string }>,
+      data: Partial<{parent: number; name: string; tag: string}>,
     ) =>
       request<Group>(`/api/groups/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(data),
       }),
     remove: (id: number) =>
-      request<void>(`/api/groups/${id}`, { method: 'DELETE' }),
+      request<void>(`/api/groups/${id}`, {method: 'DELETE'}),
   },
   targets: {
     list: () => request<Target[]>('/api/targets'),
@@ -283,7 +320,7 @@ export const api = {
         body: JSON.stringify(data),
       }),
     remove: (id: number) =>
-      request<void>(`/api/targets/${id}`, { method: 'DELETE' }),
+      request<void>(`/api/targets/${id}`, {method: 'DELETE'}),
     results: (id: number) =>
       request<CheckResult[]>(`/api/targets/${id}/results`),
     httpCheck: {
@@ -295,7 +332,7 @@ export const api = {
           body: JSON.stringify(data),
         }),
       listOverrides: () =>
-        request<{ targetIds: number[] }>('/api/plugins/check/http/overrides'),
+        request<{targetIds: number[]}>('/api/plugins/check/http/overrides'),
       getConfig: (id: number) =>
         request<HttpCheckTargetConfigView>(
           `/api/plugins/check/http/targets/${id}/config`,
@@ -311,41 +348,70 @@ export const api = {
       clearConfig: (id: number) =>
         request<HttpCheckTargetConfigView>(
           `/api/plugins/check/http/targets/${id}/config`,
-          { method: 'DELETE' },
+          {method: 'DELETE'},
         ),
       test: (
         id: number,
-        data: Partial<HttpCheckTargetConfigPut> & { url?: string },
+        data: Partial<HttpCheckTargetConfigPut> & {url?: string},
       ) =>
-        request<HttpCheckTestResult>(`/api/plugins/check/http/targets/${id}/test`, {
-          method: 'POST',
-          body: JSON.stringify(data),
-        }),
+        request<HttpCheckTestResult>(
+          `/api/plugins/check/http/targets/${id}/test`,
+          {
+            method: 'POST',
+            body: JSON.stringify(data),
+          },
+        ),
+    },
+    notifier: {
+      listOverrides: (notifierId: string) =>
+        request<{targetIds: number[]}>(
+          `/api/plugins/notify/${notifierId}/overrides`,
+        ),
+      getConfig: (notifierId: string, targetId: number) =>
+        request<NotifierTargetConfigView>(
+          `/api/plugins/notify/${notifierId}/targets/${targetId}/config`,
+        ),
+      putConfig: (
+        notifierId: string,
+        targetId: number,
+        data: Record<string, unknown>,
+      ) =>
+        request<NotifierTargetConfigView>(
+          `/api/plugins/notify/${notifierId}/targets/${targetId}/config`,
+          {
+            method: 'PUT',
+            body: JSON.stringify(data),
+          },
+        ),
+      clearConfig: (notifierId: string, targetId: number) =>
+        request<NotifierTargetConfigView>(
+          `/api/plugins/notify/${notifierId}/targets/${targetId}/config`,
+          {method: 'DELETE'},
+        ),
+      test: (
+        notifierId: string,
+        targetId: number,
+        data?: Record<string, unknown>,
+      ) =>
+        request<NotifierTestResult>(
+          `/api/plugins/notify/${notifierId}/targets/${targetId}/test`,
+          {
+            method: 'POST',
+            body: JSON.stringify(data ?? {}),
+          },
+        ),
     },
   },
   tokens: {
     list: () => request<FcmToken[]>('/api/plugins/notify/fcm/tokens'),
-    create: (data: {
-      fid?: string
-      token?: string
-      label?: string
-      target_ids?: number[]
-      check_ids?: string[]
-    }) =>
+    create: (data: {fid: string; label?: string}) =>
       request<FcmToken>('/api/plugins/notify/fcm/tokens', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
     update: (
       id: number,
-      data: Partial<{
-        fid: string
-        token: string
-        label: string
-        enabled: boolean
-        target_ids: number[]
-        check_ids: string[]
-      }>,
+      data: Partial<{fid: string; label: string; enabled: boolean}>,
     ) =>
       request<FcmToken>(`/api/plugins/notify/fcm/tokens/${id}`, {
         method: 'PATCH',
@@ -362,16 +428,12 @@ export const api = {
     received: (id: number, received: boolean) =>
       request<FcmToken>(`/api/plugins/notify/fcm/tokens/${id}/received`, {
         method: 'POST',
-        body: JSON.stringify({ received }),
+        body: JSON.stringify({received}),
       }),
-    testRaw: (destination: string) =>
+    testRaw: (fid: string) =>
       request<FcmTokenTestResult>('/api/plugins/notify/fcm/tokens/test', {
         method: 'POST',
-        body: JSON.stringify(
-          /:APA91/i.test(destination)
-            ? { token: destination }
-            : { fid: destination },
-        ),
+        body: JSON.stringify({fid}),
       }),
     import: (data: unknown) =>
       request<FcmTokenImportResult>('/api/plugins/notify/fcm/tokens/import', {
@@ -394,9 +456,9 @@ export const api = {
       id: string,
       enabled: boolean,
     ) =>
-      request<{ ok: boolean }>(`/api/plugin-manager/${kind}/${id}`, {
+      request<{ok: boolean}>(`/api/plugin-manager/${kind}/${id}`, {
         method: 'PUT',
-        body: JSON.stringify({ enabled }),
+        body: JSON.stringify({enabled}),
       }),
   },
 }

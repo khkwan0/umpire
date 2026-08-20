@@ -1,4 +1,4 @@
-import type { CheckPlugin, NotifierPlugin, SchedulerPlugin } from './types.js'
+import type {CheckPlugin, NotifierPlugin, SchedulerPlugin} from './types.js'
 
 let checks: CheckPlugin[] = []
 let scheduler: SchedulerPlugin | undefined
@@ -30,5 +30,5 @@ export function getNotifiers(): NotifierPlugin[] {
 }
 
 export function hasNotifier(id: string): boolean {
-  return notifiers.some((n) => n.id === id)
+  return notifiers.some(n => n.id === id)
 }

@@ -1,6 +1,6 @@
-import type { FastifyInstance } from 'fastify'
-import { getCore } from '../core/index.js'
-import { pluginStatus } from '../plugins/registry.js'
+import type {FastifyInstance} from 'fastify'
+import {getCore} from '../core/index.js'
+import {pluginStatus} from '../plugins/registry.js'
 
 export async function statusRoutes(app: FastifyInstance): Promise<void> {
   app.get(
@@ -10,7 +10,7 @@ export async function statusRoutes(app: FastifyInstance): Promise<void> {
         tags: ['status'],
         summary: 'Dashboard status summary',
         response: {
-          200: { $ref: 'StatusResponse#' },
+          200: {$ref: 'StatusResponse#'},
         },
       },
     },

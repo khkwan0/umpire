@@ -1,6 +1,6 @@
-import { jest } from '@jest/globals'
-import { aggregateCheckOutcomes, alertCopy, shouldAlert } from './alert.js'
-import type { AlertCheckOutcome } from './plugins/types.js'
+import {jest} from '@jest/globals'
+import {aggregateCheckOutcomes, alertCopy, shouldAlert} from './alert.js'
+import type {AlertCheckOutcome} from './plugins/types.js'
 
 const check = (
   partial: Partial<AlertCheckOutcome> & Pick<AlertCheckOutcome, 'id' | 'ok'>,
@@ -252,8 +252,8 @@ describe('aggregateCheckOutcomes', () => {
 
   it('is up when every check passed, using max latency', () => {
     const outcomes = [
-      check({ id: 'http', ok: true, statusCode: 200, latencyMs: 12 }),
-      check({ id: 'dns', ok: true, statusCode: null, latencyMs: 40 }),
+      check({id: 'http', ok: true, statusCode: 200, latencyMs: 12}),
+      check({id: 'dns', ok: true, statusCode: null, latencyMs: 40}),
     ]
     expect(aggregateCheckOutcomes(outcomes)).toEqual({
       status: 'up',
@@ -266,8 +266,8 @@ describe('aggregateCheckOutcomes', () => {
 
   it('is down when every check failed, prefixing plugin ids', () => {
     const outcomes = [
-      check({ id: 'http', ok: false, statusCode: 503, error: 'HTTP 503' }),
-      check({ id: 'dns', ok: false, statusCode: null, error: 'timeout' }),
+      check({id: 'http', ok: false, statusCode: 503, error: 'HTTP 503'}),
+      check({id: 'dns', ok: false, statusCode: null, error: 'timeout'}),
     ]
     expect(aggregateCheckOutcomes(outcomes)).toEqual({
       status: 'down',
@@ -280,8 +280,8 @@ describe('aggregateCheckOutcomes', () => {
 
   it('is partial on mixed results', () => {
     const outcomes = [
-      check({ id: 'http', ok: true, latencyMs: 5 }),
-      check({ id: 'tls', ok: false, error: 'expired', latencyMs: 8 }),
+      check({id: 'http', ok: true, latencyMs: 5}),
+      check({id: 'tls', ok: false, error: 'expired', latencyMs: 8}),
     ]
     expect(aggregateCheckOutcomes(outcomes)).toEqual({
       status: 'partial',
@@ -294,7 +294,7 @@ describe('aggregateCheckOutcomes', () => {
 
   it('uses a default error when a failed check has none', () => {
     expect(
-      aggregateCheckOutcomes([check({ id: 'http', ok: false, error: null })])
+      aggregateCheckOutcomes([check({id: 'http', ok: false, error: null})])
         .error,
     ).toBe('[http] failed')
   })

@@ -9,15 +9,13 @@ import {
 describe('parseHeaders', () => {
   it('accepts a string map and rejects other shapes', () => {
     expect(parseHeaders(undefined)).toEqual({})
-    expect(parseHeaders({ Authorization: 'Bearer x' })).toEqual({
+    expect(parseHeaders({Authorization: 'Bearer x'})).toEqual({
       Authorization: 'Bearer x',
     })
     expect(() => parseHeaders(['x'])).toThrow(
       'headers must be a JSON object of string values',
     )
-    expect(() => parseHeaders({ n: 1 })).toThrow(
-      'headers values must be strings',
-    )
+    expect(() => parseHeaders({n: 1})).toThrow('headers values must be strings')
   })
 })
 
@@ -46,19 +44,19 @@ describe('normalizeConfig / isConfigured', () => {
       normalizeConfig({
         url: ' https://hooks.test/x ',
         method: 'put',
-        headers: { 'X-Token': 'a' },
+        headers: {'X-Token': 'a'},
       }),
     ).toEqual({
       url: 'https://hooks.test/x',
       method: 'PUT',
-      headers: { 'X-Token': 'a' },
+      headers: {'X-Token': 'a'},
     })
   })
 
   it('is ready only with a non-empty valid URL', () => {
-    expect(isConfigured({ url: '', method: 'POST', headers: {} })).toBe(false)
+    expect(isConfigured({url: '', method: 'POST', headers: {}})).toBe(false)
     expect(
-      isConfigured({ url: 'https://hooks.test', method: 'POST', headers: {} }),
+      isConfigured({url: 'https://hooks.test', method: 'POST', headers: {}}),
     ).toBe(true)
   })
 })

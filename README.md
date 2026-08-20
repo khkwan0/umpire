@@ -58,6 +58,20 @@ At check time, core resolves **effective config** = global defaults merged with 
 
 At least one range or specific code is required. Other plugins (e.g. keyword-body) may still use per-target config only; see the plugin guide for their UI paths.
 
+### Notifier defaults and per-target overrides
+
+File-backed notifiers (**webhook**, **slack**, **discord**, **telegram**, **email**) follow the same pattern as HTTP checks:
+
+1. **Global defaults** — configure under **Notifiers → &lt;plugin&gt;** (`/plugins/notify/<id>`). Saved to sidecar JSON next to the SQLite file (`webhook.json`, `slack.json`, etc.).
+
+2. **Per-target overrides** — optional delivery settings for one target. On **Targets**, use **&lt;notifier&gt; settings** (`/targets/:id/notifiers/:notifierId`). Enable **Use custom settings for this target** to override plugin-specific destinations (URL, chat ID, email recipients, FCM device list, etc.). **Clear override** removes the custom config.
+
+**Check allowlist (core)** — every notifier target page includes an optional **Checks** allowlist. Core applies it in the pipeline before calling `notify()`: empty = any alert (including recovery); non-empty = only when a listed check failed (recoveries skipped). Stored in `target_notifier_configs` as `check_ids`, independent of plugin-specific settings.
+
+At alert time, each notifier resolves **effective plugin config** = global defaults merged with any per-target override. Core then filters on `check_ids` before delivery.
+
+**FCM** stores device FIDs on the FCM page (`fcm-tokens.json`). Per-target **destination** allowlists (`token_ids`) are configured on **Targets → fcm settings** when using custom settings.
+
 ### Plugin manager (runtime enable/disable)
 
 Plugin visibility/behavior now has two layers:
@@ -95,7 +109,7 @@ Source of truth: [`api/src/plugins/types.ts`](api/src/plugins/types.ts). Core ca
 |------|------------|-----------------|
 | **Check** | `check(url)` only | Always records an aggregated result. All ok → `up`; all fail → `down`; mix → `partial`. `latency_ms` is the max. Failures are prefixed `[pluginId]` and joined with `; `. Do not throw on a failed probe — return `ok: false`. |
 | **Scheduler** | `init` (if any), `start()` after listen, `reschedule()` after every target create/update/delete (including Pause) | Exactly one scheduler. `ctx.run(id)` is the full pipeline. Core does not cancel an in-flight `run` on Pause. Keep shipped `interval` unless you need a different kind of clock. |
-| **Notifier** | `notify(event)` when the **policy** says to alert | `AlertEvent` includes `title` / `body` plus per-check `event.checks[]`. Core still calls `notify` when `isReady()` is false (plugin should no-op). Soft skip = return; throw only on hard failure. |
+| **Notifier** | `notify(ctx)` when the **policy** says to alert | `AlertEvent` includes `title` / `body` plus per-check `event.checks[]`. Per-target override JSON is passed as `ctx.config`. Core applies per-notifier `check_ids` from `ctx.config` before calling `notify()` (empty = any alert). Core still calls `notify` when `isReady()` is false (plugin should no-op). Soft skip = return; throw only on hard failure. |
 
 Also guaranteed:
 
@@ -215,17 +229,19 @@ Swagger UI: [http://localhost:8089/documentation](http://localhost:8089/document
 - `GET /api/plugins/check/http/overrides` — `{ targetIds }` for targets with a custom HTTP override
 - `GET/PUT/DELETE /api/plugins/check/http/targets/:targetId/config` — per-target override (`useCustom` + optional fields merged over defaults); `POST .../test` — one-shot test with effective or form config
 - `GET/PUT /api/plugins/check/keyword-body/targets/:targetId/config` — per-target keyword/body check config
-- `GET/POST/PATCH/DELETE /api/plugins/notify/fcm/tokens` — FCM destinations (FID preferred; `target_ids` / `check_ids`)
-- `POST /api/plugins/notify/fcm/tokens/import` — import `{ fids: [...] }` (or `{ tokens: [...] }`); duplicates skipped
-- `POST /api/plugins/notify/fcm/tokens/test` — send a test push to a raw FID or legacy token
+- `GET/POST/PATCH/DELETE /api/plugins/notify/fcm/tokens` — FCM FID destinations
+- `POST /api/plugins/notify/fcm/tokens/import` — import `{ fids: [...] }`; duplicates skipped
+- `POST /api/plugins/notify/fcm/tokens/test` — send a test push to a raw FID
 - `POST /api/plugins/notify/fcm/tokens/:id/test` — send a test push; FCM success is stored as `sent`, not `ok`
-- `POST /api/plugins/notify/fcm/tokens/:id/received` — `{ received: true|false }` confirms on-device result (`false` disables the token)
-- `GET/PUT /api/plugins/notify/webhook/config` — webhook URL, HTTP method, and headers
-- `POST /api/plugins/notify/webhook/test` — send a sample `AlertEvent` using the saved URL and method
-- `GET/PUT /api/plugins/notify/slack/config`, `POST /api/plugins/notify/slack/test` — Slack incoming webhook notifier
-- `GET/PUT /api/plugins/notify/discord/config`, `POST /api/plugins/notify/discord/test` — Discord webhook notifier
-- `GET/PUT /api/plugins/notify/telegram/config`, `POST /api/plugins/notify/telegram/test` — Telegram bot notifier
-- `GET/PUT /api/plugins/notify/email/config`, `POST /api/plugins/notify/email/test` — Email notifier via local `sendmail`
+- `POST /api/plugins/notify/fcm/tokens/:id/received` — `{ received: true|false }` confirms on-device result (`false` disables the destination)
+- `GET/PUT/DELETE /api/plugins/notify/fcm/targets/:targetId/config` — per-target FCM routing override
+- `GET/PUT /api/plugins/notify/webhook/config` — default webhook notifier parameters
+- `GET /api/plugins/notify/webhook/overrides`, `GET/PUT/DELETE /api/plugins/notify/webhook/targets/:targetId/config`, `POST .../test` — per-target webhook override
+- Same `/overrides` + `/targets/:targetId/config` + `/test` pattern for **slack**, **discord**, **telegram**, **email**
+- `GET/PUT /api/plugins/notify/slack/config`, `POST /api/plugins/notify/slack/test` — Slack defaults + test
+- `GET/PUT /api/plugins/notify/discord/config`, `POST /api/plugins/notify/discord/test` — Discord defaults + test
+- `GET/PUT /api/plugins/notify/telegram/config`, `POST /api/plugins/notify/telegram/test` — Telegram defaults + test
+- `GET/PUT /api/plugins/notify/email/config`, `POST /api/plugins/notify/email/test` — Email defaults + test
 - `GET/PUT /api/settings`
 - `GET /api/status`
 - `GET /api/schema`
@@ -242,7 +258,7 @@ Targets attach to **child** groups via `group_id` (not roots). Deleting a group 
 
 ## Data
 
-SQLite file: `./data/monitor.sqlite` (bind-mounted in Compose at `/data/monitor.sqlite`). Plugin sidecars next to the DB: `./data/http-check-defaults.json`, `./data/fcm-tokens.json`, `./data/webhook.json`, `./data/plugin-manager.json`, and other plugin config files as documented in [docs/plugins.md](docs/plugins.md).
+SQLite file: `./data/monitor.sqlite` (bind-mounted in Compose at `/data/monitor.sqlite`). Plugin sidecars next to the DB: `./data/http-check-defaults.json`, `./data/webhook.json`, `./data/slack.json`, `./data/fcm-tokens.json`, `./data/plugin-manager.json`, and other plugin config files as documented in [docs/plugins.md](docs/plugins.md). Per-target check and notifier overrides are stored in SQLite (`target_check_configs`, `target_notifier_configs`).
 
 ## Notes
 

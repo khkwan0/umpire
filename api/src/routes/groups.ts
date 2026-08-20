@@ -1,13 +1,13 @@
-import type { FastifyInstance } from 'fastify'
-import { getCore } from '../core/index.js'
+import type {FastifyInstance} from 'fastify'
+import {getCore} from '../core/index.js'
 
 const errorResponse = {
   type: 'object',
-  properties: { error: { type: 'string' } },
+  properties: {error: {type: 'string'}},
 } as const
 
 export async function groupsRoutes(app: FastifyInstance): Promise<void> {
-  app.get<{ Querystring: { tree?: string } }>(
+  app.get<{Querystring: {tree?: string}}>(
     '/api/groups',
     {
       schema: {
@@ -27,14 +27,14 @@ export async function groupsRoutes(app: FastifyInstance): Promise<void> {
         response: {
           200: {
             oneOf: [
-              { type: 'array', items: { $ref: 'Group#' } },
-              { type: 'array', items: { $ref: 'GroupTreeNode#' } },
+              {type: 'array', items: {$ref: 'Group#'}},
+              {type: 'array', items: {$ref: 'GroupTreeNode#'}},
             ],
           },
         },
       },
     },
-    async (req) => {
+    async req => {
       const tree =
         req.query.tree === '1' ||
         req.query.tree === 'true' ||
@@ -43,7 +43,7 @@ export async function groupsRoutes(app: FastifyInstance): Promise<void> {
     },
   )
 
-  app.get<{ Params: { id: string } }>(
+  app.get<{Params: {id: string}}>(
     '/api/groups/:id',
     {
       schema: {
@@ -52,10 +52,10 @@ export async function groupsRoutes(app: FastifyInstance): Promise<void> {
         params: {
           type: 'object',
           required: ['id'],
-          properties: { id: { type: 'string' } },
+          properties: {id: {type: 'string'}},
         },
         response: {
-          200: { $ref: 'Group#' },
+          200: {$ref: 'Group#'},
           400: errorResponse,
           404: errorResponse,
         },
@@ -64,16 +64,16 @@ export async function groupsRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       const id = Number(req.params.id)
       if (!Number.isInteger(id) || id < 1) {
-        return reply.code(400).send({ error: 'invalid id' })
+        return reply.code(400).send({error: 'invalid id'})
       }
       const group = getCore().getGroup(id)
-      if (!group) return reply.code(404).send({ error: 'not found' })
+      if (!group) return reply.code(404).send({error: 'not found'})
       return group
     },
   )
 
   app.post<{
-    Body: { parent?: number; name?: string; tag?: string }
+    Body: {parent?: number; name?: string; tag?: string}
   }>(
     '/api/groups',
     {
@@ -85,8 +85,8 @@ export async function groupsRoutes(app: FastifyInstance): Promise<void> {
         body: {
           type: 'object',
           properties: {
-            parent: { type: 'integer', minimum: 0, default: 0 },
-            name: { type: 'string' },
+            parent: {type: 'integer', minimum: 0, default: 0},
+            name: {type: 'string'},
             tag: {
               type: 'string',
               description: 'Optional override; otherwise auto-generated',
@@ -94,7 +94,7 @@ export async function groupsRoutes(app: FastifyInstance): Promise<void> {
           },
         },
         response: {
-          201: { $ref: 'Group#' },
+          201: {$ref: 'Group#'},
           400: errorResponse,
         },
       },
@@ -102,7 +102,7 @@ export async function groupsRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       const parent = req.body?.parent ?? 0
       if (!Number.isInteger(parent) || parent < 0) {
-        return reply.code(400).send({ error: 'parent must be 0 or a group id' })
+        return reply.code(400).send({error: 'parent must be 0 or a group id'})
       }
       try {
         const group = getCore().createGroup({
@@ -114,14 +114,14 @@ export async function groupsRoutes(app: FastifyInstance): Promise<void> {
       } catch (err) {
         return reply
           .code(400)
-          .send({ error: err instanceof Error ? err.message : String(err) })
+          .send({error: err instanceof Error ? err.message : String(err)})
       }
     },
   )
 
   app.patch<{
-    Params: { id: string }
-    Body: { parent?: number; name?: string; tag?: string }
+    Params: {id: string}
+    Body: {parent?: number; name?: string; tag?: string}
   }>(
     '/api/groups/:id',
     {
@@ -131,18 +131,18 @@ export async function groupsRoutes(app: FastifyInstance): Promise<void> {
         params: {
           type: 'object',
           required: ['id'],
-          properties: { id: { type: 'string' } },
+          properties: {id: {type: 'string'}},
         },
         body: {
           type: 'object',
           properties: {
-            parent: { type: 'integer', minimum: 0 },
-            name: { type: 'string' },
-            tag: { type: 'string' },
+            parent: {type: 'integer', minimum: 0},
+            name: {type: 'string'},
+            tag: {type: 'string'},
           },
         },
         response: {
-          200: { $ref: 'Group#' },
+          200: {$ref: 'Group#'},
           400: errorResponse,
           404: errorResponse,
         },
@@ -151,27 +151,27 @@ export async function groupsRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       const id = Number(req.params.id)
       if (!Number.isInteger(id) || id < 1) {
-        return reply.code(400).send({ error: 'invalid id' })
+        return reply.code(400).send({error: 'invalid id'})
       }
       if (
         req.body?.parent !== undefined &&
         (!Number.isInteger(req.body.parent) || req.body.parent < 0)
       ) {
-        return reply.code(400).send({ error: 'parent must be 0 or a group id' })
+        return reply.code(400).send({error: 'parent must be 0 or a group id'})
       }
       try {
         const updated = getCore().updateGroup(id, req.body ?? {})
-        if (!updated) return reply.code(404).send({ error: 'not found' })
+        if (!updated) return reply.code(404).send({error: 'not found'})
         return updated
       } catch (err) {
         return reply
           .code(400)
-          .send({ error: err instanceof Error ? err.message : String(err) })
+          .send({error: err instanceof Error ? err.message : String(err)})
       }
     },
   )
 
-  app.delete<{ Params: { id: string } }>(
+  app.delete<{Params: {id: string}}>(
     '/api/groups/:id',
     {
       schema: {
@@ -182,10 +182,10 @@ export async function groupsRoutes(app: FastifyInstance): Promise<void> {
         params: {
           type: 'object',
           required: ['id'],
-          properties: { id: { type: 'string' } },
+          properties: {id: {type: 'string'}},
         },
         response: {
-          204: { type: 'null', description: 'Deleted' },
+          204: {type: 'null', description: 'Deleted'},
           400: errorResponse,
           404: errorResponse,
         },
@@ -194,10 +194,10 @@ export async function groupsRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       const id = Number(req.params.id)
       if (!Number.isInteger(id) || id < 1) {
-        return reply.code(400).send({ error: 'invalid id' })
+        return reply.code(400).send({error: 'invalid id'})
       }
       const ok = getCore().deleteGroup(id)
-      if (!ok) return reply.code(404).send({ error: 'not found' })
+      if (!ok) return reply.code(404).send({error: 'not found'})
       return reply.code(204).send()
     },
   )

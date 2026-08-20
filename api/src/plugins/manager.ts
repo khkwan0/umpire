@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { getChecks, getNotifiers, getScheduler } from './runtime.js'
+import {getChecks, getNotifiers, getScheduler} from './runtime.js'
 
 type PluginKind = 'check' | 'notify' | 'scheduler'
 
@@ -23,7 +23,7 @@ function managerPath(): string {
 
 function saveFlags(): void {
   const file = managerPath()
-  fs.mkdirSync(path.dirname(file), { recursive: true })
+  fs.mkdirSync(path.dirname(file), {recursive: true})
   fs.writeFileSync(file, JSON.stringify(flags, null, 2), 'utf8')
 }
 
@@ -31,7 +31,9 @@ function loadFlags(): void {
   const file = managerPath()
   if (!fs.existsSync(file)) return
   try {
-    const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as Partial<PluginFlags>
+    const raw = JSON.parse(
+      fs.readFileSync(file, 'utf8'),
+    ) as Partial<PluginFlags>
     Object.assign(flags.check, raw.check ?? {})
     Object.assign(flags.notify, raw.notify ?? {})
     Object.assign(flags.scheduler, raw.scheduler ?? {})
@@ -70,15 +72,23 @@ export function setPluginEnabled(
   saveFlags()
 }
 
+function pluginDescription(plugin: {description?: string}): string | null {
+  if (typeof plugin.description !== 'string') return null
+  const trimmed = plugin.description.trim()
+  return trimmed === '' ? null : trimmed
+}
+
 export function pluginManagerState() {
-  const checks = getChecks().map((c) => ({
+  const checks = getChecks().map(c => ({
     id: c.id,
     enabled: isPluginEnabled('check', c.id),
+    description: pluginDescription(c),
   }))
-  const notifiers = getNotifiers().map((n) => ({
+  const notifiers = getNotifiers().map(n => ({
     id: n.id,
     enabled: isPluginEnabled('notify', n.id),
     ready: n.isReady(),
+    description: pluginDescription(n),
   }))
   const scheduler = getScheduler()
   return {
@@ -86,6 +96,7 @@ export function pluginManagerState() {
     scheduler: {
       id: scheduler.id,
       enabled: isPluginEnabled('scheduler', scheduler.id),
+      description: pluginDescription(scheduler),
     },
     notifiers,
   }

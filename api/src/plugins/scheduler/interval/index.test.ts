@@ -1,6 +1,6 @@
-import { jest } from '@jest/globals'
+import {jest} from '@jest/globals'
 import intervalScheduler from './index.js'
-import type { SchedulableTarget, SchedulerContext } from '../../types.js'
+import type {SchedulableTarget, SchedulerContext} from '../../types.js'
 
 function context(
   targets: SchedulableTarget[],
@@ -27,8 +27,8 @@ describe('interval scheduler', () => {
   it('starts a timer per enabled target and runs after the stagger delay', async () => {
     const run = jest.fn(async () => {})
     const targets: SchedulableTarget[] = [
-      { id: 1, intervalSeconds: 60, enabled: true },
-      { id: 2, intervalSeconds: 60, enabled: false },
+      {id: 1, intervalSeconds: 60, enabled: true},
+      {id: 2, intervalSeconds: 60, enabled: false},
     ]
     intervalScheduler.init(context(targets, run))
     intervalScheduler.start()
@@ -41,7 +41,7 @@ describe('interval scheduler', () => {
   it('does not restart unchanged timers on reschedule', async () => {
     const run = jest.fn(async () => {})
     const targets: SchedulableTarget[] = [
-      { id: 3, intervalSeconds: 60, enabled: true },
+      {id: 3, intervalSeconds: 60, enabled: true},
     ]
     intervalScheduler.init(context(targets, run))
     intervalScheduler.start()
@@ -55,7 +55,7 @@ describe('interval scheduler', () => {
   it('stops timers for removed or disabled targets', async () => {
     const run = jest.fn(async () => {})
     let targets: SchedulableTarget[] = [
-      { id: 1, intervalSeconds: 60, enabled: true },
+      {id: 1, intervalSeconds: 60, enabled: true},
     ]
     intervalScheduler.init({
       getTargets: () => targets,

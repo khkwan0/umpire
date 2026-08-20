@@ -1,8 +1,6 @@
-import type { CheckContext, CheckOutcome, CheckPlugin } from '../../types.js'
-import {
-  resolveKeywordBodyConfig,
-} from './config.js'
-import { registerKeywordBodyCheckRoutes } from './routes.js'
+import type {CheckContext, CheckOutcome, CheckPlugin} from '../../types.js'
+import {resolveKeywordBodyConfig} from './config.js'
+import {registerKeywordBodyCheckRoutes} from './routes.js'
 
 function timeoutMs(): number {
   const n = Number(process.env.CHECK_TIMEOUT_MS)
@@ -11,6 +9,8 @@ function timeoutMs(): number {
 
 const keywordBodyCheck: CheckPlugin = {
   id: 'keyword-body',
+  description:
+    'Fetches the target URL and requires a configured keyword to appear in the response body.',
 
   async registerRoutes(app) {
     await registerKeywordBodyCheckRoutes(app)
@@ -26,7 +26,7 @@ const keywordBodyCheck: CheckPlugin = {
         method: 'GET',
         redirect: 'follow',
         signal: controller.signal,
-        headers: { 'user-agent': 'umpire/1.0' },
+        headers: {'user-agent': 'umpire/1.0'},
       })
       const body = await res.text()
       const haystack = cfg.caseSensitive ? body : body.toLowerCase()
@@ -47,7 +47,7 @@ const keywordBodyCheck: CheckPlugin = {
             ? 'timeout'
             : err.message
           : String(err)
-      return { ok: false, statusCode: null, error: message, latencyMs }
+      return {ok: false, statusCode: null, error: message, latencyMs}
     } finally {
       clearTimeout(timer)
     }

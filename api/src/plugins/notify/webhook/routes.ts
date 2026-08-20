@@ -1,61 +1,38 @@
-import type { FastifyInstance } from 'fastify'
+import type {FastifyInstance} from 'fastify'
+import {publishRealtime} from '../../../realtime.js'
 import {
+  buildTargetConfigView,
   isConfigured,
   normalizeConfig,
-  readConfig,
+  normalizeTargetOverride,
+  readDefaults,
+  resolveWebhookConfigForTarget,
   WEBHOOK_METHODS,
-  writeConfig,
+  writeDefaults,
 } from './config.js'
-import { sendAlert, testEvent } from './send.js'
+import {registerNotifierTargetRoutes} from '../shared/targetRoutes.js'
+import {sendAlert, testEvent} from './send.js'
 
 const errorResponse = {
   type: 'object',
-  properties: { error: { type: 'string' } },
+  properties: {error: {type: 'string'}},
 } as const
 
 const methodSchema = {
   type: 'string',
   enum: [...WEBHOOK_METHODS],
-  description:
-    'HTTP method used to deliver AlertEvent. POST/PUT/PATCH/DELETE send JSON body; GET/HEAD/OPTIONS put the event on the query string. Default POST.',
 } as const
 
-const webhookConfigBodySchema = {
-  type: 'object',
-  required: ['url', 'headers'],
-  properties: {
-    url: {
-      type: 'string',
-      description: 'Request URL. Empty = not ready / skip notify.',
-    },
-    method: methodSchema,
-    headers: {
-      type: 'object',
-      additionalProperties: { type: 'string' },
-      description: 'Extra request headers (e.g. Authorization).',
-    },
-  },
-} as const
-
-const webhookConfigResponseSchema = {
+const configSchema = {
   type: 'object',
   required: ['url', 'method', 'headers'],
   properties: {
-    url: { type: 'string' },
+    url: {type: 'string'},
     method: methodSchema,
     headers: {
       type: 'object',
-      additionalProperties: true,
+      additionalProperties: {type: 'string'},
     },
-  },
-} as const
-
-const webhookTestSchema = {
-  type: 'object',
-  required: ['ok', 'error'],
-  properties: {
-    ok: { type: 'boolean' },
-    error: { type: ['string', 'null'] },
   },
 } as const
 
@@ -67,37 +44,39 @@ export async function registerWebhookRoutes(
     {
       schema: {
         tags: ['webhook'],
-        summary: 'Get webhook URL, method, and headers',
-        description:
-          'Owned by the webhook notifier. Mounted at /api/plugins/notify/webhook/config. Stored in webhook.json next to the core DB.',
-        response: { 200: webhookConfigResponseSchema },
+        summary: 'Get default webhook notifier parameters for all targets',
+        response: {200: configSchema},
       },
     },
-    async () => readConfig(),
+    async () => readDefaults(),
   )
 
   app.put<{
-    Body: { url?: string; method?: string; headers?: Record<string, string> }
+    Body: {url?: string; method?: string; headers?: Record<string, string>}
   }>(
     '/config',
     {
       schema: {
         tags: ['webhook'],
-        summary: 'Set webhook URL, HTTP method, and headers',
-        body: webhookConfigBodySchema,
+        summary: 'Set default webhook notifier parameters for all targets',
+        body: configSchema,
         response: {
-          200: webhookConfigResponseSchema,
+          200: configSchema,
           400: errorResponse,
         },
       },
     },
     async (req, reply) => {
       try {
-        return writeConfig(normalizeConfig(req.body))
+        const config = writeDefaults(normalizeConfig(req.body))
+        publishRealtime('plugin-manager.updated', {
+          reason: 'webhook-defaults',
+        })
+        return config
       } catch (err) {
         return reply
           .code(400)
-          .send({ error: err instanceof Error ? err.message : String(err) })
+          .send({error: err instanceof Error ? err.message : String(err)})
       }
     },
   )
@@ -107,21 +86,28 @@ export async function registerWebhookRoutes(
     {
       schema: {
         tags: ['webhook'],
-        summary: 'Send a sample AlertEvent using the saved URL and method',
+        summary: 'Send a sample AlertEvent using saved default config',
         response: {
-          200: webhookTestSchema,
+          200: {
+            type: 'object',
+            required: ['ok', 'error'],
+            properties: {
+              ok: {type: 'boolean'},
+              error: {type: ['string', 'null']},
+            },
+          },
           400: errorResponse,
         },
       },
     },
     async (req, reply) => {
-      const config = readConfig()
+      const config = readDefaults()
       if (!isConfigured(config)) {
-        return reply.code(400).send({ error: 'set a webhook URL first' })
+        return reply.code(400).send({error: 'set a webhook URL first'})
       }
       try {
         await sendAlert(config, testEvent())
-        return { ok: true, error: null }
+        return {ok: true, error: null}
       } catch (err) {
         return {
           ok: false,
@@ -130,4 +116,18 @@ export async function registerWebhookRoutes(
       }
     },
   )
+
+  await registerNotifierTargetRoutes(app, {
+    notifierId: 'webhook',
+    openapiTag: 'webhook',
+    configSchema,
+    readDefaults,
+    writeDefaults: input => writeDefaults(normalizeConfig(input)),
+    buildTargetConfigView,
+    normalizeTargetOverride,
+    resolveForTarget: resolveWebhookConfigForTarget,
+    isConfigured,
+    testSend: config => sendAlert(config, testEvent()),
+    publishDefaultsReason: 'webhook-defaults',
+  })
 }

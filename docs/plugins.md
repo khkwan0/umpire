@@ -58,7 +58,7 @@ They do not import each other. Core calls a few hooks. Plugins answer, or call b
 3. **Scheduler asks core to run** — When a target is due, the scheduler calls `ctx.run(targetId)`. That is the only way a check cycle starts.
 4. **Core asks checks to probe** — `run` calls `check(ctx)` on each selected check. The plugin returns `{ ok, statusCode, error, latencyMs }` and stops there. It does not write the database.
 5. **Core keeps the books** — Core aggregates outcomes, writes SQLite, and applies alert policy.
-6. **Core asks notifiers to deliver** — If policy says alert, core calls `notify(event)` with a ready-made title and body. The notifier only sends.
+6. **Core asks notifiers to deliver** — If policy says alert, core applies each notifier’s per-target **`check_ids`** allowlist (from `target_notifier_configs`), then calls `notify(ctx)` with a ready-made title and body. The notifier only sends.
 
 Plugin HTTP and UI are a side channel for plugin-owned data. They are not how probes run or how alerts fire.
 
@@ -70,7 +70,7 @@ Plugin HTTP and UI are a side channel for plugin-owned data. They are not how pr
 |--------------|------|-------------|--------------|
 | Probe a URL (HTTP, TLS, DNS, keyword, …) | `check` | One or more | `check(ctx)` |
 | Decide *when* targets run (rarely: keep `interval`) | `scheduler` | **Exactly one** process-wide | `start` / `stop` / `reschedule` |
-| Deliver an alert (FCM, webhook, ntfy, email, …) | `notify` | Zero or more | `isReady` + `notify(event)` |
+| Deliver an alert (FCM, webhook, ntfy, email, …) | `notify` | Zero or more | `isReady` + `notify(ctx)` |
 
 Optional for every kind:
 
@@ -95,8 +95,9 @@ plugins.json            → which modules load (process-wide pool)
 targets[]               → what to watch (url, interval, enabled, group)
 target.check_ids        → which loaded checks run for that target ([] = all)
 target.notifier_ids     → which loaded notifiers get alerts ([] = all)
+target_notifier_configs → per-target notifier overrides; core field check_ids ([] = any alert)
 scheduler               → when to call core run(targetId)
-core pipeline           → checks → record SQLite → alert policy → notifiers
+core pipeline           → checks → record SQLite → alert policy → check_ids filter → notifiers
 alert policy            → whether notify() is called (not the notifier’s job)
 ```
 
@@ -820,23 +821,24 @@ Production pattern: **FCM**. Copy this when users manage a list of destinations 
 |-------|----------|------------|
 | Storage | `data/fcm-tokens.json` (`FCM_TOKENS_PATH`) | Sidecar file next to `DATABASE_PATH`, not a core table |
 | CRUD | `GET/POST/PATCH/DELETE /tokens` | Relative paths on `registerRoutes` |
-| Routing | `target_ids` / `check_ids` / `enabled` | Filter in `notify` from `event.target.id` and `event.checks` |
+| Per-target routing | `token_ids` on override (destinations); `check_ids` is **core** | Destination allowlists in plugin config; check allowlist is automatic via shared target routes |
 | Test | `POST /tokens/:id/test` | Optional; record last error on the row |
 | Send | Admin SDK `sendEachForMulticast` | Your provider; throw only if *all* sends fail |
 | UI | `ui/TokensPage.tsx` + `api.tokens` in `web/src/api.ts` | Nav via `PluginUiModule`; typed client optional |
-| OpenAPI | Fastify `schema` + `FcmToken` component | Add schemas so Swagger lists your routes |
+| OpenAPI | Fastify `schema` + `FcmDestination` component | Add schemas so Swagger lists your routes |
 
-Destination matching (FCM):
+**Core check allowlist (all notifiers)** — stored in `target_notifier_configs` as `check_ids`. Empty = any alert (including recovery). Non-empty = only when a listed check **failed**; recoveries skipped. Core applies this in [`api/src/core/notifierRouting.ts`](../api/src/core/notifierRouting.ts) before `notify()`. Shared target routes ([`notify/shared/targetRoutes.ts`](../api/src/plugins/notify/shared/targetRoutes.ts)) expose `check_ids` on every configurable notifier’s `GET/PUT …/targets/:targetId/config`. Plugins must **not** reimplement check filtering in `notify()`.
+
+FCM destination matching:
 
 | Field | Empty | Non-empty |
 |-------|--------|-----------|
-| `target_ids` | all targets | only those ids |
-| `check_ids` | any alert including recovery | only when a listed check **failed**; recoveries skipped |
-| `enabled` | — | `0` never receives |
+| `token_ids` (plugin override) | all enabled destinations | only those ids |
+| `enabled` (row) | — | `0` never receives |
 
 No matching destinations → return without throwing (soft skip).
 
-Read: [`api/src/plugins/notify/fcm/`](../api/src/plugins/notify/fcm/) (`index.ts`, `tokens.ts`, `routes.ts`, `send.ts`, `ui/`).
+Read: [`api/src/plugins/notify/fcm/`](../api/src/plugins/notify/fcm/) (`index.ts`, `destinations.ts`, `routes.ts`, `send.ts`, `ui/`).
 
 ### 5. Scheduler: keep `interval` (usually)
 
@@ -932,12 +934,12 @@ export default {
 
 | Do | Don’t |
 |----|--------|
-| Deliver `title` / `body` | Decide alert policy |
+| Deliver `title` / `body` | Decide alert policy or filter on `check_ids` (core does that) |
 | Own destinations under `/api/plugins/notify/<id>` | Write `check_results` / `target_state` |
 | Honest `isReady()` | Assume you are the only notifier |
 | Secrets in plugin sidecar files (or host credentials for SDKs) | Put notifier tables into core SQLite |
 | Relative paths (`/tokens`, `/config`) | Absolute core paths (`/api/targets`); plugin settings in `.env` |
-| Filter with `event.checks[].id` | Parse `error` / `body` for check ids |
+| Use `registerNotifierTargetRoutes` for per-target plugin config | Reimplement check allowlists in `notify()` |
 
 ### Schedulers
 
@@ -950,7 +952,7 @@ export default {
 
 ### Core schema
 
-Frozen tables: `groups`, `targets` (includes `check_ids`, `notifier_ids`), `settings`, `check_results`, `target_state`.
+Frozen tables: `groups`, `targets` (includes `check_ids`, `notifier_ids`), `settings`, `check_results`, `target_state`, `target_notifier_configs` (includes core `check_ids` per notifier override).
 
 `GET /api/schema` publishes the schema; `?data=1` dumps those tables. Plugins may **read** via `getCore()`; they should not rely on mutating core tables.
 

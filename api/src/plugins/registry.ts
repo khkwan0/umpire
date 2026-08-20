@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import {fileURLToPath, pathToFileURL} from 'node:url'
 import {
   getChecks,
   getNotifiers,
@@ -10,15 +10,10 @@ import {
   setNotifiers,
   setScheduler,
 } from './runtime.js'
-import { initPluginManager } from './manager.js'
-import type { CheckPlugin, NotifierPlugin, SchedulerPlugin } from './types.js'
+import {initPluginManager} from './manager.js'
+import type {CheckPlugin, NotifierPlugin, SchedulerPlugin} from './types.js'
 
-export {
-  getChecks,
-  getNotifiers,
-  getScheduler,
-  hasNotifier,
-} from './runtime.js'
+export {getChecks, getNotifiers, getScheduler, hasNotifier} from './runtime.js'
 
 type PluginKind = 'check' | 'scheduler' | 'notify'
 
@@ -58,9 +53,9 @@ function loadConfig(): PluginsConfig {
     throw new Error('plugins.json: notifiers must be an array of ids')
   }
   return {
-    checks: raw.checks.map((id) => String(id)),
+    checks: raw.checks.map(id => String(id)),
     scheduler: raw.scheduler.trim(),
-    notifiers: raw.notifiers.map((id) => String(id)),
+    notifiers: raw.notifiers.map(id => String(id)),
   }
 }
 
@@ -129,12 +124,12 @@ async function loadModule(filePath: string): Promise<Record<string, unknown>> {
   return (await import(pathToFileURL(filePath).href)) as Record<string, unknown>
 }
 
-async function loadById<T extends { id: string }>(
+async function loadById<T extends {id: string}>(
   kind: PluginKind,
   id: string,
   guard: (value: unknown) => value is T,
   label: string,
-): Promise<{ plugin: T; file: string }> {
+): Promise<{plugin: T; file: string}> {
   const file = resolvePluginFile(kind, id)
   const plugin = pickExport(await loadModule(file), file, guard, label)
   if (plugin.id !== id) {
@@ -142,7 +137,7 @@ async function loadById<T extends { id: string }>(
       `${label} file "${file}" exports id="${plugin.id}" but plugins.json asked for "${id}"`,
     )
   }
-  return { plugin, file }
+  return {plugin, file}
 }
 
 export async function initPlugins(): Promise<void> {
@@ -190,10 +185,10 @@ export async function initPlugins(): Promise<void> {
 
 export function pluginStatus() {
   return {
-    core: { engine: 'sqlite' },
-    checks: getChecks().map((c) => ({ id: c.id })),
-    scheduler: { id: getScheduler().id },
-    notifiers: getNotifiers().map((n) => ({
+    core: {engine: 'sqlite'},
+    checks: getChecks().map(c => ({id: c.id})),
+    scheduler: {id: getScheduler().id},
+    notifiers: getNotifiers().map(n => ({
       id: n.id,
       ready: n.isReady(),
     })),

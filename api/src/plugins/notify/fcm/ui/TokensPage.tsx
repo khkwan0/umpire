@@ -4,13 +4,7 @@ import {
   type FcmToken,
   type FcmTokenImportResult,
   type FcmTokenTestResult,
-  type PluginRef,
-  type Target,
 } from '@umpire/web-api'
-
-function toggleId<T extends string | number>(list: T[], id: T): T[] {
-  return list.includes(id) ? list.filter((x) => x !== id) : [...list, id]
-}
 
 function DestinationField({
   value,
@@ -72,12 +66,8 @@ function DestinationField({
 
 export default function TokensPage() {
   const [tokens, setTokens] = useState<FcmToken[]>([])
-  const [targets, setTargets] = useState<Target[]>([])
-  const [checks, setChecks] = useState<PluginRef[]>([])
-  const [token, setToken] = useState('')
+  const [fid, setFid] = useState('')
   const [label, setLabel] = useState('')
-  const [createTargetIds, setCreateTargetIds] = useState<number[]>([])
-  const [createCheckIds, setCreateCheckIds] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [draftTest, setDraftTest] = useState<FcmTokenTestResult | null>(null)
@@ -91,14 +81,7 @@ export default function TokensPage() {
   const fileRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
-    const [nextTokens, nextTargets, nextChecks] = await Promise.all([
-      api.tokens.list(),
-      api.targets.list(),
-      api.checks.list(),
-    ])
-    setTokens(nextTokens)
-    setTargets(nextTargets)
-    setChecks(nextChecks)
+    setTokens(await api.tokens.list())
   }, [])
 
   useEffect(() => {
@@ -113,25 +96,9 @@ export default function TokensPage() {
     setError(null)
     setDraftTest(null)
     try {
-      await api.tokens.create(
-        /:APA91/i.test(token.trim())
-          ? {
-              token: token.trim(),
-              label: label.trim(),
-              target_ids: createTargetIds,
-              check_ids: createCheckIds,
-            }
-          : {
-              fid: token.trim(),
-              label: label.trim(),
-              target_ids: createTargetIds,
-              check_ids: createCheckIds,
-            },
-      )
-      setToken('')
+      await api.tokens.create({ fid: fid.trim(), label: label.trim() })
+      setFid('')
       setLabel('')
-      setCreateTargetIds([])
-      setCreateCheckIds([])
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -154,34 +121,11 @@ export default function TokensPage() {
   async function changeDestination(t: FcmToken, next: string) {
     setError(null)
     try {
-      await api.tokens.update(
-        t.id,
-        /:APA91/i.test(next) ? { token: next } : { fid: next },
-      )
+      await api.tokens.update(t.id, { fid: next })
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
       throw err
-    }
-  }
-
-  async function changeTargets(t: FcmToken, next: number[]) {
-    setError(null)
-    try {
-      await api.tokens.update(t.id, { target_ids: next })
-      await load()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    }
-  }
-
-  async function changeChecks(t: FcmToken, next: string[]) {
-    setError(null)
-    try {
-      await api.tokens.update(t.id, { check_ids: next })
-      await load()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
     }
   }
 
@@ -196,15 +140,15 @@ export default function TokensPage() {
   }
 
   async function remove(id: number) {
-    if (!confirm('Delete this token?')) return
+    if (!confirm('Delete this destination?')) return
     await api.tokens.remove(id)
     await load()
   }
 
   async function testDraft() {
-    const value = token.trim()
+    const value = fid.trim()
     if (!value) {
-      setError('token required')
+      setError('fid required')
       return
     }
     setTestingId('draft')
@@ -273,10 +217,10 @@ export default function TokensPage() {
     }
     if (Array.isArray(parsed)) return parsed
     if (parsed && typeof parsed === 'object') {
-      const rec = parsed as { fids?: unknown; tokens?: unknown }
-      if (Array.isArray(rec.fids) || Array.isArray(rec.tokens)) return parsed
+      const rec = parsed as { fids?: unknown }
+      if (Array.isArray(rec.fids)) return parsed
     }
-    throw new Error('JSON must be an array, or { "fids": [...] } / { "tokens": [...] }')
+    throw new Error('JSON must be an array, or { "fids": [...] }')
   }
 
   async function onImport(e: FormEvent) {
@@ -286,9 +230,7 @@ export default function TokensPage() {
     setImportResult(null)
     try {
       const parsed = parseImportJson(importText)
-      const payload = Array.isArray(parsed)
-        ? { fids: parsed }
-        : parsed
+      const payload = Array.isArray(parsed) ? { fids: parsed } : parsed
       const result = await api.tokens.import(payload)
       setImportResult(result)
       setImportText('')
@@ -319,20 +261,18 @@ export default function TokensPage() {
       <section className="panel">
         <h2>Add FCM FID</h2>
         <p className="muted">
-          Prefer a Firebase Installation ID from the client (
-          <span className="mono">getId()</span> /{' '}
-          <span className="mono">onRegistered</span>). Legacy{' '}
-          <span className="mono">:APA91</span> registration tokens still send
-          via the deprecated <span className="mono">token</span> field. Leave
-          targets / checks unchecked to receive <strong>all</strong> matching
-          alerts. Test asks FCM to send; confirm with Got it / Not received.
+          Register Firebase Installation IDs here. Per-target routing (which
+          destinations and checks) is configured on{' '}
+          <strong>Targets → fcm settings</strong>. Without an override, alerts
+          go to all enabled destinations. Test asks FCM to send; confirm with Got
+          it / Not received.
         </p>
         <form className="form-row" onSubmit={onCreate}>
           <label className="grow">
             FID
             <input
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
+              value={fid}
+              onChange={(e) => setFid(e.target.value)}
               placeholder="Firebase Installation ID"
               required
             />
@@ -350,7 +290,7 @@ export default function TokensPage() {
           </button>
           <button
             type="button"
-            disabled={busy || testingId !== null || !token.trim()}
+            disabled={busy || testingId !== null || !fid.trim()}
             onClick={() => void testDraft()}
           >
             {testingId === 'draft' ? 'Testing…' : 'Test'}
@@ -361,54 +301,6 @@ export default function TokensPage() {
             {draftTest.ok ? 'ok' : `error: ${draftTest.error || 'send failed'}`}
           </p>
         )}
-        {targets.length > 0 && (
-          <fieldset className="check-ids">
-            <legend>Targets (optional allowlist)</legend>
-            <div className="check-ids-list">
-              {targets.map((tg) => (
-                <label key={tg.id} className="check-ids-item">
-                  <input
-                    type="checkbox"
-                    checked={createTargetIds.includes(tg.id)}
-                    onChange={() =>
-                      setCreateTargetIds((prev) => toggleId(prev, tg.id))
-                    }
-                  />
-                  <span className="mono">#{tg.id}</span> {tg.url}
-                </label>
-              ))}
-            </div>
-            <p className="muted small">
-              {createTargetIds.length === 0
-                ? 'All targets.'
-                : `Only: ${createTargetIds.join(', ')}`}
-            </p>
-          </fieldset>
-        )}
-        {checks.length > 0 && (
-          <fieldset className="check-ids">
-            <legend>Checks (optional allowlist)</legend>
-            <div className="check-ids-list">
-              {checks.map((c) => (
-                <label key={c.id} className="check-ids-item">
-                  <input
-                    type="checkbox"
-                    checked={createCheckIds.includes(c.id)}
-                    onChange={() =>
-                      setCreateCheckIds((prev) => toggleId(prev, c.id))
-                    }
-                  />
-                  {c.id}
-                </label>
-              ))}
-            </div>
-            <p className="muted small">
-              {createCheckIds.length === 0
-                ? 'Any alert (including recovery).'
-                : `Only failures of: ${createCheckIds.join(', ')} (no recovery)`}
-            </p>
-          </fieldset>
-        )}
         {error && <p className="error">{error}</p>}
       </section>
 
@@ -417,11 +309,8 @@ export default function TokensPage() {
         <p className="muted">
           Paste a JSON array or upload a <span className="mono">.json</span>{' '}
           file. Each item may be a FID string or{' '}
-          <span className="mono">
-            {'{ "fid", "label?", "target_ids?", "check_ids?" }'}
-          </span>
-          . Legacy <span className="mono">token</span> fields still import.
-          Duplicates are skipped.
+          <span className="mono">{'{ "fid", "label?" }'}</span>. Duplicates are
+          skipped.
         </p>
         <form className="form-col" onSubmit={onImport} style={{ maxWidth: 'none' }}>
           <label className="grow">
@@ -461,10 +350,11 @@ export default function TokensPage() {
         {importResult && importResult.skipped.length > 0 && (
           <ul className="muted small">
             {importResult.skipped.map((row, i) => (
-              <li key={`${row.token}-${i}`}>
-                <span className="mono" title={row.token}>
-                  {row.token}
-                </span> — {row.reason}
+              <li key={`${row.fid}-${i}`}>
+                <span className="mono" title={row.fid}>
+                  {row.fid}
+                </span>{' '}
+                — {row.reason}
               </li>
             ))}
           </ul>
@@ -475,11 +365,8 @@ export default function TokensPage() {
       <section className="panel">
         <h2>Destinations</h2>
         <p className="muted small">
-          Click a label or FID to edit it. Enter or blur saves; Escape
-          cancels. Changing the FID/token clears the last test result.
-          Values without <span className="mono">:APA91</span> go out as{' '}
-          <strong>fid</strong> (recommended). Legacy registration tokens still
-          use the deprecated <strong>token</strong> field.{' '}
+          Click a label or FID to edit it. Enter or blur saves; Escape cancels.
+          Changing the FID clears the last test result.{' '}
           <strong>sent</strong> means FCM accepted it — not that a banner
           appeared. Use <strong>Got it</strong> or <strong>Not received</strong>{' '}
           after each test.
@@ -492,145 +379,83 @@ export default function TokensPage() {
               <tr>
                 <th>Label</th>
                 <th>FID</th>
-                <th>Targets</th>
-                <th>Checks</th>
                 <th>Enabled</th>
                 <th>Status</th>
                 <th />
               </tr>
             </thead>
             <tbody>
-              {tokens.map((t) => {
-                const targetIds = t.target_ids ?? []
-                const checkIds = t.check_ids ?? []
-                return (
-                  <tr key={t.id}>
-                    <td>
-                      <DestinationField
-                        value={t.label}
-                        ariaLabel={`Label for destination ${t.id}`}
-                        className="cell-input"
-                        onSave={(next) => changeLabel(t, next)}
-                      />
-                    </td>
-                    <td>
-                      <DestinationField
-                        value={t.token}
-                        ariaLabel={`FID or token for destination ${t.id}`}
-                        className="cell-input mono truncate"
-                        required
-                        onSave={(next) => changeDestination(t, next)}
-                      />
-                    </td>
-                    <td>
-                      {targets.length === 0 ? (
-                        <span className="muted">all</span>
-                      ) : (
-                        <div className="check-ids-list">
-                          {targets.map((tg) => (
-                            <label key={tg.id} className="check-ids-item">
-                              <input
-                                type="checkbox"
-                                checked={targetIds.includes(tg.id)}
-                                onChange={() =>
-                                  void changeTargets(
-                                    t,
-                                    toggleId(targetIds, tg.id),
-                                  )
-                                }
-                              />
-                              #{tg.id}
-                            </label>
-                          ))}
-                          <div className="muted small">
-                            {targetIds.length === 0
-                              ? 'all'
-                              : targetIds.join(', ')}
-                          </div>
+              {tokens.map((t) => (
+                <tr key={t.id}>
+                  <td>
+                    <DestinationField
+                      value={t.label}
+                      ariaLabel={`Label for destination ${t.id}`}
+                      className="cell-input"
+                      onSave={(next) => changeLabel(t, next)}
+                    />
+                  </td>
+                  <td>
+                    <DestinationField
+                      value={t.fid}
+                      ariaLabel={`FID for destination ${t.id}`}
+                      className="cell-input mono truncate"
+                      required
+                      onSave={(next) => changeDestination(t, next)}
+                    />
+                  </td>
+                  <td>{t.enabled ? 'yes' : 'no'}</td>
+                  <td>
+                    <div className="token-status">
+                      {testStatus(
+                        t.last_test_ok ?? null,
+                        t.last_test_error ?? null,
+                      )}
+                      {t.last_test_ok === 2 && (
+                        <div className="actions">
+                          <button
+                            type="button"
+                            onClick={() => void markReceived(t, true)}
+                          >
+                            Got it
+                          </button>
+                          <button
+                            type="button"
+                            className="danger"
+                            onClick={() => void markReceived(t, false)}
+                          >
+                            Not received
+                          </button>
                         </div>
                       )}
-                    </td>
-                    <td>
-                      {checks.length === 0 ? (
-                        <span className="muted">all</span>
-                      ) : (
-                        <div className="check-ids-list">
-                          {checks.map((c) => (
-                            <label key={c.id} className="check-ids-item">
-                              <input
-                                type="checkbox"
-                                checked={checkIds.includes(c.id)}
-                                onChange={() =>
-                                  void changeChecks(
-                                    t,
-                                    toggleId(checkIds, c.id),
-                                  )
-                                }
-                              />
-                              {c.id}
-                            </label>
-                          ))}
-                          <div className="muted small">
-                            {checkIds.length === 0
-                              ? 'all'
-                              : checkIds.join(', ')}
-                          </div>
-                        </div>
-                      )}
-                    </td>
-                    <td>{t.enabled ? 'yes' : 'no'}</td>
-                    <td>
-                      <div className="token-status">
-                        {testStatus(
-                          t.last_test_ok ?? null,
-                          t.last_test_error ?? null,
-                        )}
-                        {t.last_test_ok === 2 && (
-                          <div className="actions">
-                            <button
-                              type="button"
-                              onClick={() => void markReceived(t, true)}
-                            >
-                              Got it
-                            </button>
-                            <button
-                              type="button"
-                              className="danger"
-                              onClick={() => void markReceived(t, false)}
-                            >
-                              Not received
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td>
-                      <div className="actions">
-                        <button
-                          type="button"
-                          disabled={testingId !== null}
-                          onClick={() => void testSaved(t)}
-                        >
-                          {testingId === t.id ? 'Testing…' : 'Test'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void toggleEnabled(t)}
-                        >
-                          {t.enabled ? 'Disable' : 'Enable'}
-                        </button>
-                        <button
-                          type="button"
-                          className="danger"
-                          onClick={() => void remove(t.id)}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
+                    </div>
+                  </td>
+                  <td>
+                    <div className="actions">
+                      <button
+                        type="button"
+                        disabled={testingId !== null}
+                        onClick={() => void testSaved(t)}
+                      >
+                        {testingId === t.id ? 'Testing…' : 'Test'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void toggleEnabled(t)}
+                      >
+                        {t.enabled ? 'Disable' : 'Enable'}
+                      </button>
+                      <button
+                        type="button"
+                        className="danger"
+                        onClick={() => void remove(t.id)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         )}

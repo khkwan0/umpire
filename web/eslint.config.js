@@ -29,7 +29,7 @@ export default tseslint.config(
       'react-hooks/set-state-in-effect': 'off',
       'react-refresh/only-export-components': [
         'warn',
-        { allowConstantExport: true },
+        {allowConstantExport: true},
       ],
       '@typescript-eslint/no-explicit-any': 'off',
     },

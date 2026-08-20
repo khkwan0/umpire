@@ -36,12 +36,11 @@ describe('buildIncidents', () => {
   const nowMs = Date.parse('2026-08-19T12:30:00Z')
 
   it('returns an empty list when there are no failures', () => {
-    expect(buildIncidents([], { nowMs })).toEqual([])
+    expect(buildIncidents([], {nowMs})).toEqual([])
     expect(
-      buildIncidents(
-        [row({ id: 1, ok: 1, checked_at: '2026-08-19 12:00:00' })],
-        { nowMs },
-      ),
+      buildIncidents([row({id: 1, ok: 1, checked_at: '2026-08-19 12:00:00'})], {
+        nowMs,
+      }),
     ).toEqual([])
   })
 
@@ -56,7 +55,7 @@ describe('buildIncidents', () => {
           status_code: 500,
         }),
       ],
-      { nowMs },
+      {nowMs},
     )
     expect(incidents).toEqual([
       {
@@ -84,10 +83,10 @@ describe('buildIncidents', () => {
           checked_at: '2026-08-19 12:00:00',
           error: 'timeout',
         }),
-        row({ id: 2, ok: 0, checked_at: '2026-08-19 12:01:00' }),
-        row({ id: 3, ok: 1, checked_at: '2026-08-19 12:05:00' }),
+        row({id: 2, ok: 0, checked_at: '2026-08-19 12:01:00'}),
+        row({id: 3, ok: 1, checked_at: '2026-08-19 12:05:00'}),
       ],
-      { nowMs },
+      {nowMs},
     )
     expect(incidents).toHaveLength(1)
     expect(incidents[0]).toMatchObject({
@@ -109,10 +108,10 @@ describe('buildIncidents', () => {
           checked_at: '2026-08-19 12:00:00',
           error: '[http] 500',
         }),
-        row({ id: 2, ok: 0, checked_at: '2026-08-19 12:01:00' }),
-        row({ id: 3, ok: 1, checked_at: '2026-08-19 12:02:00' }),
+        row({id: 2, ok: 0, checked_at: '2026-08-19 12:01:00'}),
+        row({id: 3, ok: 1, checked_at: '2026-08-19 12:02:00'}),
       ],
-      { nowMs },
+      {nowMs},
     )
     expect(incidents[0]).toMatchObject({
       status: 'down',
@@ -124,11 +123,11 @@ describe('buildIncidents', () => {
   it('splits separate outages after recovery', () => {
     const incidents = buildIncidents(
       [
-        row({ id: 1, ok: 0, checked_at: '2026-08-19 12:00:00' }),
-        row({ id: 2, ok: 1, checked_at: '2026-08-19 12:05:00' }),
-        row({ id: 3, ok: 0, checked_at: '2026-08-19 12:20:00' }),
+        row({id: 1, ok: 0, checked_at: '2026-08-19 12:00:00'}),
+        row({id: 2, ok: 1, checked_at: '2026-08-19 12:05:00'}),
+        row({id: 3, ok: 0, checked_at: '2026-08-19 12:20:00'}),
       ],
-      { nowMs },
+      {nowMs},
     )
     expect(incidents).toHaveLength(2)
     expect(incidents[0]).toMatchObject({
@@ -169,9 +168,9 @@ describe('buildIncidents', () => {
           checked_at: '2026-08-19 12:12:00',
         }),
       ],
-      { nowMs },
+      {nowMs},
     )
-    expect(incidents.map((i) => i.target_id)).toEqual([2, 1])
+    expect(incidents.map(i => i.target_id)).toEqual([2, 1])
     expect(incidents[0]).toMatchObject({
       url: 'https://b.test',
       recovered: true,
@@ -185,12 +184,12 @@ describe('buildIncidents', () => {
   it('honors limit after sorting', () => {
     const incidents = buildIncidents(
       [
-        row({ id: 1, ok: 0, checked_at: '2026-08-19 12:00:00' }),
-        row({ id: 2, ok: 1, checked_at: '2026-08-19 12:01:00' }),
-        row({ id: 3, ok: 0, checked_at: '2026-08-19 12:02:00' }),
-        row({ id: 4, ok: 1, checked_at: '2026-08-19 12:03:00' }),
+        row({id: 1, ok: 0, checked_at: '2026-08-19 12:00:00'}),
+        row({id: 2, ok: 1, checked_at: '2026-08-19 12:01:00'}),
+        row({id: 3, ok: 0, checked_at: '2026-08-19 12:02:00'}),
+        row({id: 4, ok: 1, checked_at: '2026-08-19 12:03:00'}),
       ],
-      { limit: 1, nowMs },
+      {limit: 1, nowMs},
     )
     expect(incidents).toHaveLength(1)
     expect(incidents[0]?.id).toBe(3)

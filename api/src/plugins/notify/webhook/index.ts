@@ -1,38 +1,45 @@
-import type { AlertEvent, NotifierPlugin } from '../../types.js'
-import { isConfigured, readConfig, seedFromEnvIfNeeded } from './config.js'
-import { registerWebhookRoutes } from './routes.js'
-import { sendAlert } from './send.js'
+import type {NotifierPlugin} from '../../types.js'
+import {
+  isConfigured,
+  readDefaults,
+  resolveWebhookConfigForTarget,
+  seedFromEnvIfNeeded,
+} from './config.js'
+import {registerWebhookRoutes} from './routes.js'
+import {sendAlert} from './send.js'
 
 const webhookNotifier: NotifierPlugin = {
   id: 'webhook',
+  description:
+    'Delivers the alert payload to a configured HTTP URL using the chosen method and headers.',
 
   init(): void {
     seedFromEnvIfNeeded()
-    const config = readConfig()
+    const config = readDefaults()
     if (isConfigured(config)) {
       console.log('[notify:webhook] initialized')
     } else {
       console.warn(
-        '[notify:webhook] no URL configured; set it in the Webhook UI (or GET/PUT /api/plugins/notify/webhook/config)',
+        '[notify:webhook] no URL configured; set defaults in the Webhook UI',
       )
     }
   },
 
   isReady(): boolean {
-    return isConfigured(readConfig())
+    return isConfigured(readDefaults())
   },
 
   async registerRoutes(app) {
     await registerWebhookRoutes(app)
   },
 
-  async notify(event: AlertEvent): Promise<void> {
-    const config = readConfig()
+  async notify(ctx) {
+    const config = resolveWebhookConfigForTarget(ctx.config)
     if (!isConfigured(config)) {
       console.warn('[notify:webhook] skip send — URL not configured')
       return
     }
-    await sendAlert(config, event)
+    await sendAlert(config, ctx.event)
   },
 }
 

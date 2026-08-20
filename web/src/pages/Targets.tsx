@@ -1,13 +1,9 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type FormEvent,
-} from 'react'
-import { Link } from 'react-router-dom'
+import {useCallback, useEffect, useMemo, useState, type FormEvent} from 'react'
+import {Link} from 'react-router-dom'
 import {
   api,
+  CONFIGURABLE_NOTIFIERS,
+  isConfigurableNotifier,
   isTransientApiError,
   type Group,
   type NotifierStatus,
@@ -16,10 +12,10 @@ import {
   type Target,
 } from '../api'
 import ReconnectBanner from '../ReconnectBanner'
-import { useRealtimeRefresh } from '../RealtimeProvider'
+import {useRealtimeRefresh} from '../RealtimeProvider'
 
 function toggleId(list: string[], id: string): string[] {
-  return list.includes(id) ? list.filter((x) => x !== id) : [...list, id]
+  return list.includes(id) ? list.filter(x => x !== id) : [...list, id]
 }
 
 const MIN_INTERVAL_SECONDS = 5
@@ -28,6 +24,16 @@ function targetUsesHttpCheck(t: Target, httpEnabled: boolean): boolean {
   if (!httpEnabled) return false
   const checkIds = t.check_ids ?? []
   return checkIds.length === 0 || checkIds.includes('http')
+}
+
+function targetUsesNotifier(
+  t: Target,
+  notifierId: string,
+  enabled: boolean,
+): boolean {
+  if (!enabled || !isConfigurableNotifier(notifierId)) return false
+  const ids = t.notifier_ids ?? []
+  return ids.length === 0 || ids.includes(notifierId)
 }
 
 function IntervalField({
@@ -70,9 +76,9 @@ function IntervalField({
         step={1}
         aria-label={ariaLabel}
         value={draft}
-        onChange={(e) => setDraft(e.target.value)}
+        onChange={e => setDraft(e.target.value)}
         onBlur={() => void commit()}
-        onKeyDown={(e) => {
+        onKeyDown={e => {
           if (e.key === 'Enter') {
             e.preventDefault()
             e.currentTarget.blur()
@@ -99,6 +105,9 @@ export default function Targets() {
   const [httpCustomTargetIds, setHttpCustomTargetIds] = useState<Set<number>>(
     () => new Set(),
   )
+  const [notifierCustomTargetIds, setNotifierCustomTargetIds] = useState<
+    Map<string, Set<number>>
+  >(() => new Map())
   const [url, setUrl] = useState('https://')
   const [interval, setIntervalSeconds] = useState(60)
   const [groupId, setGroupId] = useState<number | ''>('')
@@ -109,7 +118,7 @@ export default function Targets() {
   const [busy, setBusy] = useState(false)
 
   const childGroups = useMemo(
-    () => groups.filter((g) => g.parent !== 0),
+    () => groups.filter(g => g.parent !== 0),
     [groups],
   )
 
@@ -121,27 +130,38 @@ export default function Targets() {
 
   const load = useCallback(async () => {
     try {
-      const [
-        nextTargets,
-        nextGroups,
-        nextChecks,
-        nextNotifiers,
-        nextManager,
-        nextHttpOverrides,
-      ] = await Promise.all([
+      const [nextTargets, nextGroups, nextChecks, nextNotifiers, nextManager] =
+        await Promise.all([
           api.targets.list(),
           api.groups.list(),
           api.checks.list(),
           api.notifiers.list(),
           api.pluginManager.get(),
-          api.targets.httpCheck.listOverrides().catch(() => ({ targetIds: [] })),
         ])
+      const configurableNotifiers = CONFIGURABLE_NOTIFIERS.filter(id =>
+        (nextManager?.notifiers ?? []).some(n => n.id === id && n.enabled),
+      )
+      const [nextHttpOverrides, ...notifierOverrideResults] = await Promise.all(
+        [
+          api.targets.httpCheck.listOverrides().catch(() => ({targetIds: []})),
+          ...configurableNotifiers.map(id =>
+            api.targets.notifier
+              .listOverrides(id)
+              .catch(() => ({targetIds: []})),
+          ),
+        ],
+      )
       setTargets(nextTargets)
       setGroups(nextGroups)
       setChecks(nextChecks)
       setNotifiers(nextNotifiers)
       setPluginManager(nextManager)
       setHttpCustomTargetIds(new Set(nextHttpOverrides.targetIds))
+      const customMap = new Map<string, Set<number>>()
+      configurableNotifiers.forEach((id, index) => {
+        customMap.set(id, new Set(notifierOverrideResults[index]!.targetIds))
+      })
+      setNotifierCustomTargetIds(customMap)
       setError(null)
       setReconnecting(false)
     } catch (err) {
@@ -156,21 +176,21 @@ export default function Targets() {
 
   const enabledCheckIds = useMemo(() => {
     const entries = pluginManager?.checks ?? []
-    return new Set(entries.filter((p) => p.enabled).map((p) => p.id))
+    return new Set(entries.filter(p => p.enabled).map(p => p.id))
   }, [pluginManager])
 
   const enabledNotifierIds = useMemo(() => {
     const entries = pluginManager?.notifiers ?? []
-    return new Set(entries.filter((p) => p.enabled).map((p) => p.id))
+    return new Set(entries.filter(p => p.enabled).map(p => p.id))
   }, [pluginManager])
 
   const visibleChecks = useMemo(
-    () => checks.filter((c) => enabledCheckIds.has(c.id)),
+    () => checks.filter(c => enabledCheckIds.has(c.id)),
     [checks, enabledCheckIds],
   )
 
   const visibleNotifiers = useMemo(
-    () => notifiers.filter((n) => enabledNotifierIds.has(n.id)),
+    () => notifiers.filter(n => enabledNotifierIds.has(n.id)),
     [notifiers, enabledNotifierIds],
   )
 
@@ -207,14 +227,14 @@ export default function Targets() {
   }
 
   async function toggle(t: Target) {
-    await api.targets.update(t.id, { enabled: !t.enabled })
+    await api.targets.update(t.id, {enabled: !t.enabled})
     await load()
   }
 
   async function changeInterval(t: Target, next: number) {
     setError(null)
     try {
-      await api.targets.update(t.id, { interval_seconds: next })
+      await api.targets.update(t.id, {interval_seconds: next})
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -225,7 +245,7 @@ export default function Targets() {
   async function changeGroup(t: Target, next: number | null) {
     setError(null)
     try {
-      await api.targets.update(t.id, { group_id: next })
+      await api.targets.update(t.id, {group_id: next})
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -235,7 +255,7 @@ export default function Targets() {
   async function changeChecks(t: Target, next: string[]) {
     setError(null)
     try {
-      await api.targets.update(t.id, { check_ids: next })
+      await api.targets.update(t.id, {check_ids: next})
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -245,7 +265,7 @@ export default function Targets() {
   async function changeNotifiers(t: Target, next: string[]) {
     setError(null)
     try {
-      await api.targets.update(t.id, { notifier_ids: next })
+      await api.targets.update(t.id, {notifier_ids: next})
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -273,7 +293,7 @@ export default function Targets() {
             URL
             <input
               value={url}
-              onChange={(e) => setUrl(e.target.value)}
+              onChange={e => setUrl(e.target.value)}
               placeholder="https://example.com"
               required
             />
@@ -284,7 +304,7 @@ export default function Targets() {
               type="number"
               min={5}
               value={interval}
-              onChange={(e) => setIntervalSeconds(Number(e.target.value))}
+              onChange={e => setIntervalSeconds(Number(e.target.value))}
               required
             />
           </label>
@@ -292,12 +312,12 @@ export default function Targets() {
             Group
             <select
               value={groupId === '' ? '' : String(groupId)}
-              onChange={(e) =>
+              onChange={e =>
                 setGroupId(e.target.value === '' ? '' : Number(e.target.value))
               }
             >
               <option value="">Unassigned</option>
-              {childGroups.map((g) => (
+              {childGroups.map(g => (
                 <option key={g.id} value={g.id}>
                   {g.name || `#${g.id}`} ({g.tag})
                 </option>
@@ -312,13 +332,13 @@ export default function Targets() {
           <fieldset className="check-ids">
             <legend>Checks (optional allowlist)</legend>
             <div className="check-ids-list">
-              {visibleChecks.map((c) => (
+              {visibleChecks.map(c => (
                 <label key={c.id} className="check-ids-item">
                   <input
                     type="checkbox"
                     checked={createCheckIds.includes(c.id)}
                     onChange={() =>
-                      setCreateCheckIds((prev) => toggleId(prev, c.id))
+                      setCreateCheckIds(prev => toggleId(prev, c.id))
                     }
                   />
                   {c.id}
@@ -336,13 +356,13 @@ export default function Targets() {
           <fieldset className="check-ids">
             <legend>Notifiers (optional allowlist)</legend>
             <div className="check-ids-list">
-              {visibleNotifiers.map((n) => (
+              {visibleNotifiers.map(n => (
                 <label key={n.id} className="check-ids-item">
                   <input
                     type="checkbox"
                     checked={createNotifierIds.includes(n.id)}
                     onChange={() =>
-                      setCreateNotifierIds((prev) => toggleId(prev, n.id))
+                      setCreateNotifierIds(prev => toggleId(prev, n.id))
                     }
                   />
                   {n.id}
@@ -384,7 +404,7 @@ export default function Targets() {
               </tr>
             </thead>
             <tbody>
-              {targets.map((t) => {
+              {targets.map(t => {
                 const g = t.group_id != null ? groupById.get(t.group_id) : null
                 const checkIds = t.check_ids ?? []
                 const notifierIds = t.notifier_ids ?? []
@@ -394,7 +414,7 @@ export default function Targets() {
                     <td>
                       <select
                         value={t.group_id ?? ''}
-                        onChange={(e) =>
+                        onChange={e =>
                           void changeGroup(
                             t,
                             e.target.value === ''
@@ -404,7 +424,7 @@ export default function Targets() {
                         }
                       >
                         <option value="">Unassigned</option>
-                        {childGroups.map((cg) => (
+                        {childGroups.map(cg => (
                           <option key={cg.id} value={cg.id}>
                             {cg.name || `#${cg.id}`} ({cg.tag})
                           </option>
@@ -417,7 +437,7 @@ export default function Targets() {
                         <span className="muted">—</span>
                       ) : (
                         <div className="check-ids-list">
-                          {visibleChecks.map((c) => (
+                          {visibleChecks.map(c => (
                             <label key={c.id} className="check-ids-item">
                               <input
                                 type="checkbox"
@@ -434,7 +454,10 @@ export default function Targets() {
                               ? 'all'
                               : checkIds.join(', ')}
                           </div>
-                          {targetUsesHttpCheck(t, enabledCheckIds.has('http')) && (
+                          {targetUsesHttpCheck(
+                            t,
+                            enabledCheckIds.has('http'),
+                          ) && (
                             <Link
                               className={
                                 httpCustomTargetIds.has(t.id)
@@ -462,7 +485,7 @@ export default function Targets() {
                         <span className="muted">—</span>
                       ) : (
                         <div className="check-ids-list">
-                          {visibleNotifiers.map((n) => (
+                          {visibleNotifiers.map(n => (
                             <label key={n.id} className="check-ids-item">
                               <input
                                 type="checkbox"
@@ -482,6 +505,35 @@ export default function Targets() {
                               ? 'all'
                               : notifierIds.join(', ')}
                           </div>
+                          {visibleNotifiers.map(n =>
+                            targetUsesNotifier(
+                              t,
+                              n.id,
+                              enabledNotifierIds.has(n.id),
+                            ) ? (
+                              <Link
+                                key={`${t.id}-${n.id}-settings`}
+                                className={
+                                  notifierCustomTargetIds.get(n.id)?.has(t.id)
+                                    ? 'http-settings-link custom'
+                                    : 'http-settings-link'
+                                }
+                                to={`/targets/${t.id}/notifiers/${n.id}`}
+                                title={
+                                  notifierCustomTargetIds.get(n.id)?.has(t.id)
+                                    ? `This target uses custom ${n.id} notifier settings`
+                                    : `${n.id} notifier settings for this target`
+                                }
+                              >
+                                {n.id} settings
+                                {notifierCustomTargetIds
+                                  .get(n.id)
+                                  ?.has(t.id) && (
+                                  <span className="pill pending">custom</span>
+                                )}
+                              </Link>
+                            ) : null,
+                          )}
                         </div>
                       )}
                     </td>
@@ -489,7 +541,7 @@ export default function Targets() {
                       <IntervalField
                         value={t.interval_seconds}
                         ariaLabel={`Interval in seconds for ${t.url}`}
-                        onSave={(next) => changeInterval(t, next)}
+                        onSave={next => changeInterval(t, next)}
                       />
                     </td>
                     <td>{t.enabled ? 'yes' : 'no'}</td>

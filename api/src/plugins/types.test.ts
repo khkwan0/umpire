@@ -1,4 +1,4 @@
-import { healthFromDb, healthToDb } from './types.js'
+import {healthFromDb, healthToDb} from './types.js'
 
 describe('health encoding', () => {
   it('round-trips up, down, and partial', () => {

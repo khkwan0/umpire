@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify'
+import type {FastifyInstance} from 'fastify'
 
 export async function healthRoutes(app: FastifyInstance): Promise<void> {
   app.get(
@@ -11,11 +11,11 @@ export async function healthRoutes(app: FastifyInstance): Promise<void> {
           200: {
             type: 'object',
             required: ['ok'],
-            properties: { ok: { type: 'boolean' } },
+            properties: {ok: {type: 'boolean'}},
           },
         },
       },
     },
-    async () => ({ ok: true }),
+    async () => ({ok: true}),
   )
 }

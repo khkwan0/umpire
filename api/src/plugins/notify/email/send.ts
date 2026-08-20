@@ -1,7 +1,7 @@
-import { spawn } from 'node:child_process'
-import type { AlertEvent } from '../../types.js'
-import type { EmailConfig } from './config.js'
-import { isConfigured } from './config.js'
+import {spawn} from 'node:child_process'
+import type {AlertEvent} from '../../types.js'
+import type {EmailConfig} from './config.js'
+import {isConfigured} from './config.js'
 
 function buildMessage(config: EmailConfig, event: AlertEvent): string {
   const subject = `[UMPIRE] ${event.title}`
@@ -20,13 +20,18 @@ function sendViaSendmail(raw: string, sendmailPath: string): Promise<void> {
       stdio: ['pipe', 'pipe', 'pipe'],
     })
     let stderr = ''
-    child.stderr.on('data', (d) => {
+    child.stderr.on('data', d => {
       stderr += String(d)
     })
-    child.on('error', (err) => reject(err))
-    child.on('close', (code) => {
+    child.on('error', err => reject(err))
+    child.on('close', code => {
       if (code === 0) resolve()
-      else reject(new Error(`sendmail exited ${code}${stderr ? `: ${stderr.trim()}` : ''}`))
+      else
+        reject(
+          new Error(
+            `sendmail exited ${code}${stderr ? `: ${stderr.trim()}` : ''}`,
+          ),
+        )
     })
     child.stdin.write(raw)
     child.stdin.end()
@@ -56,34 +61,45 @@ function sendViaSmtpCurl(raw: string, config: EmailConfig): Promise<void> {
   args.push('-T', '-')
 
   return new Promise((resolve, reject) => {
-    const child = spawn('curl', args, { stdio: ['pipe', 'pipe', 'pipe'] })
+    const child = spawn('curl', args, {stdio: ['pipe', 'pipe', 'pipe']})
     let stderr = ''
-    child.stderr.on('data', (d) => {
+    child.stderr.on('data', d => {
       stderr += String(d)
     })
-    child.on('error', (err) => reject(err))
-    child.on('close', (code) => {
+    child.on('error', err => reject(err))
+    child.on('close', code => {
       if (code === 0) resolve()
-      else reject(new Error(`curl smtp exited ${code}${stderr ? `: ${stderr.trim()}` : ''}`))
+      else
+        reject(
+          new Error(
+            `curl smtp exited ${code}${stderr ? `: ${stderr.trim()}` : ''}`,
+          ),
+        )
     })
     child.stdin.write(raw)
     child.stdin.end()
   })
 }
 
-export async function sendAlert(config: EmailConfig, event: AlertEvent): Promise<void> {
+export async function sendAlert(
+  config: EmailConfig,
+  event: AlertEvent,
+): Promise<void> {
   if (!isConfigured(config)) throw new Error('email from/to are not configured')
   const raw = buildMessage(config, event)
   if (config.mode === 'smtp') {
     await sendViaSmtpCurl(raw, config)
     return
   }
-  await sendViaSendmail(raw, config.sendmailPath || process.env.SENDMAIL_PATH || 'sendmail')
+  await sendViaSendmail(
+    raw,
+    config.sendmailPath || process.env.SENDMAIL_PATH || 'sendmail',
+  )
 }
 
 export function testEvent(): AlertEvent {
   return {
-    target: { id: 0, url: 'https://umpire.test/email' },
+    target: {id: 0, url: 'https://umpire.test/email'},
     status: 'down',
     previousStatus: 'up',
     error: 'test',

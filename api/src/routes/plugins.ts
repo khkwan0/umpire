@@ -1,5 +1,5 @@
-import type { FastifyInstance } from 'fastify'
-import { listPluginCatalog } from '../plugins/routes.js'
+import type {FastifyInstance} from 'fastify'
+import {listPluginCatalog} from '../plugins/routes.js'
 
 export async function pluginsRoutes(app: FastifyInstance): Promise<void> {
   app.get(
@@ -13,7 +13,7 @@ export async function pluginsRoutes(app: FastifyInstance): Promise<void> {
         response: {
           200: {
             type: 'array',
-            items: { $ref: 'PluginCatalogEntry#' },
+            items: {$ref: 'PluginCatalogEntry#'},
           },
         },
       },

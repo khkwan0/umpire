@@ -35,7 +35,7 @@ function useRealtimeContext(): RealtimeContextValue {
   return ctx
 }
 
-export function RealtimeProvider({ children }: { children: ReactNode }) {
+export function RealtimeProvider({children}: {children: ReactNode}) {
   const [mode, setMode] = useState<RealtimeMode>('sse')
   const listenersRef = useRef(new Set<() => void>())
 
@@ -80,7 +80,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
 
     const scheduleDegrade = () => {
       clearDegradeTimer()
-      setMode((current) => (current === 'polling' ? 'polling' : 'reconnecting'))
+      setMode(current => (current === 'polling' ? 'polling' : 'reconnecting'))
       degradeTimer = setTimeout(() => {
         if (!es || es.readyState !== EventSource.OPEN) {
           startFallback()
@@ -122,7 +122,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <RealtimeContext.Provider value={{ mode, subscribe }}>
+    <RealtimeContext.Provider value={{mode, subscribe}}>
       {children}
     </RealtimeContext.Provider>
   )
@@ -132,8 +132,10 @@ export function useRealtimeMode(): RealtimeMode {
   return useRealtimeContext().mode
 }
 
-export function useRealtimeRefresh(onRefresh: () => void | Promise<void>): void {
-  const { subscribe } = useRealtimeContext()
+export function useRealtimeRefresh(
+  onRefresh: () => void | Promise<void>,
+): void {
+  const {subscribe} = useRealtimeContext()
   const onRefreshRef = useRef(onRefresh)
   onRefreshRef.current = onRefresh
 

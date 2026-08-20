@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import {useCallback, useEffect, useState, type FormEvent} from 'react'
+import {Link, useParams} from 'react-router-dom'
 import {
   HttpCheckFields,
   HttpCheckFootnotes,
@@ -20,7 +20,7 @@ interface TargetRef {
 }
 
 export default function HttpCheckTargetOverride() {
-  const { targetId: targetIdParam } = useParams<{ targetId: string }>()
+  const {targetId: targetIdParam} = useParams<{targetId: string}>()
   const targetId = Number(targetIdParam)
 
   const [target, setTarget] = useState<TargetRef | null>(null)
@@ -60,7 +60,7 @@ export default function HttpCheckTargetOverride() {
       ),
     ])
 
-    const selected = targets.find((t) => t.id === targetId)
+    const selected = targets.find(t => t.id === targetId)
     if (!selected) {
       setError('Target not found')
       setLoaded(true)
@@ -74,7 +74,7 @@ export default function HttpCheckTargetOverride() {
   }, [targetId])
 
   useEffect(() => {
-    void load().catch((err) =>
+    void load().catch(err =>
       setError(err instanceof Error ? err.message : String(err)),
     )
   }, [load])
@@ -108,7 +108,9 @@ export default function HttpCheckTargetOverride() {
     try {
       const view = await clearTargetOverride(target.id)
       applyTargetConfigView(view, setUseCustom, setDefaultsForm, setTargetForm)
-      setSaveMessage('Override cleared — this target uses default HTTP settings')
+      setSaveMessage(
+        'Override cleared — this target uses default HTTP settings',
+      )
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -122,7 +124,12 @@ export default function HttpCheckTargetOverride() {
     setTestError(null)
     setTestResult(null)
     try {
-      const result = await runTargetTest(target.id, testUrl, useCustom, targetForm)
+      const result = await runTargetTest(
+        target.id,
+        testUrl,
+        useCustom,
+        targetForm,
+      )
       setTestResult(result)
     } catch (err) {
       setTestError(err instanceof Error ? err.message : String(err))
@@ -162,7 +169,7 @@ export default function HttpCheckTargetOverride() {
             <input
               type="checkbox"
               checked={useCustom}
-              onChange={(e) => {
+              onChange={e => {
                 const next = e.target.checked
                 setUseCustom(next)
                 setSaveMessage(null)
@@ -183,7 +190,7 @@ export default function HttpCheckTargetOverride() {
           <HttpCheckFields
             idPrefix="target"
             form={targetForm}
-            onChange={(next) => {
+            onChange={next => {
               setTargetForm(next)
               setSaveMessage(null)
               setSaveError(null)
@@ -196,7 +203,7 @@ export default function HttpCheckTargetOverride() {
             <input
               type="url"
               value={testUrl}
-              onChange={(e) => setTestUrl(e.target.value)}
+              onChange={e => setTestUrl(e.target.value)}
               placeholder="https://example.com/health"
               spellCheck={false}
             />

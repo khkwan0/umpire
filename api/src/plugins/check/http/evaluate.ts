@@ -1,5 +1,5 @@
-import type { CheckOutcome } from '../../types.js'
-import type { HttpCheckConfig } from './config.js'
+import type {CheckOutcome} from '../../types.js'
+import type {HttpCheckConfig} from './config.js'
 
 function timeoutMs(): number {
   const n = Number(process.env.CHECK_TIMEOUT_MS)
@@ -51,7 +51,7 @@ function evaluateOutcome(
       error: `latency ${Math.round(latencyMs)}ms exceeds ${config.maxLatencyMs}ms`,
     }
   }
-  return { ok: true, error: null }
+  return {ok: true, error: null}
 }
 
 export async function runHttpCheck(
@@ -75,7 +75,7 @@ export async function runHttpCheck(
       body: useBody && config.body ? config.body : undefined,
     })
     const latencyMs = Date.now() - startedAt
-    const { ok, error } = evaluateOutcome(res.status, latencyMs, config)
+    const {ok, error} = evaluateOutcome(res.status, latencyMs, config)
     return {
       ok,
       statusCode: res.status,
@@ -90,7 +90,7 @@ export async function runHttpCheck(
           ? 'timeout'
           : err.message
         : String(err)
-    return { ok: false, statusCode: null, error: message, latencyMs }
+    return {ok: false, statusCode: null, error: message, latencyMs}
   } finally {
     clearTimeout(timer)
   }

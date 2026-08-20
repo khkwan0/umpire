@@ -1,7 +1,7 @@
-import { jest } from '@jest/globals'
+import {jest} from '@jest/globals'
 import Fastify from 'fastify'
-import type { Target } from '../core/types.js'
-import { registerOpenApi } from '../openapi.js'
+import type {Target} from '../core/types.js'
+import {registerOpenApi} from '../openapi.js'
 
 const core = {
   listTargets: jest.fn(),
@@ -24,7 +24,7 @@ jest.unstable_mockModule('../plugins/registry.js', () => ({
   getScheduler: () => scheduler,
 }))
 
-const { targetsRoutes } = await import('./targets.js')
+const {targetsRoutes} = await import('./targets.js')
 
 describe('targets routes', () => {
   beforeEach(() => {

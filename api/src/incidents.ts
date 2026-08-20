@@ -1,4 +1,4 @@
-import { healthFromDb, type HealthStatus } from './plugins/types.js'
+import {healthFromDb, type HealthStatus} from './plugins/types.js'
 
 export interface IncidentSourceRow {
   id: number
@@ -59,7 +59,7 @@ function durationSeconds(start: string, endMs: number): number {
  */
 export function buildIncidents(
   rows: IncidentSourceRow[],
-  opts: { limit?: number; nowMs?: number } = {},
+  opts: {limit?: number; nowMs?: number} = {},
 ): Incident[] {
   const limit = opts.limit ?? 50
   const nowMs = opts.nowMs ?? Date.now()

@@ -1,10 +1,10 @@
-import type { FastifyInstance } from 'fastify'
-import { getCore } from '../core/index.js'
-import type { AlertPolicy } from '../plugins/types.js'
+import type {FastifyInstance} from 'fastify'
+import {getCore} from '../core/index.js'
+import type {AlertPolicy} from '../plugins/types.js'
 
 const errorResponse = {
   type: 'object',
-  properties: { error: { type: 'string' } },
+  properties: {error: {type: 'string'}},
 } as const
 
 export async function settingsRoutes(app: FastifyInstance): Promise<void> {
@@ -15,7 +15,7 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
         tags: ['settings'],
         summary: 'Get alert settings',
         response: {
-          200: { $ref: 'Settings#' },
+          200: {$ref: 'Settings#'},
         },
       },
     },
@@ -23,7 +23,7 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
   )
 
   app.put<{
-    Body: { alert_policy?: AlertPolicy; throttle_minutes?: number }
+    Body: {alert_policy?: AlertPolicy; throttle_minutes?: number}
   }>(
     '/api/settings',
     {
@@ -37,11 +37,11 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
               type: 'string',
               enum: ['state_change', 'every_fail', 'throttle'],
             },
-            throttle_minutes: { type: 'integer', minimum: 1 },
+            throttle_minutes: {type: 'integer', minimum: 1},
           },
         },
         response: {
-          200: { $ref: 'Settings#' },
+          200: {$ref: 'Settings#'},
           400: errorResponse,
         },
       },
@@ -52,7 +52,7 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
       } catch (err) {
         return reply
           .code(400)
-          .send({ error: err instanceof Error ? err.message : String(err) })
+          .send({error: err instanceof Error ? err.message : String(err)})
       }
     },
   )

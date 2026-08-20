@@ -1,5 +1,5 @@
-import type { FastifyInstance } from 'fastify'
-import { getNotifiers } from '../plugins/registry.js'
+import type {FastifyInstance} from 'fastify'
+import {getNotifiers} from '../plugins/registry.js'
 
 export async function notifiersRoutes(app: FastifyInstance): Promise<void> {
   app.get(
@@ -13,13 +13,13 @@ export async function notifiersRoutes(app: FastifyInstance): Promise<void> {
         response: {
           200: {
             type: 'array',
-            items: { $ref: 'NotifierStatus#' },
+            items: {$ref: 'NotifierStatus#'},
           },
         },
       },
     },
     async () =>
-      getNotifiers().map((n) => ({
+      getNotifiers().map(n => ({
         id: n.id,
         ready: n.isReady(),
       })),

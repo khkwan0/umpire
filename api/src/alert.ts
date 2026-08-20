@@ -12,7 +12,7 @@ export function shouldAlert(opts: {
   now: HealthStatus
   lastAlertAt: string | null
 }): boolean {
-  const { policy, throttleMinutes, previous, now, lastAlertAt } = opts
+  const {policy, throttleMinutes, previous, now, lastAlertAt} = opts
 
   if (policy === 'every_fail') {
     return now !== 'up'
@@ -52,7 +52,7 @@ export function alertCopy(
   body: string
 } {
   if (status === 'up') {
-    return { title: 'Site recovered', body: `${url} is back up` }
+    return {title: 'Site recovered', body: `${url} is back up`}
   }
   if (status === 'partial') {
     return {
@@ -80,12 +80,12 @@ export function aggregateCheckOutcomes(
     }
   }
 
-  const passed = outcomes.filter((o) => o.ok)
-  const failed = outcomes.filter((o) => !o.ok)
-  const latencyMs = Math.max(0, ...outcomes.map((o) => o.latencyMs))
+  const passed = outcomes.filter(o => o.ok)
+  const failed = outcomes.filter(o => !o.ok)
+  const latencyMs = Math.max(0, ...outcomes.map(o => o.latencyMs))
 
   if (failed.length === 0) {
-    const withStatus = outcomes.find((o) => o.statusCode != null)
+    const withStatus = outcomes.find(o => o.statusCode != null)
     return {
       status: 'up',
       statusCode: withStatus?.statusCode ?? null,
@@ -98,7 +98,7 @@ export function aggregateCheckOutcomes(
   const error =
     failed.length === 1
       ? `[${failed[0]!.id}] ${failed[0]!.error ?? 'failed'}`
-      : failed.map((f) => `[${f.id}] ${f.error ?? 'failed'}`).join('; ')
+      : failed.map(f => `[${f.id}] ${f.error ?? 'failed'}`).join('; ')
 
   if (passed.length === 0) {
     return {

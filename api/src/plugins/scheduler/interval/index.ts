@@ -2,7 +2,7 @@
 // reschedule() only touches targets that were added, removed, enabled/disabled,
 // or whose interval changed — other timers keep their remaining delay.
 
-import type { SchedulerContext, SchedulerPlugin } from '../../types.js'
+import type {SchedulerContext, SchedulerPlugin} from '../../types.js'
 
 type Timer = ReturnType<typeof setTimeout>
 
@@ -29,7 +29,7 @@ function scheduleTarget(id: number): void {
   const tick = async () => {
     if (!ctx) return
     try {
-      const latest = ctx.getTargets().find((t) => t.id === id)
+      const latest = ctx.getTargets().find(t => t.id === id)
       if (!latest || !latest.enabled) {
         clearTarget(id)
         if (latest) {
@@ -47,7 +47,7 @@ function scheduleTarget(id: number): void {
       console.error(`[scheduler:interval] target ${id} error`, err)
     } finally {
       if (!ctx) return
-      const latest = ctx.getTargets().find((t) => t.id === id)
+      const latest = ctx.getTargets().find(t => t.id === id)
       if (latest?.enabled) {
         const next = setTimeout(
           tick,
@@ -138,6 +138,8 @@ function reschedule(): void {
 
 const intervalScheduler: SchedulerPlugin = {
   id: 'interval',
+  description:
+    'Runs each enabled target on its own interval timer, staggering first checks so they do not all fire together.',
 
   init(schedulerCtx: SchedulerContext): void {
     ctx = schedulerCtx

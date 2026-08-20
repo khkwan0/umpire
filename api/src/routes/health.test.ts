@@ -1,5 +1,5 @@
 import Fastify from 'fastify'
-import { healthRoutes } from './health.js'
+import {healthRoutes} from './health.js'
 
 describe('health route', () => {
   it('returns ok=true', async () => {
@@ -12,7 +12,7 @@ describe('health route', () => {
     })
 
     expect(res.statusCode).toBe(200)
-    expect(res.json()).toEqual({ ok: true })
+    expect(res.json()).toEqual({ok: true})
     await app.close()
   })
 })

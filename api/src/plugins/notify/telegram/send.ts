@@ -1,6 +1,6 @@
-import type { AlertEvent } from '../../types.js'
-import type { TelegramConfig } from './config.js'
-import { isConfigured } from './config.js'
+import type {AlertEvent} from '../../types.js'
+import type {TelegramConfig} from './config.js'
+import {isConfigured} from './config.js'
 
 function endpoint(token: string): string {
   return `https://api.telegram.org/bot${token}/sendMessage`
@@ -10,7 +10,8 @@ export async function sendAlert(
   config: TelegramConfig,
   event: AlertEvent,
 ): Promise<void> {
-  if (!isConfigured(config)) throw new Error('telegram botToken/chatId are not configured')
+  if (!isConfigured(config))
+    throw new Error('telegram botToken/chatId are not configured')
 
   const body: Record<string, string> = {
     chat_id: config.chatId,
@@ -20,12 +21,13 @@ export async function sendAlert(
 
   const res = await fetch(endpoint(config.botToken), {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: {'content-type': 'application/json'},
     body: JSON.stringify(body),
   })
-  const json = (await res.json().catch(() => null)) as
-    | { ok?: boolean; description?: string }
-    | null
+  const json = (await res.json().catch(() => null)) as {
+    ok?: boolean
+    description?: string
+  } | null
   if (!res.ok || !json?.ok) {
     throw new Error(
       `telegram send failed${json?.description ? `: ${json.description}` : ''}`,
@@ -35,7 +37,7 @@ export async function sendAlert(
 
 export function testEvent(): AlertEvent {
   return {
-    target: { id: 0, url: 'https://umpire.test/telegram' },
+    target: {id: 0, url: 'https://umpire.test/telegram'},
     status: 'down',
     previousStatus: 'up',
     error: 'test',

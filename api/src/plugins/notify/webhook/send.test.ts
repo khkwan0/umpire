@@ -1,6 +1,6 @@
-import { jest } from '@jest/globals'
-import { sendAlert, testEvent } from './send.js'
-import type { WebhookConfig } from './config.js'
+import {jest} from '@jest/globals'
+import {sendAlert, testEvent} from './send.js'
+import type {WebhookConfig} from './config.js'
 
 const event = {
   ...testEvent(),
@@ -17,16 +17,16 @@ describe('sendAlert', () => {
 
   it('rejects an unconfigured webhook', async () => {
     await expect(
-      sendAlert({ url: '', method: 'POST', headers: {} }, event),
+      sendAlert({url: '', method: 'POST', headers: {}}, event),
     ).rejects.toThrow('webhook URL is not configured')
   })
 
   it('POSTs JSON and sets content-type when missing', async () => {
-    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => '' })
+    fetchMock.mockResolvedValue({ok: true, status: 200, text: async () => ''})
     const config: WebhookConfig = {
       url: 'https://hooks.test/alert',
       method: 'POST',
-      headers: { 'X-Token': 'a' },
+      headers: {'X-Token': 'a'},
     }
     await sendAlert(config, event)
     expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -46,9 +46,9 @@ describe('sendAlert', () => {
   })
 
   it('puts the payload on the query string for GET', async () => {
-    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => '' })
+    fetchMock.mockResolvedValue({ok: true, status: 200, text: async () => ''})
     await sendAlert(
-      { url: 'https://hooks.test/alert', method: 'GET', headers: {} },
+      {url: 'https://hooks.test/alert', method: 'GET', headers: {}},
       event,
     )
     const calledUrl = new URL(fetchMock.mock.calls[0]![0] as string)
@@ -71,7 +71,7 @@ describe('sendAlert', () => {
     })
     await expect(
       sendAlert(
-        { url: 'https://hooks.test/alert', method: 'POST', headers: {} },
+        {url: 'https://hooks.test/alert', method: 'POST', headers: {}},
         event,
       ),
     ).rejects.toThrow('webhook HTTP 502: bad gateway')

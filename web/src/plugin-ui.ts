@@ -1,5 +1,5 @@
-import type { ComponentType } from 'react'
-import type { StatusResponse } from './api'
+import type {ComponentType} from 'react'
+import type {StatusResponse} from './api'
 
 /** Props passed to an optional plugin panel on the core Dashboard. */
 export interface DashboardWidgetProps {

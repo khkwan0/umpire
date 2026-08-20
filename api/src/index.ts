@@ -1,26 +1,26 @@
 import Fastify from 'fastify'
-import { initCore, getCore, closeCore } from './core/index.js'
+import {initCore, getCore, closeCore} from './core/index.js'
 import {
   initPlugins,
   getScheduler,
   getChecks,
   getNotifiers,
 } from './plugins/registry.js'
-import { mountAllPluginRoutes } from './plugins/routes.js'
-import { runCheck } from './pipeline.js'
-import { registerOpenApi } from './openapi.js'
-import { healthRoutes } from './routes/health.js'
-import { targetsRoutes } from './routes/targets.js'
-import { groupsRoutes } from './routes/groups.js'
-import { settingsRoutes } from './routes/settings.js'
-import { statusRoutes } from './routes/status.js'
-import { incidentsRoutes } from './routes/incidents.js'
-import { streamRoutes } from './routes/stream.js'
-import { schemaRoutes } from './routes/schema.js'
-import { checksRoutes } from './routes/checks.js'
-import { notifiersRoutes } from './routes/notifiers.js'
-import { pluginsRoutes } from './routes/plugins.js'
-import { pluginManagerRoutes } from './routes/plugin-manager.js'
+import {mountAllPluginRoutes} from './plugins/routes.js'
+import {runCheck} from './pipeline.js'
+import {registerOpenApi} from './openapi.js'
+import {healthRoutes} from './routes/health.js'
+import {targetsRoutes} from './routes/targets.js'
+import {groupsRoutes} from './routes/groups.js'
+import {settingsRoutes} from './routes/settings.js'
+import {statusRoutes} from './routes/status.js'
+import {incidentsRoutes} from './routes/incidents.js'
+import {streamRoutes} from './routes/stream.js'
+import {schemaRoutes} from './routes/schema.js'
+import {checksRoutes} from './routes/checks.js'
+import {notifiersRoutes} from './routes/notifiers.js'
+import {pluginsRoutes} from './routes/plugins.js'
+import {pluginManagerRoutes} from './routes/plugin-manager.js'
 
 const port = Number(process.env.PORT) || 3000
 const databasePath = process.env.DATABASE_PATH || './data/monitor.sqlite'
@@ -33,15 +33,15 @@ async function main() {
     getTargets: () =>
       getCore()
         .listTargets()
-        .map((t) => ({
+        .map(t => ({
           id: t.id,
           intervalSeconds: t.interval_seconds,
           enabled: Boolean(t.enabled),
         })),
-    run: (targetId) => runCheck(targetId),
+    run: targetId => runCheck(targetId),
   })
 
-  const app = Fastify({ logger: true })
+  const app = Fastify({logger: true})
 
   await registerOpenApi(app)
 
@@ -64,7 +64,7 @@ async function main() {
   // After plugin mounts so the catalog is populated
   await app.register(pluginsRoutes)
 
-  await app.listen({ port, host: '0.0.0.0' })
+  await app.listen({port, host: '0.0.0.0'})
   getScheduler().start()
 }
 
@@ -82,7 +82,7 @@ function shutdown(signal: string): void {
 process.on('SIGTERM', () => shutdown('SIGTERM'))
 process.on('SIGINT', () => shutdown('SIGINT'))
 
-main().catch((err) => {
+main().catch(err => {
   console.error(err)
   closeCore()
   process.exit(1)

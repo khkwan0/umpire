@@ -1,6 +1,6 @@
-import type { AlertEvent } from '../../types.js'
-import type { WebhookConfig } from './config.js'
-import { isConfigured, WEBHOOK_BODY_METHODS } from './config.js'
+import type {AlertEvent} from '../../types.js'
+import type {WebhookConfig} from './config.js'
+import {isConfigured, WEBHOOK_BODY_METHODS} from './config.js'
 
 function withQueryPayload(url: string, event: AlertEvent): string {
   const dest = new URL(url)
@@ -28,10 +28,10 @@ export async function sendAlert(
   }
 
   const useBody = WEBHOOK_BODY_METHODS.has(config.method)
-  const headers: Record<string, string> = { ...config.headers }
+  const headers: Record<string, string> = {...config.headers}
   if (
     useBody &&
-    !Object.keys(headers).some((k) => k.toLowerCase() === 'content-type')
+    !Object.keys(headers).some(k => k.toLowerCase() === 'content-type')
   ) {
     headers['content-type'] = 'application/json'
   }
@@ -55,7 +55,7 @@ export async function sendAlert(
 
 export function testEvent(): AlertEvent {
   return {
-    target: { id: 0, url: 'https://umpire.test/webhook' },
+    target: {id: 0, url: 'https://umpire.test/webhook'},
     status: 'down',
     previousStatus: 'up',
     error: 'test',

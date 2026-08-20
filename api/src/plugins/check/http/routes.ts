@@ -1,6 +1,6 @@
-import type { FastifyInstance } from 'fastify'
-import { getCore } from '../../../core/index.js'
-import { publishRealtime } from '../../../realtime.js'
+import type {FastifyInstance} from 'fastify'
+import {getCore} from '../../../core/index.js'
+import {publishRealtime} from '../../../realtime.js'
 import {
   HTTP_METHODS,
   STATUS_RANGES,
@@ -12,11 +12,11 @@ import {
   resolveHttpCheckConfigForTarget,
   writeDefaults,
 } from './config.js'
-import { runHttpCheck } from './evaluate.js'
+import {runHttpCheck} from './evaluate.js'
 
 const errorResponse = {
   type: 'object',
-  properties: { error: { type: 'string' } },
+  properties: {error: {type: 'string'}},
 } as const
 
 const configSchema = {
@@ -30,18 +30,18 @@ const configSchema = {
     'maxLatencyMs',
   ],
   properties: {
-    method: { type: 'string', enum: [...HTTP_METHODS] },
-    headers: { type: 'object', additionalProperties: { type: 'string' } },
-    body: { type: 'string' },
+    method: {type: 'string', enum: [...HTTP_METHODS]},
+    headers: {type: 'object', additionalProperties: {type: 'string'}},
+    body: {type: 'string'},
     acceptedStatusRanges: {
       type: 'array',
-      items: { type: 'string', enum: [...STATUS_RANGES] },
+      items: {type: 'string', enum: [...STATUS_RANGES]},
     },
     acceptedStatusCodes: {
       type: 'array',
-      items: { type: 'integer', minimum: 100, maximum: 599 },
+      items: {type: 'integer', minimum: 100, maximum: 599},
     },
-    maxLatencyMs: { type: ['integer', 'null'], minimum: 1 },
+    maxLatencyMs: {type: ['integer', 'null'], minimum: 1},
   },
 } as const
 
@@ -49,9 +49,9 @@ const targetConfigViewSchema = {
   type: 'object',
   required: ['useCustom', 'defaults', 'override', 'effective'],
   properties: {
-    useCustom: { type: 'boolean' },
+    useCustom: {type: 'boolean'},
     defaults: configSchema,
-    override: { type: ['object', 'null'], additionalProperties: true },
+    override: {type: ['object', 'null'], additionalProperties: true},
     effective: configSchema,
   },
 } as const
@@ -63,10 +63,10 @@ export async function registerHttpCheckRoutes(
     type: 'object',
     required: ['ok', 'statusCode', 'error', 'latencyMs'],
     properties: {
-      ok: { type: 'boolean' },
-      statusCode: { type: ['integer', 'null'] },
-      error: { type: ['string', 'null'] },
-      latencyMs: { type: 'number' },
+      ok: {type: 'boolean'},
+      statusCode: {type: ['integer', 'null']},
+      error: {type: ['string', 'null']},
+      latencyMs: {type: 'number'},
     },
   } as const
 
@@ -76,7 +76,7 @@ export async function registerHttpCheckRoutes(
       schema: {
         tags: ['http-check'],
         summary: 'Get default HTTP check parameters for all targets',
-        response: { 200: configSchema },
+        response: {200: configSchema},
       },
     },
     async () => readDefaults(),
@@ -93,7 +93,7 @@ export async function registerHttpCheckRoutes(
             type: 'object',
             required: ['targetIds'],
             properties: {
-              targetIds: { type: 'array', items: { type: 'integer' } },
+              targetIds: {type: 'array', items: {type: 'integer'}},
             },
           },
         },
@@ -102,9 +102,9 @@ export async function registerHttpCheckRoutes(
     async () => {
       const rows = getCore().listTargetCheckConfigs('http')
       const targetIds = rows
-        .filter((row) => parseStoredOverride(row.config)?.useCustom === true)
-        .map((row) => row.targetId)
-      return { targetIds }
+        .filter(row => parseStoredOverride(row.config)?.useCustom === true)
+        .map(row => row.targetId)
+      return {targetIds}
     },
   )
 
@@ -133,12 +133,12 @@ export async function registerHttpCheckRoutes(
     async (req, reply) => {
       try {
         const config = writeDefaults(req.body)
-        publishRealtime('plugin-manager.updated', { reason: 'http-defaults' })
+        publishRealtime('plugin-manager.updated', {reason: 'http-defaults'})
         return config
       } catch (err) {
         return reply
           .code(400)
-          .send({ error: err instanceof Error ? err.message : String(err) })
+          .send({error: err instanceof Error ? err.message : String(err)})
       }
     },
   )
@@ -148,11 +148,12 @@ export async function registerHttpCheckRoutes(
     {
       schema: {
         tags: ['http-check'],
-        summary: 'Get HTTP check defaults, override, and effective config for one target',
+        summary:
+          'Get HTTP check defaults, override, and effective config for one target',
         params: {
           type: 'object',
           required: ['targetId'],
-          properties: { targetId: { type: 'string' } },
+          properties: {targetId: {type: 'string'}},
         },
         response: {
           200: targetConfigViewSchema,
@@ -162,12 +163,12 @@ export async function registerHttpCheckRoutes(
       },
     },
     async (req, reply) => {
-      const targetId = Number((req.params as { targetId: string }).targetId)
+      const targetId = Number((req.params as {targetId: string}).targetId)
       if (!Number.isInteger(targetId) || targetId < 1) {
-        return reply.code(400).send({ error: 'invalid targetId' })
+        return reply.code(400).send({error: 'invalid targetId'})
       }
       if (!getCore().getTarget(targetId)) {
-        return reply.code(404).send({ error: 'target not found' })
+        return reply.code(404).send({error: 'target not found'})
       }
       return buildTargetConfigView(
         getCore().getTargetCheckConfig(targetId, 'http'),
@@ -176,7 +177,7 @@ export async function registerHttpCheckRoutes(
   )
 
   app.put<{
-    Params: { targetId: string }
+    Params: {targetId: string}
     Body: {
       useCustom: boolean
       method?: string
@@ -195,13 +196,13 @@ export async function registerHttpCheckRoutes(
         params: {
           type: 'object',
           required: ['targetId'],
-          properties: { targetId: { type: 'string' } },
+          properties: {targetId: {type: 'string'}},
         },
         body: {
           type: 'object',
           required: ['useCustom'],
           properties: {
-            useCustom: { type: 'boolean' },
+            useCustom: {type: 'boolean'},
             ...configSchema.properties,
           },
         },
@@ -215,10 +216,10 @@ export async function registerHttpCheckRoutes(
     async (req, reply) => {
       const targetId = Number(req.params.targetId)
       if (!Number.isInteger(targetId) || targetId < 1) {
-        return reply.code(400).send({ error: 'invalid targetId' })
+        return reply.code(400).send({error: 'invalid targetId'})
       }
       if (!getCore().getTarget(targetId)) {
-        return reply.code(404).send({ error: 'target not found' })
+        return reply.code(404).send({error: 'target not found'})
       }
       try {
         if (req.body.useCustom !== true) {
@@ -237,7 +238,7 @@ export async function registerHttpCheckRoutes(
       } catch (err) {
         return reply
           .code(400)
-          .send({ error: err instanceof Error ? err.message : String(err) })
+          .send({error: err instanceof Error ? err.message : String(err)})
       }
     },
   )
@@ -251,7 +252,7 @@ export async function registerHttpCheckRoutes(
         params: {
           type: 'object',
           required: ['targetId'],
-          properties: { targetId: { type: 'string' } },
+          properties: {targetId: {type: 'string'}},
         },
         response: {
           200: targetConfigViewSchema,
@@ -261,12 +262,12 @@ export async function registerHttpCheckRoutes(
       },
     },
     async (req, reply) => {
-      const targetId = Number((req.params as { targetId: string }).targetId)
+      const targetId = Number((req.params as {targetId: string}).targetId)
       if (!Number.isInteger(targetId) || targetId < 1) {
-        return reply.code(400).send({ error: 'invalid targetId' })
+        return reply.code(400).send({error: 'invalid targetId'})
       }
       if (!getCore().getTarget(targetId)) {
-        return reply.code(404).send({ error: 'target not found' })
+        return reply.code(404).send({error: 'target not found'})
       }
       getCore().deleteTargetCheckConfig(targetId, 'http')
       publishRealtime('targets.updated', {
@@ -278,7 +279,7 @@ export async function registerHttpCheckRoutes(
   )
 
   app.post<{
-    Params: { targetId: string }
+    Params: {targetId: string}
     Body: {
       url?: string
       useCustom?: boolean
@@ -299,28 +300,28 @@ export async function registerHttpCheckRoutes(
         params: {
           type: 'object',
           required: ['targetId'],
-          properties: { targetId: { type: 'string' } },
+          properties: {targetId: {type: 'string'}},
         },
         body: {
           type: 'object',
           properties: {
-            url: { type: 'string', format: 'uri' },
-            useCustom: { type: 'boolean' },
-            method: { type: 'string', enum: [...HTTP_METHODS] },
+            url: {type: 'string', format: 'uri'},
+            useCustom: {type: 'boolean'},
+            method: {type: 'string', enum: [...HTTP_METHODS]},
             headers: {
               type: 'object',
-              additionalProperties: { type: 'string' },
+              additionalProperties: {type: 'string'},
             },
-            body: { type: 'string' },
+            body: {type: 'string'},
             acceptedStatusRanges: {
               type: 'array',
-              items: { type: 'string', enum: [...STATUS_RANGES] },
+              items: {type: 'string', enum: [...STATUS_RANGES]},
             },
             acceptedStatusCodes: {
               type: 'array',
-              items: { type: 'integer', minimum: 100, maximum: 599 },
+              items: {type: 'integer', minimum: 100, maximum: 599},
             },
-            maxLatencyMs: { type: ['integer', 'null'], minimum: 1 },
+            maxLatencyMs: {type: ['integer', 'null'], minimum: 1},
           },
         },
         response: {
@@ -333,11 +334,11 @@ export async function registerHttpCheckRoutes(
     async (req, reply) => {
       const targetId = Number(req.params.targetId)
       if (!Number.isInteger(targetId) || targetId < 1) {
-        return reply.code(400).send({ error: 'invalid targetId' })
+        return reply.code(400).send({error: 'invalid targetId'})
       }
       const target = getCore().getTarget(targetId)
       if (!target) {
-        return reply.code(404).send({ error: 'target not found' })
+        return reply.code(404).send({error: 'target not found'})
       }
       const url = req.body?.url?.trim() || target.url
       const stored = getCore().getTargetCheckConfig(targetId, 'http')
@@ -376,7 +377,7 @@ export async function registerHttpCheckRoutes(
         } catch (err) {
           return reply
             .code(400)
-            .send({ error: err instanceof Error ? err.message : String(err) })
+            .send({error: err instanceof Error ? err.message : String(err)})
         }
       }
       return runHttpCheck(url, config)

@@ -1,10 +1,12 @@
-import type { CheckContext, CheckOutcome, CheckPlugin } from '../../types.js'
-import { resolveHttpCheckConfigForTarget } from './config.js'
-import { runHttpCheck } from './evaluate.js'
-import { registerHttpCheckRoutes } from './routes.js'
+import type {CheckContext, CheckOutcome, CheckPlugin} from '../../types.js'
+import {resolveHttpCheckConfigForTarget} from './config.js'
+import {runHttpCheck} from './evaluate.js'
+import {registerHttpCheckRoutes} from './routes.js'
 
 const httpCheck: CheckPlugin = {
   id: 'http',
+  description:
+    'Requests the target URL over HTTP(S) and fails on unexpected status codes or latency.',
 
   async registerRoutes(app) {
     await registerHttpCheckRoutes(app)

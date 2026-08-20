@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import {useCallback, useEffect, useState} from 'react'
+import {Link} from 'react-router-dom'
 import {
   api,
   isTransientApiError,
@@ -8,8 +8,8 @@ import {
   type StatusResponse,
 } from '../api'
 import ReconnectBanner from '../ReconnectBanner'
-import { useRealtimeRefresh } from '../RealtimeProvider'
-import type { DashboardWidgetModule } from '../plugin-ui'
+import {useRealtimeRefresh} from '../RealtimeProvider'
+import type {DashboardWidgetModule} from '../plugin-ui'
 
 function statusLabel(isUp: number | null, enabled: number): string {
   if (!enabled) return 'paused'
@@ -40,7 +40,9 @@ export default function Dashboard({
   widgets?: DashboardWidgetModule[]
 }) {
   const [data, setData] = useState<StatusResponse | null>(null)
-  const [pluginState, setPluginState] = useState<PluginManagerState | null>(null)
+  const [pluginState, setPluginState] = useState<PluginManagerState | null>(
+    null,
+  )
   const [incidents, setIncidents] = useState<Incident[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [reconnecting, setReconnecting] = useState(false)
@@ -76,18 +78,18 @@ export default function Dashboard({
   if (error && !data) return <p className="error">{error}</p>
   if (!data) return <p className="muted">Loading…</p>
 
-  const up = data.targets.filter((t) => t.enabled && t.is_up === 1).length
-  const partial = data.targets.filter((t) => t.enabled && t.is_up === 2).length
-  const down = data.targets.filter((t) => t.enabled && t.is_up === 0).length
-  const paused = data.targets.filter((t) => !t.enabled).length
-  const ongoing = (incidents ?? []).filter((i) => !i.recovered).length
-  const enabledChecks = pluginState?.checks.filter((c) => c.enabled).length ?? 0
+  const up = data.targets.filter(t => t.enabled && t.is_up === 1).length
+  const partial = data.targets.filter(t => t.enabled && t.is_up === 2).length
+  const down = data.targets.filter(t => t.enabled && t.is_up === 0).length
+  const paused = data.targets.filter(t => !t.enabled).length
+  const ongoing = (incidents ?? []).filter(i => !i.recovered).length
+  const enabledChecks = pluginState?.checks.filter(c => c.enabled).length ?? 0
   const totalChecks = pluginState?.checks.length ?? 0
   const enabledNotifiers =
-    pluginState?.notifiers.filter((n) => n.enabled).length ?? 0
+    pluginState?.notifiers.filter(n => n.enabled).length ?? 0
   const totalNotifiers = pluginState?.notifiers.length ?? 0
   const readyEnabledNotifiers =
-    pluginState?.notifiers.filter((n) => n.enabled && n.ready).length ?? 0
+    pluginState?.notifiers.filter(n => n.enabled && n.ready).length ?? 0
 
   return (
     <div className="stack">
@@ -113,11 +115,15 @@ export default function Dashboard({
         {pluginState && (
           <>
             <div>
-              <strong>{enabledChecks}/{totalChecks}</strong>
+              <strong>
+                {enabledChecks}/{totalChecks}
+              </strong>
               <span>checks enabled</span>
             </div>
             <div>
-              <strong>{enabledNotifiers}/{totalNotifiers}</strong>
+              <strong>
+                {enabledNotifiers}/{totalNotifiers}
+              </strong>
               <span>notifiers enabled</span>
               <div className="muted small">{readyEnabledNotifiers} ready</div>
             </div>
@@ -153,7 +159,7 @@ export default function Dashboard({
                 </td>
               </tr>
             ) : (
-              incidents.map((incident) => {
+              incidents.map(incident => {
                 const label = incidentLabel(incident)
                 return (
                   <tr key={`${incident.target_id}:${incident.id}`}>
@@ -183,7 +189,7 @@ export default function Dashboard({
         </table>
       </section>
 
-      {widgets.map((ui) => (
+      {widgets.map(ui => (
         <section key={`${ui.kind}:${ui.id}`} className="panel">
           <div className="panel-head">
             <h2>{ui.label}</h2>
@@ -215,7 +221,7 @@ export default function Dashboard({
               </tr>
             </thead>
             <tbody>
-              {data.targets.map((t) => {
+              {data.targets.map(t => {
                 const label = statusLabel(t.is_up, t.enabled)
                 return (
                   <tr key={t.id}>

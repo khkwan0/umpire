@@ -9,7 +9,7 @@ export interface CoreColumnDef {
   autoIncrement?: boolean
   notNull?: boolean
   unique?: boolean
-  default?: string | number | { type: 'now' }
+  default?: string | number | {type: 'now'}
   references?: {
     table: string
     column: string
@@ -33,79 +33,79 @@ export const CORE_TABLES: CoreTableDef[] = [
   {
     name: 'groups',
     columns: [
-      { name: 'id', type: 'integer', primaryKey: true, autoIncrement: true },
-      { name: 'parent', type: 'integer', notNull: true, default: 0 },
-      { name: 'name', type: 'text', notNull: true, default: '' },
-      { name: 'tag', type: 'text', notNull: true, unique: true },
+      {name: 'id', type: 'integer', primaryKey: true, autoIncrement: true},
+      {name: 'parent', type: 'integer', notNull: true, default: 0},
+      {name: 'name', type: 'text', notNull: true, default: ''},
+      {name: 'tag', type: 'text', notNull: true, unique: true},
       {
         name: 'created_at',
         type: 'text',
         notNull: true,
-        default: { type: 'now' },
+        default: {type: 'now'},
       },
       {
         name: 'updated_at',
         type: 'text',
         notNull: true,
-        default: { type: 'now' },
+        default: {type: 'now'},
       },
     ],
-    indexes: [{ name: 'idx_groups_parent', columns: ['parent'] }],
+    indexes: [{name: 'idx_groups_parent', columns: ['parent']}],
   },
   {
     name: 'targets',
     columns: [
-      { name: 'id', type: 'integer', primaryKey: true, autoIncrement: true },
-      { name: 'url', type: 'text', notNull: true },
-      { name: 'interval_seconds', type: 'integer', notNull: true, default: 60 },
-      { name: 'enabled', type: 'integer', notNull: true, default: 1 },
+      {name: 'id', type: 'integer', primaryKey: true, autoIncrement: true},
+      {name: 'url', type: 'text', notNull: true},
+      {name: 'interval_seconds', type: 'integer', notNull: true, default: 60},
+      {name: 'enabled', type: 'integer', notNull: true, default: 1},
       {
         name: 'group_id',
         type: 'integer',
-        references: { table: 'groups', column: 'id', onDelete: 'SET NULL' },
+        references: {table: 'groups', column: 'id', onDelete: 'SET NULL'},
       },
-      { name: 'check_ids', type: 'text', notNull: true, default: '[]' },
-      { name: 'notifier_ids', type: 'text', notNull: true, default: '[]' },
+      {name: 'check_ids', type: 'text', notNull: true, default: '[]'},
+      {name: 'notifier_ids', type: 'text', notNull: true, default: '[]'},
       {
         name: 'created_at',
         type: 'text',
         notNull: true,
-        default: { type: 'now' },
+        default: {type: 'now'},
       },
       {
         name: 'updated_at',
         type: 'text',
         notNull: true,
-        default: { type: 'now' },
+        default: {type: 'now'},
       },
     ],
   },
   {
     name: 'settings',
     columns: [
-      { name: 'key', type: 'text', primaryKey: true },
-      { name: 'value', type: 'text', notNull: true },
+      {name: 'key', type: 'text', primaryKey: true},
+      {name: 'value', type: 'text', notNull: true},
     ],
   },
   {
     name: 'check_results',
     columns: [
-      { name: 'id', type: 'integer', primaryKey: true, autoIncrement: true },
+      {name: 'id', type: 'integer', primaryKey: true, autoIncrement: true},
       {
         name: 'target_id',
         type: 'integer',
         notNull: true,
-        references: { table: 'targets', column: 'id', onDelete: 'CASCADE' },
+        references: {table: 'targets', column: 'id', onDelete: 'CASCADE'},
       },
-      { name: 'ok', type: 'integer', notNull: true },
-      { name: 'status_code', type: 'integer' },
-      { name: 'error', type: 'text' },
-      { name: 'latency_ms', type: 'integer' },
+      {name: 'ok', type: 'integer', notNull: true},
+      {name: 'status_code', type: 'integer'},
+      {name: 'error', type: 'text'},
+      {name: 'latency_ms', type: 'integer'},
       {
         name: 'checked_at',
         type: 'text',
         notNull: true,
-        default: { type: 'now' },
+        default: {type: 'now'},
       },
     ],
     indexes: [
@@ -122,14 +122,14 @@ export const CORE_TABLES: CoreTableDef[] = [
         name: 'target_id',
         type: 'integer',
         primaryKey: true,
-        references: { table: 'targets', column: 'id', onDelete: 'CASCADE' },
+        references: {table: 'targets', column: 'id', onDelete: 'CASCADE'},
       },
-      { name: 'is_up', type: 'integer' },
-      { name: 'last_alert_at', type: 'text' },
-      { name: 'last_checked_at', type: 'text' },
-      { name: 'last_status_code', type: 'integer' },
-      { name: 'last_error', type: 'text' },
-      { name: 'last_latency_ms', type: 'integer' },
+      {name: 'is_up', type: 'integer'},
+      {name: 'last_alert_at', type: 'text'},
+      {name: 'last_checked_at', type: 'text'},
+      {name: 'last_status_code', type: 'integer'},
+      {name: 'last_error', type: 'text'},
+      {name: 'last_latency_ms', type: 'integer'},
     ],
   },
   {
@@ -139,21 +139,47 @@ export const CORE_TABLES: CoreTableDef[] = [
         name: 'target_id',
         type: 'integer',
         notNull: true,
-        references: { table: 'targets', column: 'id', onDelete: 'CASCADE' },
+        references: {table: 'targets', column: 'id', onDelete: 'CASCADE'},
       },
-      { name: 'check_id', type: 'text', notNull: true },
-      { name: 'config_json', type: 'text', notNull: true, default: '{}' },
+      {name: 'check_id', type: 'text', notNull: true},
+      {name: 'config_json', type: 'text', notNull: true, default: '{}'},
       {
         name: 'updated_at',
         type: 'text',
         notNull: true,
-        default: { type: 'now' },
+        default: {type: 'now'},
       },
     ],
     indexes: [
       {
         name: 'idx_target_check_configs_target_check',
         columns: ['target_id', 'check_id'],
+        unique: true,
+      },
+    ],
+  },
+  {
+    name: 'target_notifier_configs',
+    columns: [
+      {
+        name: 'target_id',
+        type: 'integer',
+        notNull: true,
+        references: {table: 'targets', column: 'id', onDelete: 'CASCADE'},
+      },
+      {name: 'notifier_id', type: 'text', notNull: true},
+      {name: 'config_json', type: 'text', notNull: true, default: '{}'},
+      {
+        name: 'updated_at',
+        type: 'text',
+        notNull: true,
+        default: {type: 'now'},
+      },
+    ],
+    indexes: [
+      {
+        name: 'idx_target_notifier_configs_target_notifier',
+        columns: ['target_id', 'notifier_id'],
         unique: true,
       },
     ],

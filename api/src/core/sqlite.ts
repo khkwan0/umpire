@@ -11,10 +11,10 @@ import type {
   Target,
   TargetState,
 } from '../plugins/types.js'
-import { buildIncidents, type IncidentSourceRow } from '../incidents.js'
-import { healthToDb } from '../plugins/types.js'
-import { CORE_TABLES } from './schema.js'
-import type { CoreStore } from './types.js'
+import {buildIncidents, type IncidentSourceRow} from '../incidents.js'
+import {healthToDb} from '../plugins/types.js'
+import {CORE_TABLES} from './schema.js'
+import type {CoreStore} from './types.js'
 
 let db: Database.Database | undefined
 let dbPath = ''
@@ -60,6 +60,22 @@ function buildStatements(database: Database.Database) {
     ),
     selectTargetCheckConfigsByCheck: database.prepare(
       `SELECT target_id, config_json FROM target_check_configs WHERE check_id = ? ORDER BY target_id ASC`,
+    ),
+    selectTargetNotifierConfig: database.prepare(
+      `SELECT config_json FROM target_notifier_configs WHERE target_id = ? AND notifier_id = ?`,
+    ),
+    selectTargetNotifierConfigsByNotifier: database.prepare(
+      `SELECT target_id, config_json FROM target_notifier_configs WHERE notifier_id = ? ORDER BY target_id ASC`,
+    ),
+    upsertTargetNotifierConfig: database.prepare(
+      `INSERT INTO target_notifier_configs (target_id, notifier_id, config_json, updated_at)
+       VALUES (?, ?, ?, datetime('now'))
+       ON CONFLICT(target_id, notifier_id) DO UPDATE SET
+         config_json = excluded.config_json,
+         updated_at = excluded.updated_at`,
+    ),
+    deleteTargetNotifierConfig: database.prepare(
+      `DELETE FROM target_notifier_configs WHERE target_id = ? AND notifier_id = ?`,
     ),
     upsertTargetCheckConfig: database.prepare(
       `INSERT INTO target_check_configs (target_id, check_id, config_json, updated_at)
@@ -136,7 +152,7 @@ function buildStatements(database: Database.Database) {
       `INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`,
     ),
     dumpSelect: Object.fromEntries(
-      CORE_TABLES.map((table) => [
+      CORE_TABLES.map(table => [
         table.name,
         database.prepare(`SELECT * FROM ${table.name}`),
       ]),
@@ -148,7 +164,7 @@ function ensureColumn(table: string, column: string, definition: string): void {
   const cols = getDb().pragma(`table_info(${table})`) as Array<{
     name: string
   }>
-  if (!cols.some((c) => c.name === column)) {
+  if (!cols.some(c => c.name === column)) {
     getDb().exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
   }
 }
@@ -172,7 +188,7 @@ function pathIdsToRoot(id: number, parent: number): number[] {
     if (seen.has(p)) throw new Error('group parent cycle detected')
     seen.add(p)
     const row = getStmts().selectGroupParent.get(p) as
-      { id: number; parent: number } | undefined
+      {id: number; parent: number} | undefined
     if (!row) throw new Error(`parent group ${p} not found`)
     ids.unshift(row.id)
     p = row.parent
@@ -289,6 +305,15 @@ interface TargetCheckConfigListRow {
   config_json: string
 }
 
+interface TargetNotifierConfigRow {
+  config_json: string
+}
+
+interface TargetNotifierConfigListRow {
+  target_id: number
+  config_json: string
+}
+
 function parseConfigJson(raw: string): unknown | null {
   try {
     return JSON.parse(raw) as unknown
@@ -299,7 +324,7 @@ function parseConfigJson(raw: string): unknown | null {
 
 function mapTarget(row: TargetRow | undefined): Target | undefined {
   if (!row) return undefined
-  const { check_ids: rawChecks, notifier_ids: rawNotifiers, ...rest } = row
+  const {check_ids: rawChecks, notifier_ids: rawNotifiers, ...rest} = row
   return {
     ...rest,
     check_ids: parsePluginIdsJson(rawChecks, 'check_ids'),
@@ -310,7 +335,7 @@ function mapTarget(row: TargetRow | undefined): Target | undefined {
 function buildTree(rows: Group[]): GroupTreeNode[] {
   const nodes = new Map<number, GroupTreeNode>()
   for (const row of rows) {
-    nodes.set(row.id, { ...row, children: [] })
+    nodes.set(row.id, {...row, children: []})
   }
   const roots: GroupTreeNode[] = []
   for (const row of rows) {
@@ -354,7 +379,7 @@ export const core: CoreStore = {
       key: string
       value: string
     }>
-    const map = Object.fromEntries(rows.map((r) => [r.key, r.value]))
+    const map = Object.fromEntries(rows.map(r => [r.key, r.value]))
     const policy = map.alert_policy as AlertPolicy
     return {
       alert_policy: ['state_change', 'every_fail', 'throttle'].includes(policy)
@@ -396,7 +421,7 @@ export const core: CoreStore = {
     return readGroup(id)
   },
 
-  createGroup(input: { parent?: number; name?: string; tag?: string }): Group {
+  createGroup(input: {parent?: number; name?: string; tag?: string}): Group {
     const parent = input.parent ?? 0
     if (parent !== 0 && !readGroup(parent)) {
       throw new Error(`parent group ${parent} not found`)
@@ -418,7 +443,7 @@ export const core: CoreStore = {
 
   updateGroup(
     id: number,
-    patch: Partial<{ parent: number; name: string; tag: string }>,
+    patch: Partial<{parent: number; name: string; tag: string}>,
   ): Group | undefined {
     const existing = readGroup(id)
     if (!existing) return undefined
@@ -458,7 +483,7 @@ export const core: CoreStore = {
 
   listTargets(): Target[] {
     const rows = getStmts().selectAllTargets.all() as TargetRow[]
-    return rows.map((r) => mapTarget(r)!)
+    return rows.map(r => mapTarget(r)!)
   },
 
   getTarget(id: number): Target | undefined {
@@ -467,28 +492,84 @@ export const core: CoreStore = {
   },
 
   getTargetCheckConfig(targetId: number, checkId: string): unknown | null {
-    const row = getStmts().selectTargetCheckConfig.get(
-      targetId,
-      checkId,
-    ) as TargetCheckConfigRow | undefined
+    const row = getStmts().selectTargetCheckConfig.get(targetId, checkId) as
+      TargetCheckConfigRow | undefined
     if (!row) return null
     return parseConfigJson(row.config_json)
   },
 
   listTargetCheckConfigs(
     checkId: string,
-  ): Array<{ targetId: number; config: unknown }> {
-    const rows = getStmts().selectTargetCheckConfigsByCheck.all(checkId) as TargetCheckConfigListRow[]
-    const out: Array<{ targetId: number; config: unknown }> = []
+  ): Array<{targetId: number; config: unknown}> {
+    const rows = getStmts().selectTargetCheckConfigsByCheck.all(
+      checkId,
+    ) as TargetCheckConfigListRow[]
+    const out: Array<{targetId: number; config: unknown}> = []
     for (const row of rows) {
       const config = parseConfigJson(row.config_json)
       if (config === null) continue
-      out.push({ targetId: row.target_id, config })
+      out.push({targetId: row.target_id, config})
     }
     return out
   },
 
-  setTargetCheckConfig(targetId: number, checkId: string, config: unknown): void {
+  getTargetNotifierConfig(
+    targetId: number,
+    notifierId: string,
+  ): unknown | null {
+    const row = getStmts().selectTargetNotifierConfig.get(
+      targetId,
+      notifierId,
+    ) as TargetNotifierConfigRow | undefined
+    if (!row) return null
+    return parseConfigJson(row.config_json)
+  },
+
+  listTargetNotifierConfigs(
+    notifierId: string,
+  ): Array<{targetId: number; config: unknown}> {
+    const rows = getStmts().selectTargetNotifierConfigsByNotifier.all(
+      notifierId,
+    ) as TargetNotifierConfigListRow[]
+    const out: Array<{targetId: number; config: unknown}> = []
+    for (const row of rows) {
+      const config = parseConfigJson(row.config_json)
+      if (config === null) continue
+      out.push({targetId: row.target_id, config})
+    }
+    return out
+  },
+
+  setTargetNotifierConfig(
+    targetId: number,
+    notifierId: string,
+    config: unknown,
+  ): void {
+    if (!Number.isInteger(targetId) || targetId < 1) {
+      throw new Error('target_id must be a positive integer')
+    }
+    if (typeof notifierId !== 'string' || !notifierId.trim()) {
+      throw new Error('notifier_id is required')
+    }
+    const target = core.getTarget(targetId)
+    if (!target) throw new Error(`target ${targetId} not found`)
+    const normalizedNotifierId = notifierId.trim()
+    getStmts().upsertTargetNotifierConfig.run(
+      targetId,
+      normalizedNotifierId,
+      JSON.stringify(config),
+    )
+  },
+
+  deleteTargetNotifierConfig(targetId: number, notifierId: string): void {
+    getStmts().deleteTargetNotifierConfig.run(targetId, notifierId)
+  },
+
+  setTargetCheckConfig(
+    targetId: number,
+    checkId: string,
+    config: unknown,
+  ): void {
     if (!Number.isInteger(targetId) || targetId < 1) {
       throw new Error('target_id must be a positive integer')
     }
@@ -613,15 +694,12 @@ export const core: CoreStore = {
   },
 
   listRecentResults(targetId: number, limit = 50): CheckResult[] {
-    return getStmts().selectRecentResults.all(
-      targetId,
-      limit,
-    ) as CheckResult[]
+    return getStmts().selectRecentResults.all(targetId, limit) as CheckResult[]
   },
 
   listIncidents(limit = 50) {
     const rows = getStmts().selectIncidentRows.all() as IncidentSourceRow[]
-    return buildIncidents(rows, { limit })
+    return buildIncidents(rows, {limit})
   },
 
   getStatusSummary() {
@@ -634,7 +712,7 @@ export function initCore(databasePath: string): void {
 
   const resolved = path.resolve(databasePath)
   const dir = path.dirname(resolved)
-  fs.mkdirSync(dir, { recursive: true })
+  fs.mkdirSync(dir, {recursive: true})
 
   db = new Database(resolved)
   dbPath = resolved
@@ -703,6 +781,17 @@ export function initCore(databasePath: string): void {
 
     CREATE UNIQUE INDEX IF NOT EXISTS idx_target_check_configs_target_check
       ON target_check_configs(target_id, check_id);
+
+    CREATE TABLE IF NOT EXISTS target_notifier_configs (
+      target_id INTEGER NOT NULL REFERENCES targets(id) ON DELETE CASCADE,
+      notifier_id TEXT NOT NULL,
+      config_json TEXT NOT NULL DEFAULT '{}',
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(target_id, notifier_id)
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_target_notifier_configs_target_notifier
+      ON target_notifier_configs(target_id, notifier_id);
   `)
 
   ensureColumn(

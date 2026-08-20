@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import {useEffect, useState, type FormEvent} from 'react'
 import {
   api,
   isTransientApiError,
@@ -7,6 +7,50 @@ import {
   type Settings,
 } from '../api'
 import ReconnectBanner from '../ReconnectBanner'
+
+const MISSING_PLUGIN_DESCRIPTION =
+  "No description offered by the plugin's author"
+
+function displayedPluginDescription(
+  description: string | null | undefined,
+): string {
+  const trimmed = description?.trim()
+  return trimmed ? trimmed : MISSING_PLUGIN_DESCRIPTION
+}
+
+function PluginManagerRow({
+  id,
+  enabled,
+  description,
+  busy,
+  extra,
+  onToggle,
+}: {
+  id: string
+  enabled: boolean
+  description: string | null
+  busy: boolean
+  extra?: string
+  onToggle: (enabled: boolean) => void
+}) {
+  return (
+    <div className="plugin-manager-row">
+      <label className="check-ids-item">
+        <input
+          type="checkbox"
+          checked={enabled}
+          disabled={busy}
+          onChange={e => onToggle(e.target.checked)}
+        />
+        {id}
+        {extra}
+      </label>
+      <p className="muted small plugin-manager-description">
+        {displayedPluginDescription(description)}
+      </p>
+    </div>
+  )
+}
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Settings | null>(null)
@@ -29,7 +73,7 @@ export default function SettingsPage() {
         setError(null)
         setReconnecting(false)
       })
-      .catch((err) => {
+      .catch(err => {
         if (isTransientApiError(err)) {
           setReconnecting(true)
           return
@@ -79,7 +123,8 @@ export default function SettingsPage() {
     }
   }
 
-  if (!settings && !error && !reconnecting) return <p className="muted">Loading…</p>
+  if (!settings && !error && !reconnecting)
+    return <p className="muted">Loading…</p>
 
   return (
     <div className="stack">
@@ -91,7 +136,7 @@ export default function SettingsPage() {
             Policy
             <select
               value={policy}
-              onChange={(e) => setPolicy(e.target.value as AlertPolicy)}
+              onChange={e => setPolicy(e.target.value as AlertPolicy)}
             >
               <option value="state_change">
                 State change (down once, recover once)
@@ -108,7 +153,7 @@ export default function SettingsPage() {
               type="number"
               min={1}
               value={throttle}
-              onChange={(e) => setThrottle(Number(e.target.value))}
+              onChange={e => setThrottle(Number(e.target.value))}
               disabled={policy !== 'throttle'}
             />
           </label>
@@ -128,58 +173,56 @@ export default function SettingsPage() {
           <div className="stack">
             <div>
               <h3>Scheduler</h3>
-              <label className="check-ids-item">
-                <input
-                  type="checkbox"
-                  checked={plugins.scheduler.enabled}
-                  disabled={pluginBusy === `scheduler:${plugins.scheduler.id}`}
-                  onChange={(e) =>
+              <div className="plugin-manager-list">
+                <PluginManagerRow
+                  id={plugins.scheduler.id}
+                  enabled={plugins.scheduler.enabled}
+                  description={plugins.scheduler.description}
+                  busy={pluginBusy === `scheduler:${plugins.scheduler.id}`}
+                  onToggle={enabled =>
                     void togglePlugin(
                       'scheduler',
                       plugins.scheduler.id,
-                      e.target.checked,
+                      enabled,
                     )
                   }
                 />
-                {plugins.scheduler.id}
-              </label>
+              </div>
             </div>
 
             <div>
               <h3>Checks</h3>
-              <div className="check-ids-list">
-                {plugins.checks.map((c) => (
-                  <label key={c.id} className="check-ids-item">
-                    <input
-                      type="checkbox"
-                      checked={c.enabled}
-                      disabled={pluginBusy === `check:${c.id}`}
-                      onChange={(e) =>
-                        void togglePlugin('check', c.id, e.target.checked)
-                      }
-                    />
-                    {c.id}
-                  </label>
+              <div className="plugin-manager-list">
+                {plugins.checks.map(c => (
+                  <PluginManagerRow
+                    key={c.id}
+                    id={c.id}
+                    enabled={c.enabled}
+                    description={c.description}
+                    busy={pluginBusy === `check:${c.id}`}
+                    onToggle={enabled =>
+                      void togglePlugin('check', c.id, enabled)
+                    }
+                  />
                 ))}
               </div>
             </div>
 
             <div>
               <h3>Notifiers</h3>
-              <div className="check-ids-list">
-                {plugins.notifiers.map((n) => (
-                  <label key={n.id} className="check-ids-item">
-                    <input
-                      type="checkbox"
-                      checked={n.enabled}
-                      disabled={pluginBusy === `notify:${n.id}`}
-                      onChange={(e) =>
-                        void togglePlugin('notify', n.id, e.target.checked)
-                      }
-                    />
-                    {n.id}
-                    {!n.ready ? ' (not ready)' : ''}
-                  </label>
+              <div className="plugin-manager-list">
+                {plugins.notifiers.map(n => (
+                  <PluginManagerRow
+                    key={n.id}
+                    id={n.id}
+                    enabled={n.enabled}
+                    description={n.description}
+                    busy={pluginBusy === `notify:${n.id}`}
+                    extra={!n.ready ? ' (not ready)' : undefined}
+                    onToggle={enabled =>
+                      void togglePlugin('notify', n.id, enabled)
+                    }
+                  />
                 ))}
               </div>
             </div>

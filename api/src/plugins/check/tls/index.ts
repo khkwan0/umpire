@@ -1,6 +1,6 @@
 import tls from 'node:tls'
-import { URL } from 'node:url'
-import type { CheckContext, CheckOutcome, CheckPlugin } from '../../types.js'
+import {URL} from 'node:url'
+import type {CheckContext, CheckOutcome, CheckPlugin} from '../../types.js'
 
 function timeoutMs(): number {
   const n = Number(process.env.CHECK_TIMEOUT_MS)
@@ -8,11 +8,13 @@ function timeoutMs(): number {
 }
 
 function fail(latencyMs: number, error: string): CheckOutcome {
-  return { ok: false, statusCode: null, error, latencyMs }
+  return {ok: false, statusCode: null, error, latencyMs}
 }
 
 const tlsCheck: CheckPlugin = {
   id: 'tls',
+  description:
+    'Opens a TLS connection to HTTPS targets and fails if the handshake or certificate is invalid.',
   async check(ctx: CheckContext): Promise<CheckOutcome> {
     const startedAt = Date.now()
     let parsed: URL
@@ -29,7 +31,7 @@ const tlsCheck: CheckPlugin = {
     const port = parsed.port ? Number(parsed.port) : 443
     const timeout = timeoutMs()
 
-    return await new Promise<CheckOutcome>((resolve) => {
+    return await new Promise<CheckOutcome>(resolve => {
       const socket = tls.connect(
         {
           host,
@@ -40,7 +42,7 @@ const tlsCheck: CheckPlugin = {
         () => {
           const latencyMs = Date.now() - startedAt
           socket.end()
-          resolve({ ok: true, statusCode: null, error: null, latencyMs })
+          resolve({ok: true, statusCode: null, error: null, latencyMs})
         },
       )
 
@@ -49,7 +51,7 @@ const tlsCheck: CheckPlugin = {
         socket.destroy()
         resolve(fail(latencyMs, 'timeout'))
       })
-      socket.once('error', (err) => {
+      socket.once('error', err => {
         const latencyMs = Date.now() - startedAt
         resolve(fail(latencyMs, err.message))
       })

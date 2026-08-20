@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { core, initCore, normalizePluginIds } from './sqlite.js'
+import {core, initCore, normalizePluginIds} from './sqlite.js'
 
 function sqliteBindingsAvailable(): boolean {
   try {
@@ -47,23 +47,23 @@ describeStore('core sqlite store', () => {
       throttle_minutes: 30,
     })
     expect(
-      core.updateSettings({ alert_policy: 'throttle', throttle_minutes: 5 }),
+      core.updateSettings({alert_policy: 'throttle', throttle_minutes: 5}),
     ).toEqual({
       alert_policy: 'throttle',
       throttle_minutes: 5,
     })
     expect(() =>
-      core.updateSettings({ alert_policy: 'nope' as 'state_change' }),
+      core.updateSettings({alert_policy: 'nope' as 'state_change'}),
     ).toThrow('Invalid alert_policy')
-    expect(() => core.updateSettings({ throttle_minutes: 0 })).toThrow(
+    expect(() => core.updateSettings({throttle_minutes: 0})).toThrow(
       'throttle_minutes must be >= 1',
     )
   })
 
   it('assigns group tags by path and builds a tree', () => {
-    const root = core.createGroup({ name: 'prod' })
-    const child = core.createGroup({ parent: root.id, name: 'api' })
-    const leaf = core.createGroup({ parent: child.id, name: 'west' })
+    const root = core.createGroup({name: 'prod'})
+    const child = core.createGroup({parent: root.id, name: 'api'})
+    const leaf = core.createGroup({parent: child.id, name: 'west'})
 
     expect(root.tag).toBe(`group_${root.id}`)
     expect(child.tag).toBe(`group_group_${root.id}_group_${child.id}`)
@@ -78,24 +78,24 @@ describeStore('core sqlite store', () => {
   })
 
   it('rejects moving a group under itself', () => {
-    const root = core.createGroup({ name: 'root' })
-    const child = core.createGroup({ parent: root.id, name: 'child' })
-    expect(() => core.updateGroup(root.id, { parent: child.id })).toThrow(
+    const root = core.createGroup({name: 'root'})
+    const child = core.createGroup({parent: root.id, name: 'child'})
+    expect(() => core.updateGroup(root.id, {parent: child.id})).toThrow(
       'cannot move group under itself or a descendant',
     )
   })
 
   it('deletes a subtree', () => {
-    const root = core.createGroup({ name: 'root' })
-    const child = core.createGroup({ parent: root.id, name: 'child' })
+    const root = core.createGroup({name: 'root'})
+    const child = core.createGroup({parent: root.id, name: 'child'})
     expect(core.deleteGroup(root.id)).toBe(true)
     expect(core.getGroup(root.id)).toBeUndefined()
     expect(core.getGroup(child.id)).toBeUndefined()
   })
 
   it('requires targets to attach to a child group', () => {
-    const root = core.createGroup({ name: 'root' })
-    const child = core.createGroup({ parent: root.id, name: 'child' })
+    const root = core.createGroup({name: 'root'})
+    const child = core.createGroup({parent: root.id, name: 'child'})
     expect(() =>
       core.createTarget('https://a.test', 60, true, root.id),
     ).toThrow('targets must belong to a child group (not a root)')
@@ -171,7 +171,7 @@ describeStore('core sqlite store', () => {
 
     const incidents = core.listIncidents()
     expect(incidents).toHaveLength(2)
-    expect(incidents.map((i) => i.target_id)).toEqual([b.id, a.id])
+    expect(incidents.map(i => i.target_id)).toEqual([b.id, a.id])
     expect(incidents[0]).toMatchObject({
       target_id: b.id,
       url: 'https://b.test',

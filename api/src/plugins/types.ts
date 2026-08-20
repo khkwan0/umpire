@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify'
+import type {FastifyInstance} from 'fastify'
 
 export type AlertPolicy = 'state_change' | 'every_fail' | 'throttle'
 
@@ -58,21 +58,9 @@ export interface Target {
 
 export interface FcmToken {
   id: number
-  /**
-   * Firebase Installation ID (recommended) or deprecated FCM registration token.
-   */
-  token: string
+  fid: string
   label: string
   enabled: number
-  /**
-   * Target ids this token receives. Empty = all targets.
-   */
-  target_ids: number[]
-  /**
-   * Check plugin ids this token cares about. Empty = any alert (including recovery).
-   * Non-empty = only when at least one listed check failed (recoveries skipped).
-   */
-  check_ids: string[]
   created_at: string
   /** 1=confirmed received, 2=FCM accepted (not confirmed), 0=error, null=never tested */
   last_test_ok: number | null
@@ -138,7 +126,7 @@ export interface AggregatedCheck {
 }
 
 export interface AlertEvent {
-  target: { id: number; url: string }
+  target: {id: number; url: string}
   status: HealthStatus
   previousStatus: HealthStatus | 'unknown'
   error: string | null
@@ -150,17 +138,31 @@ export interface AlertEvent {
   checks: AlertCheckOutcome[]
 }
 
-export interface NotifierPlugin {
+export interface NotifyContext {
+  event: AlertEvent
+  /**
+   * Stored per-target override JSON, or null when using defaults only.
+   * Core reads `check_ids` from this object before calling notify().
+   */
+  config: unknown
+}
+
+/** Identity every plugin declares. Description copy lives on the plugin, not in core. */
+export interface PluginInfo {
   id: string
+  /** Optional short summary of what this plugin does. */
+  description?: string
+}
+
+export interface NotifierPlugin extends PluginInfo {
   init?(): void | Promise<void>
   isReady(): boolean
-  notify(event: AlertEvent): Promise<void>
+  notify(ctx: NotifyContext): Promise<void>
   /** Optional HTTP routes under /api/plugins/<kind>/<id>/… (host applies the prefix). */
   registerRoutes?(app: FastifyInstance): void | Promise<void>
 }
 
-export interface CheckPlugin {
-  id: string
+export interface CheckPlugin extends PluginInfo {
   check(ctx: CheckContext): Promise<CheckOutcome>
   /** Optional HTTP routes under /api/plugins/<kind>/<id>/… (host applies the prefix). */
   registerRoutes?(app: FastifyInstance): void | Promise<void>
@@ -177,8 +179,7 @@ export interface SchedulerContext {
   run(targetId: number): Promise<void>
 }
 
-export interface SchedulerPlugin {
-  id: string
+export interface SchedulerPlugin extends PluginInfo {
   init?(ctx: SchedulerContext): void
   start(): void
   stop(): void
