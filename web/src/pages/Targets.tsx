@@ -24,6 +24,12 @@ function toggleId(list: string[], id: string): string[] {
 
 const MIN_INTERVAL_SECONDS = 5
 
+function targetUsesHttpCheck(t: Target, httpEnabled: boolean): boolean {
+  if (!httpEnabled) return false
+  const checkIds = t.check_ids ?? []
+  return checkIds.length === 0 || checkIds.includes('http')
+}
+
 function IntervalField({
   value,
   ariaLabel,
@@ -417,6 +423,11 @@ export default function Targets() {
                               ? 'all'
                               : checkIds.join(', ')}
                           </div>
+                          {targetUsesHttpCheck(t, enabledCheckIds.has('http')) && (
+                            <Link to={`/targets/${t.id}/checks/http`}>
+                              HTTP settings
+                            </Link>
+                          )}
                         </div>
                       )}
                     </td>

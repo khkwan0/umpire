@@ -318,6 +318,23 @@ label.check-ids-item {
   color: var(--ink);
 }
 
+.status-codes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.status-code-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.status-code-row input[type='number'] {
+  width: 6rem;
+}
+
 .tokens-table {
   table-layout: fixed;
 }

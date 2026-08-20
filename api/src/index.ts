@@ -1,5 +1,5 @@
 import Fastify from 'fastify'
-import { initCore, getCore } from './core/index.js'
+import { initCore, getCore, closeCore } from './core/index.js'
 import {
   initPlugins,
   getScheduler,
@@ -68,7 +68,22 @@ async function main() {
   getScheduler().start()
 }
 
+function shutdown(signal: string): void {
+  console.log(`[core] ${signal} received, shutting down`)
+  try {
+    getScheduler().stop?.()
+  } catch {
+    // ignore scheduler stop errors during shutdown
+  }
+  closeCore()
+  process.exit(0)
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'))
+process.on('SIGINT', () => shutdown('SIGINT'))
+
 main().catch((err) => {
   console.error(err)
+  closeCore()
   process.exit(1)
 })

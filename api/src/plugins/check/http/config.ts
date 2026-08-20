@@ -1,3 +1,6 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
 export const HTTP_METHODS = [
   'GET',
   'HEAD',
@@ -17,6 +20,7 @@ export interface HttpCheckConfig {
   headers: Record<string, string>
   body: string
   acceptedStatusRanges: StatusRange[]
+  acceptedStatusCodes: number[]
   maxLatencyMs: number | null
 }
 
@@ -28,7 +32,161 @@ export const defaultHttpCheckConfig: HttpCheckConfig = {
   headers: {},
   body: '',
   acceptedStatusRanges: ['2xx'],
+  acceptedStatusCodes: [],
   maxLatencyMs: null,
+}
+
+export interface HttpCheckTargetOverride {
+  useCustom: boolean
+  method?: HttpMethod
+  headers?: Record<string, string>
+  body?: string
+  acceptedStatusRanges?: StatusRange[]
+  acceptedStatusCodes?: number[]
+  maxLatencyMs?: number | null
+}
+
+export interface HttpCheckTargetConfigView {
+  useCustom: boolean
+  defaults: HttpCheckConfig
+  override: HttpCheckConfig | null
+  effective: HttpCheckConfig
+}
+
+function defaultsPath(): string {
+  const databasePath = process.env.DATABASE_PATH || './data/monitor.sqlite'
+  return path.resolve(path.dirname(databasePath), 'http-check-defaults.json')
+}
+
+export function readDefaults(): HttpCheckConfig {
+  const file = defaultsPath()
+  if (!fs.existsSync(file)) {
+    return { ...defaultHttpCheckConfig, headers: {} }
+  }
+  try {
+    return normalizeConfig(JSON.parse(fs.readFileSync(file, 'utf8')) as unknown)
+  } catch (err) {
+    console.error('[check:http] failed to read defaults file', err)
+    return { ...defaultHttpCheckConfig, headers: {} }
+  }
+}
+
+export function writeDefaults(input: unknown): HttpCheckConfig {
+  const config = normalizeConfig(input)
+  const file = defaultsPath()
+  fs.mkdirSync(path.dirname(file), { recursive: true })
+  fs.writeFileSync(file, JSON.stringify(config, null, 2), 'utf8')
+  return config
+}
+
+function isFullHttpCheckConfig(row: Record<string, unknown>): boolean {
+  return typeof row.method === 'string' && !('useCustom' in row)
+}
+
+export function parseStoredOverride(stored: unknown): HttpCheckTargetOverride | null {
+  if (stored === null || stored === undefined) return null
+  if (typeof stored !== 'object' || Array.isArray(stored)) return null
+  const row = stored as Record<string, unknown>
+  if (row.useCustom === false) return null
+  if (row.useCustom === undefined && isFullHttpCheckConfig(row)) {
+    const legacy = normalizeConfig(stored)
+    return {
+      useCustom: true,
+      method: legacy.method,
+      headers: legacy.headers,
+      body: legacy.body,
+      acceptedStatusRanges: legacy.acceptedStatusRanges,
+      acceptedStatusCodes: legacy.acceptedStatusCodes,
+      maxLatencyMs: legacy.maxLatencyMs,
+    }
+  }
+  if (row.useCustom !== true) return null
+  const override: HttpCheckTargetOverride = { useCustom: true }
+  if (row.method !== undefined) {
+    override.method = parseMethod(row.method)
+  }
+  if (row.headers !== undefined) {
+    override.headers = parseHeaders(row.headers)
+  }
+  if (row.body !== undefined) {
+    override.body = String(row.body)
+  }
+  if (row.acceptedStatusRanges !== undefined) {
+    override.acceptedStatusRanges = parseStatusRanges(row.acceptedStatusRanges)
+  }
+  if (row.acceptedStatusCodes !== undefined) {
+    override.acceptedStatusCodes = parseStatusCodes(row.acceptedStatusCodes)
+  }
+  if (row.maxLatencyMs !== undefined) {
+    override.maxLatencyMs = parseMaxLatencyMs(row.maxLatencyMs)
+  }
+  return override
+}
+
+export function mergeHttpCheckConfig(
+  defaults: HttpCheckConfig,
+  override: HttpCheckTargetOverride | null,
+): HttpCheckConfig {
+  if (!override?.useCustom) {
+    return {
+      ...defaults,
+      headers: { ...defaults.headers },
+      acceptedStatusRanges: [...defaults.acceptedStatusRanges],
+      acceptedStatusCodes: [...defaults.acceptedStatusCodes],
+    }
+  }
+  return {
+    method: override.method ?? defaults.method,
+    headers: override.headers ?? { ...defaults.headers },
+    body: override.body ?? defaults.body,
+    acceptedStatusRanges:
+      override.acceptedStatusRanges ?? [...defaults.acceptedStatusRanges],
+    acceptedStatusCodes:
+      override.acceptedStatusCodes ?? [...defaults.acceptedStatusCodes],
+    maxLatencyMs:
+      override.maxLatencyMs !== undefined
+        ? override.maxLatencyMs
+        : defaults.maxLatencyMs,
+  }
+}
+
+export function normalizeTargetOverride(input: unknown): HttpCheckTargetOverride {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw new Error(
+      'body must be { useCustom: true, method?, headers?, body?, acceptedStatusRanges?, acceptedStatusCodes?, maxLatencyMs? }',
+    )
+  }
+  const row = input as Record<string, unknown>
+  if (row.useCustom !== true) {
+    throw new Error('useCustom must be true when saving a target override')
+  }
+  const config = normalizeConfig(input)
+  return {
+    useCustom: true,
+    method: config.method,
+    headers: config.headers,
+    body: config.body,
+    acceptedStatusRanges: config.acceptedStatusRanges,
+    acceptedStatusCodes: config.acceptedStatusCodes,
+    maxLatencyMs: config.maxLatencyMs,
+  }
+}
+
+export function buildTargetConfigView(stored: unknown): HttpCheckTargetConfigView {
+  const defaults = readDefaults()
+  const parsed = parseStoredOverride(stored)
+  const useCustom = parsed?.useCustom ?? false
+  const effective = mergeHttpCheckConfig(defaults, parsed)
+  return {
+    useCustom,
+    defaults,
+    override: useCustom ? effective : null,
+    effective,
+  }
+}
+
+export function resolveHttpCheckConfigForTarget(stored: unknown): HttpCheckConfig {
+  return buildTargetConfigView(stored).effective
 }
 
 export function parseHeaders(input: unknown): Record<string, string> {
@@ -77,10 +235,36 @@ function parseStatusRanges(input: unknown): StatusRange[] {
     }
     out.push(normalized as StatusRange)
   }
-  if (out.length === 0) {
-    throw new Error('acceptedStatusRanges must include at least one range')
+  return Array.from(new Set(out))
+}
+
+function parseStatusCodes(input: unknown): number[] {
+  if (input === undefined || input === null) return []
+  if (!Array.isArray(input)) {
+    throw new Error('acceptedStatusCodes must be an array of integers between 100 and 599')
+  }
+  const out: number[] = []
+  for (const raw of input) {
+    const code =
+      typeof raw === 'number'
+        ? raw
+        : typeof raw === 'string'
+          ? Number(raw.trim())
+          : Number.NaN
+    if (!Number.isInteger(code) || code < 100 || code > 599) {
+      throw new Error('acceptedStatusCodes must be integers between 100 and 599')
+    }
+    out.push(code)
   }
   return Array.from(new Set(out))
+}
+
+function validateStatusAcceptance(ranges: StatusRange[], codes: number[]): void {
+  if (ranges.length === 0 && codes.length === 0) {
+    throw new Error(
+      'At least one accepted status range or specific status code is required',
+    )
+  }
 }
 
 function parseMaxLatencyMs(input: unknown): number | null {
@@ -100,24 +284,28 @@ function parseMaxLatencyMs(input: unknown): number | null {
 export function normalizeConfig(input: unknown): HttpCheckConfig {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     throw new Error(
-      'body must be { method?, headers?, body?, acceptedStatusRanges?, maxLatencyMs? }',
+      'body must be { method?, headers?, body?, acceptedStatusRanges?, acceptedStatusCodes?, maxLatencyMs? }',
     )
   }
   const row = input as Record<string, unknown>
   const body =
     row.body === undefined || row.body === null ? '' : String(row.body)
+  const acceptedStatusRanges = parseStatusRanges(row.acceptedStatusRanges)
+  const acceptedStatusCodes = parseStatusCodes(row.acceptedStatusCodes)
+  validateStatusAcceptance(acceptedStatusRanges, acceptedStatusCodes)
   return {
     method: parseMethod(row.method),
     headers: parseHeaders(row.headers),
     body,
-    acceptedStatusRanges: parseStatusRanges(row.acceptedStatusRanges),
+    acceptedStatusRanges,
+    acceptedStatusCodes,
     maxLatencyMs: parseMaxLatencyMs(row.maxLatencyMs),
   }
 }
 
 export function resolveHttpCheckConfig(input: unknown): HttpCheckConfig {
   if (input === null || input === undefined) {
-    return { ...defaultHttpCheckConfig, headers: {} }
+    return readDefaults()
   }
   return normalizeConfig(input)
 }

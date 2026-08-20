@@ -1,5 +1,5 @@
 import type { CheckContext, CheckOutcome, CheckPlugin } from '../../types.js'
-import { resolveHttpCheckConfig } from './config.js'
+import { resolveHttpCheckConfigForTarget } from './config.js'
 import { runHttpCheck } from './evaluate.js'
 import { registerHttpCheckRoutes } from './routes.js'
 
@@ -11,7 +11,7 @@ const httpCheck: CheckPlugin = {
   },
 
   async check(ctx: CheckContext): Promise<CheckOutcome> {
-    const config = resolveHttpCheckConfig(ctx.config)
+    const config = resolveHttpCheckConfigForTarget(ctx.config)
     return runHttpCheck(ctx.target.url, config)
   },
 }

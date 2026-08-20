@@ -115,7 +115,19 @@ export interface HttpCheckConfig {
   headers: Record<string, string>
   body: string
   acceptedStatusRanges: Array<'1xx' | '2xx' | '3xx' | '4xx' | '5xx'>
+  acceptedStatusCodes: number[]
   maxLatencyMs: number | null
+}
+
+export interface HttpCheckTargetConfigView {
+  useCustom: boolean
+  defaults: HttpCheckConfig
+  override: HttpCheckConfig | null
+  effective: HttpCheckConfig
+}
+
+export interface HttpCheckTargetConfigPut extends HttpCheckConfig {
+  useCustom: boolean
 }
 
 export interface HttpCheckTestResult {
@@ -275,16 +287,33 @@ export const api = {
     results: (id: number) =>
       request<CheckResult[]>(`/api/targets/${id}/results`),
     httpCheck: {
-      getConfig: (id: number) =>
-        request<HttpCheckConfig>(`/api/plugins/check/http/targets/${id}/config`),
-      putConfig: (id: number, data: HttpCheckConfig) =>
-        request<HttpCheckConfig>(`/api/plugins/check/http/targets/${id}/config`, {
+      getDefaults: () =>
+        request<HttpCheckConfig>('/api/plugins/check/http/config'),
+      putDefaults: (data: HttpCheckConfig) =>
+        request<HttpCheckConfig>('/api/plugins/check/http/config', {
           method: 'PUT',
           body: JSON.stringify(data),
         }),
+      getConfig: (id: number) =>
+        request<HttpCheckTargetConfigView>(
+          `/api/plugins/check/http/targets/${id}/config`,
+        ),
+      putConfig: (id: number, data: HttpCheckTargetConfigPut) =>
+        request<HttpCheckTargetConfigView>(
+          `/api/plugins/check/http/targets/${id}/config`,
+          {
+            method: 'PUT',
+            body: JSON.stringify(data),
+          },
+        ),
+      clearConfig: (id: number) =>
+        request<HttpCheckTargetConfigView>(
+          `/api/plugins/check/http/targets/${id}/config`,
+          { method: 'DELETE' },
+        ),
       test: (
         id: number,
-        data: Partial<HttpCheckConfig> & { url?: string },
+        data: Partial<HttpCheckTargetConfigPut> & { url?: string },
       ) =>
         request<HttpCheckTestResult>(`/api/plugins/check/http/targets/${id}/test`, {
           method: 'POST',

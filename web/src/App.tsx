@@ -14,6 +14,7 @@ import Dashboard from './pages/Dashboard'
 import Groups from './pages/Groups'
 import Targets from './pages/Targets'
 import SettingsPage from './pages/Settings'
+import HttpCheckTargetOverride from './pages/HttpCheckTargetOverride'
 
 const uiModules = Object.values(
   import.meta.glob('../../api/src/plugins/*/*/ui/index.tsx', {
@@ -197,6 +198,12 @@ export default function App() {
           <Route path="/" element={<Dashboard widgets={dashboardWidgets} />} />
           <Route path="/groups" element={<Groups />} />
           <Route path="/targets" element={<Targets />} />
+          {activeUi.some((ui) => ui.kind === 'check' && ui.id === 'http') && (
+            <Route
+              path="/targets/:targetId/checks/http"
+              element={<HttpCheckTargetOverride />}
+            />
+          )}
           {activeUi.map((ui) => (
             <Route
               key={`${ui.kind}:${ui.id}`}

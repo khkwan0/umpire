@@ -30,6 +30,7 @@ describe('http check plugin', () => {
         headers: {},
         body: '',
         acceptedStatusRanges: ['2xx'],
+        acceptedStatusCodes: [],
         maxLatencyMs: null,
       },
     })
@@ -50,12 +51,13 @@ describe('http check plugin', () => {
         headers: {},
         body: '',
         acceptedStatusRanges: ['2xx'],
+        acceptedStatusCodes: [],
         maxLatencyMs: null,
       },
     })
     expect(result.ok).toBe(false)
     expect(result.statusCode).toBe(500)
-    expect(result.error).toContain('outside accepted ranges')
+    expect(result.error).toContain('outside accepted status')
   })
 
   it('maps abort errors to timeout', async () => {
@@ -70,6 +72,7 @@ describe('http check plugin', () => {
         headers: {},
         body: '',
         acceptedStatusRanges: ['2xx'],
+        acceptedStatusCodes: [],
         maxLatencyMs: null,
       },
     })
@@ -90,6 +93,7 @@ describe('http check plugin', () => {
         headers: { 'x-test': 'ok' },
         body: '{"ping":true}',
         acceptedStatusRanges: ['2xx', '3xx'],
+        acceptedStatusCodes: [],
         maxLatencyMs: null,
       },
     })
@@ -119,6 +123,7 @@ describe('http check plugin', () => {
         headers: {},
         body: '',
         acceptedStatusRanges: ['2xx', '3xx'],
+        acceptedStatusCodes: [],
         maxLatencyMs: null,
       },
     })
@@ -142,11 +147,52 @@ describe('http check plugin', () => {
         headers: {},
         body: '',
         acceptedStatusRanges: ['2xx'],
+        acceptedStatusCodes: [],
         maxLatencyMs: 1,
       },
     })
     expect(result.ok).toBe(false)
     expect(result.statusCode).toBe(200)
     expect(result.error).toContain('exceeds')
+  })
+
+  it('accepts specific status codes without matching range', async () => {
+    jest.spyOn(globalThis, 'fetch').mockResolvedValue({
+      status: 418,
+    } as Response)
+
+    const result = await httpCheck.check({
+      target,
+      config: {
+        method: 'GET',
+        headers: {},
+        body: '',
+        acceptedStatusRanges: [],
+        acceptedStatusCodes: [418],
+        maxLatencyMs: null,
+      },
+    })
+    expect(result.ok).toBe(true)
+    expect(result.statusCode).toBe(418)
+  })
+
+  it('accepts status code listed alongside ranges', async () => {
+    jest.spyOn(globalThis, 'fetch').mockResolvedValue({
+      status: 204,
+    } as Response)
+
+    const result = await httpCheck.check({
+      target,
+      config: {
+        method: 'GET',
+        headers: {},
+        body: '',
+        acceptedStatusRanges: [],
+        acceptedStatusCodes: [200, 204],
+        maxLatencyMs: null,
+      },
+    })
+    expect(result.ok).toBe(true)
+    expect(result.statusCode).toBe(204)
   })
 })

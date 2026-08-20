@@ -33,13 +33,30 @@ Enabled out of the box by [`api/plugins.json`](api/plugins.json) (override with 
 
 | Kind | Cardinality | Default | What it does |
 |------|-------------|---------|--------------|
-| **Check** | One or more | `http` | HTTP check plugin with configurable method, headers, body; **200 = healthy** (`CHECK_TIMEOUT_MS`, default 10s) |
+| **Check** | One or more | `http` | HTTP check plugin: method, headers, body, accepted status ranges/codes, optional max latency (`CHECK_TIMEOUT_MS`, default 10s) |
 | **Scheduler** | **Exactly one** | `interval` | Per-target `interval_seconds` timers; honors Pause |
 | **Notifier** | Zero or more | `fcm`, `webhook` | FCM to stored FIDs; HTTP call (GET/POST/PUT/PATCH/…) with `AlertEvent` |
 
 The scheduler is a plugin so timing *can* be replaced, but **leave `interval` in place for almost every deployment**. Per-target frequency is already a core field (`interval_seconds` on each target, including Pause). Write a different scheduler only if you need a different *kind* of clock (cron, business hours, a global tick). You cannot load two schedulers.
 
 Both notifiers load together. Each reports `ready: false` until it is configured in its own UI (FCM FIDs + Firebase credentials; Webhook URL). An unready notifier is skipped on send. On each target, leave check/notifier boxes unchecked to use **all** loaded plugins of that kind, or tick a subset. Empty allowlists are stored as `[]`.
+
+### HTTP check: global defaults and per-target overrides
+
+The **http** check plugin supports two layers of configuration:
+
+1. **Global defaults** — apply to every target unless that target has a custom override. Configure under **Checks → HTTP check** (`/plugins/check/http`). Saved to `data/http-check-defaults.json` next to the SQLite file.
+
+2. **Per-target overrides** — optional settings for one target only. Open **Targets**, find the row, and use **HTTP settings** (`/targets/:id/checks/http`). Enable **Use custom settings for this target** to override method, headers, body, accepted status ranges/codes, and max latency. **Clear override** removes the custom config and the target falls back to globals.
+
+At check time, core resolves **effective config** = global defaults merged with any per-target override. The test button on the override page runs a one-shot check with the current form values without waiting for the scheduler.
+
+**Accepted status** can combine:
+
+- **Ranges** — `1xx`, `2xx`, `3xx`, `4xx`, `5xx` (e.g. default is `2xx` only)
+- **Specific codes** — individual HTTP status codes (100–599), e.g. accept `200` and `204` without accepting all of `2xx`
+
+At least one range or specific code is required. Other plugins (e.g. keyword-body) may still use per-target config only; see the plugin guide for their UI paths.
 
 ### Plugin manager (runtime enable/disable)
 
@@ -194,7 +211,8 @@ Swagger UI: [http://localhost:8089/documentation](http://localhost:8089/document
 - `GET /api/plugins` — loaded plugins + namespaced HTTP routes
 - `GET /api/plugin-manager` — runtime plugin enable/disable state
 - `PUT /api/plugin-manager/:kind/:id` — toggle a loaded plugin (`kind` = `check` | `notify` | `scheduler`) without restart
-- `GET/PUT /api/plugins/check/http/targets/:targetId/config`, `POST /api/plugins/check/http/targets/:targetId/test` — per-target HTTP check config + one-shot test
+- `GET/PUT /api/plugins/check/http/config` — global default HTTP check parameters (`data/http-check-defaults.json`)
+- `GET/PUT/DELETE /api/plugins/check/http/targets/:targetId/config` — per-target override (`useCustom` + optional fields merged over defaults); `POST .../test` — one-shot test with effective or form config
 - `GET/PUT /api/plugins/check/keyword-body/targets/:targetId/config` — per-target keyword/body check config
 - `GET/POST/PATCH/DELETE /api/plugins/notify/fcm/tokens` — FCM destinations (FID preferred; `target_ids` / `check_ids`)
 - `POST /api/plugins/notify/fcm/tokens/import` — import `{ fids: [...] }` (or `{ tokens: [...] }`); duplicates skipped
@@ -223,7 +241,7 @@ Targets attach to **child** groups via `group_id` (not roots). Deleting a group 
 
 ## Data
 
-SQLite file: `./data/monitor.sqlite` (bind-mounted in Compose at `/data/monitor.sqlite`). Plugin sidecars next to the DB: `./data/fcm-tokens.json`, `./data/webhook.json`.
+SQLite file: `./data/monitor.sqlite` (bind-mounted in Compose at `/data/monitor.sqlite`). Plugin sidecars next to the DB: `./data/http-check-defaults.json`, `./data/fcm-tokens.json`, `./data/webhook.json`, `./data/plugin-manager.json`, and other plugin config files as documented in [docs/plugins.md](docs/plugins.md).
 
 ## Notes
 

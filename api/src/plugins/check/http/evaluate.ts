@@ -10,10 +10,27 @@ function statusInAcceptedRanges(
   statusCode: number,
   acceptedRanges: HttpCheckConfig['acceptedStatusRanges'],
 ): boolean {
+  if (acceptedRanges.length === 0) return false
   const bucket = `${Math.floor(statusCode / 100)}xx`
   return acceptedRanges.includes(
     bucket as HttpCheckConfig['acceptedStatusRanges'][number],
   )
+}
+
+function statusAccepted(statusCode: number, config: HttpCheckConfig): boolean {
+  if (config.acceptedStatusCodes.includes(statusCode)) return true
+  return statusInAcceptedRanges(statusCode, config.acceptedStatusRanges)
+}
+
+function formatAcceptedStatus(config: HttpCheckConfig): string {
+  const parts: string[] = []
+  if (config.acceptedStatusRanges.length > 0) {
+    parts.push(`ranges: ${config.acceptedStatusRanges.join(', ')}`)
+  }
+  if (config.acceptedStatusCodes.length > 0) {
+    parts.push(`codes: ${config.acceptedStatusCodes.join(', ')}`)
+  }
+  return parts.join('; ')
 }
 
 function evaluateOutcome(
@@ -21,11 +38,11 @@ function evaluateOutcome(
   latencyMs: number,
   config: HttpCheckConfig,
 ): Pick<CheckOutcome, 'ok' | 'error'> {
-  const statusOk = statusInAcceptedRanges(statusCode, config.acceptedStatusRanges)
+  const statusOk = statusAccepted(statusCode, config)
   if (!statusOk) {
     return {
       ok: false,
-      error: `HTTP ${statusCode} outside accepted ranges (${config.acceptedStatusRanges.join(', ')})`,
+      error: `HTTP ${statusCode} outside accepted status (${formatAcceptedStatus(config)})`,
     }
   }
   if (config.maxLatencyMs != null && latencyMs > config.maxLatencyMs) {

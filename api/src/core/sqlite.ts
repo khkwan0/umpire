@@ -132,11 +132,17 @@ function buildStatements(database: Database.Database) {
     insertSettingIgnore: database.prepare(
       `INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`,
     ),
+    dumpSelect: Object.fromEntries(
+      CORE_TABLES.map((table) => [
+        table.name,
+        database.prepare(`SELECT * FROM ${table.name}`),
+      ]),
+    ) as Record<string, Database.Statement>,
   }
 }
 
 function ensureColumn(table: string, column: string, definition: string): void {
-  const cols = getDb().prepare(`PRAGMA table_info(${table})`).all() as Array<{
+  const cols = getDb().pragma(`table_info(${table})`) as Array<{
     name: string
   }>
   if (!cols.some((c) => c.name === column)) {
@@ -320,10 +326,9 @@ export const core: CoreStore = {
 
   dumpData(): Record<string, unknown[]> {
     const out: Record<string, unknown[]> = {}
+    const dumpSelect = getStmts().dumpSelect
     for (const table of CORE_TABLES) {
-      out[table.name] = getDb()
-        .prepare(`SELECT * FROM ${table.name}`)
-        .all() as unknown[]
+      out[table.name] = dumpSelect[table.name]!.all() as unknown[]
     }
     return out
   },
@@ -600,6 +605,8 @@ export const core: CoreStore = {
 }
 
 export function initCore(databasePath: string): void {
+  closeCore()
+
   const resolved = path.resolve(databasePath)
   const dir = path.dirname(resolved)
   fs.mkdirSync(dir, { recursive: true })
@@ -688,4 +695,16 @@ export function initCore(databasePath: string): void {
   insertSetting.run('throttle_minutes', '30')
 
   console.log(`[core] sqlite=${resolved}`)
+}
+
+export function closeCore(): void {
+  if (!db) return
+  try {
+    db.close()
+  } catch {
+    // ignore close errors during shutdown/re-init
+  }
+  db = undefined
+  stmts = undefined
+  dbPath = ''
 }
