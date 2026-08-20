@@ -488,8 +488,7 @@ export default function NotifierTargetOverride() {
   const [loadedNotifiers, setLoadedNotifiers] = useState<string[]>([])
 
   const hasPluginConfig = isConfigurableNotifier(notifierId)
-  const knownNotifier =
-    loadedNotifiers.includes(notifierId) || hasPluginConfig
+  const knownNotifier = loadedNotifiers.includes(notifierId) || hasPluginConfig
 
   const applyPluginView = useCallback(
     (view: NotifierTargetConfigView) => {
@@ -773,8 +772,7 @@ export default function NotifierTargetOverride() {
             <button
               type="button"
               disabled={
-                busy ||
-                (!useCustom && parseList(checkIdsText).length === 0)
+                busy || (!useCustom && parseList(checkIdsText).length === 0)
               }
               onClick={() => void onClearOverride()}
             >

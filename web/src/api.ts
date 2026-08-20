@@ -369,11 +369,7 @@ export const api = {
         request<{check_ids: string[]}>(
           `/api/targets/${targetId}/notifiers/${notifierId}/check-ids`,
         ),
-      putCheckIds: (
-        notifierId: string,
-        targetId: number,
-        checkIds: string[],
-      ) =>
+      putCheckIds: (notifierId: string, targetId: number, checkIds: string[]) =>
         request<{check_ids: string[]}>(
           `/api/targets/${targetId}/notifiers/${notifierId}/check-ids`,
           {

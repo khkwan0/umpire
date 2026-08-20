@@ -6,7 +6,9 @@ export interface DashboardWidgetProps {
   status: StatusResponse
 }
 
-/** Contract for optional React pages co-located with a plugin under `ui/`. */
+/** Contract for optional React pages co-located with a plugin under `ui/`.
+ * Pages inherit the host light/dark theme via shared classes in `styles.css`.
+ */
 export interface PluginUiModule {
   /** Must match the plugin id (e.g. "fcm"). */
   id: string

@@ -549,7 +549,8 @@ export const core: CoreStore = {
     notifierId: string
     config: unknown
   }> {
-    const rows = getStmts().selectAllTargetNotifierConfigs.all() as TargetNotifierConfigAllRow[]
+    const rows =
+      getStmts().selectAllTargetNotifierConfigs.all() as TargetNotifierConfigAllRow[]
     const out: Array<{targetId: number; notifierId: string; config: unknown}> =
       []
     for (const row of rows) {

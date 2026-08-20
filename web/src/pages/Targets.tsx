@@ -24,7 +24,11 @@ function targetUsesHttpCheck(t: Target, httpEnabled: boolean): boolean {
   return checkIds.length === 0 || checkIds.includes('http')
 }
 
-function targetUsesNotifier(t: Target, notifierId: string, enabled: boolean): boolean {
+function targetUsesNotifier(
+  t: Target,
+  notifierId: string,
+  enabled: boolean,
+): boolean {
   if (!enabled) return false
   const ids = t.notifier_ids ?? []
   return ids.length === 0 || ids.includes(notifierId)

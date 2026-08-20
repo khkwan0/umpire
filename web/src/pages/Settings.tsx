@@ -7,6 +7,8 @@ import {
   type Settings,
 } from '../api'
 import ReconnectBanner from '../ReconnectBanner'
+import ThemeSwitcher from '../ThemeSwitcher'
+import TimezoneSelect from '../TimezoneSelect'
 
 const MISSING_PLUGIN_DESCRIPTION =
   "No description offered by the plugin's author"
@@ -129,6 +131,15 @@ export default function SettingsPage() {
   return (
     <div className="stack">
       {reconnecting && <ReconnectBanner />}
+      <section className="panel">
+        <h2 id="appearance-heading">Appearance</h2>
+        <p className="muted small">
+          Theme and timezone preferences apply to the whole dashboard, including
+          plugin pages. Timestamps from the API are stored in UTC.
+        </p>
+        <ThemeSwitcher labelledBy="appearance-heading" />
+        <TimezoneSelect labelledBy="appearance-heading" />
+      </section>
       <section className="panel">
         <h2>Alert policy</h2>
         <form className="form-col" onSubmit={onSave}>

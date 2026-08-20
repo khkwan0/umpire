@@ -8,6 +8,7 @@ import {
   type StatusResponse,
 } from '../api'
 import ReconnectBanner from '../ReconnectBanner'
+import {FormattedTimestamp} from '../FormattedTimestamp'
 import {useRealtimeRefresh} from '../RealtimeProvider'
 import type {DashboardWidgetModule} from '../plugin-ui'
 
@@ -172,8 +173,12 @@ export default function Dashboard({
                         <div className="muted small">{incident.group_tag}</div>
                       ) : null}
                     </td>
-                    <td>{incident.started_at}</td>
-                    <td>{incident.recovered_at ?? '—'}</td>
+                    <td>
+                      <FormattedTimestamp value={incident.started_at} />
+                    </td>
+                    <td>
+                      <FormattedTimestamp value={incident.recovered_at} />
+                    </td>
                     <td>{formatDuration(incident.duration_seconds)}</td>
                     <td className="muted">
                       {incident.error ||
@@ -235,7 +240,9 @@ export default function Dashboard({
                       ) : null}
                     </td>
                     <td>{t.interval_seconds}s</td>
-                    <td>{t.last_checked_at ?? '—'}</td>
+                    <td>
+                      <FormattedTimestamp value={t.last_checked_at} />
+                    </td>
                     <td>
                       {t.last_latency_ms != null
                         ? `${t.last_latency_ms}ms`

@@ -63,10 +63,13 @@ describe('notifierRouting', () => {
       check_ids: ['http'],
     })
     expect(
-      applyNotifierCheckIds({useCustom: true, url: 'x', check_ids: ['tls']}, []),
+      applyNotifierCheckIds(
+        {useCustom: true, url: 'x', check_ids: ['tls']},
+        [],
+      ),
     ).toEqual({useCustom: true, url: 'x'})
-    expect(applyNotifierCheckIds({useCustom: false, check_ids: ['http']}, [])).toBe(
-      null,
-    )
+    expect(
+      applyNotifierCheckIds({useCustom: false, check_ids: ['http']}, []),
+    ).toBe(null)
   })
 })

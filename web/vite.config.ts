@@ -11,6 +11,11 @@ export default defineConfig({
     alias: {
       '@umpire/web-api': path.resolve(root, 'src/api.ts'),
       '@umpire/plugin-ui': path.resolve(root, 'src/plugin-ui.ts'),
+      '@umpire/web-datetime': path.resolve(root, 'src/datetime.ts'),
+      '@umpire/web-formatted-timestamp': path.resolve(
+        root,
+        'src/FormattedTimestamp.tsx',
+      ),
     },
   },
   server: {

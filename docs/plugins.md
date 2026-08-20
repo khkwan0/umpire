@@ -384,7 +384,7 @@ export default {
    - `scheduler`: top-level nav link
    Optional `Dashboard` widgets on those modules appear on `/` (see [Dashboard widgets](#dashboard-widgets)).
 3. Import the shared client as `@umpire/web-api` (alias to `web/src/api.ts`). Types: `@umpire/plugin-ui`.
-4. Reuse existing CSS classes from [`web/src/styles.css`](../web/src/styles.css) (`panel`, `stack`, `form-row`, `muted`, `error`, `mono`, …). Add plugin-specific rules there if needed (FCM’s table styles live in the core stylesheet today).
+4. Reuse existing CSS classes from [`web/src/styles.css`](../web/src/styles.css) (`panel`, `stack`, `form-row`, `muted`, `error`, `mono`, …). Theme tokens (`--bg`, `--ink`, `--panel`, `--line`, …) live on `html[data-theme]` so plugin pages follow light/dark automatically. Format timestamps with `formatTimestamp` from `@umpire/web-datetime`, or the `<FormattedTimestamp />` component from `@umpire/web-formatted-timestamp`, so they respect the operator timezone in Settings. Add plugin-specific rules in the core stylesheet if needed (FCM’s table styles live there today). Do not hardcode hex colors in plugin UI.
 
 Glob is exactly one directory of UI under `plugins/<kind>/<id>/ui/index.tsx`. Deeper nesting is not discovered.
 
