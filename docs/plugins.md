@@ -11,16 +11,17 @@ Operator setup (run the app, shipped plugins, core HTTP API) lives in [`README.m
 3. [Mental model](#mental-model)
 4. [File layout](#file-layout)
 5. [Contracts](#contracts)
-6. [Enable loop](#enable-loop)
-7. [`registerRoutes` (plugin HTTP)](#plugin-http-apis)
-8. [Plugin UIs](#plugin-uis)
-9. [Dashboard widgets](#dashboard-widgets)
-10. [Allowlists](#allowlists)
-11. [Hello world](#hello-world) — copy-paste wiring for all three kinds
-12. [Real-world examples](#real-world-examples)
-13. [Do / don’t](#do--dont)
-14. [Verify](#verify)
-15. [Shipped references](#shipped-references)
+6. [Target parameter validation](#target-parameter-validation)
+7. [Enable loop](#enable-loop)
+8. [`registerRoutes` (plugin HTTP)](#plugin-http-apis)
+9. [Plugin UIs](#plugin-uis)
+10. [Dashboard widgets](#dashboard-widgets)
+11. [Allowlists](#allowlists)
+12. [Hello world](#hello-world) — copy-paste wiring for all three kinds
+13. [Real-world examples](#real-world-examples)
+14. [Do / don’t](#do--dont)
+15. [Verify](#verify)
+16. [Shipped references](#shipped-references)
 
 ---
 
@@ -57,7 +58,7 @@ They do not import each other. Core calls a few hooks. Plugins answer, or call b
 1. **Load** — Core reads `plugins.json` and loads those modules from `plugins/<kind>/<id>/`. If a plugin has HTTP, core mounts it under `/api/plugins/<kind>/<id>/…`. Loaded is not the same as enabled (plugin manager).
 2. **Start the clock** — After the API is listening, core calls the scheduler’s `start()`. After every target create, update, delete, or Pause, core calls `reschedule()`.
 3. **Scheduler asks core to run** — When a target is due, the scheduler calls `ctx.run(targetId)`. That is the only way a check cycle starts.
-4. **Core asks checks to probe** — `run` calls `check(ctx)` on each selected check. The plugin returns `{ ok, statusCode, error, latencyMs }` and stops there. It does not write the database.
+4. **Core asks checks to probe** — `run` keeps only checks that pass optional `evaluateTarget` for the target’s params, then calls `check(ctx)` on each. The plugin returns `{ ok, statusCode, error, latencyMs }` and stops there. It does not write the database.
 5. **Core keeps the books** — Core aggregates outcomes, writes SQLite, and applies alert policy.
 6. **Core asks notifiers to deliver** — If policy says alert, core applies each notifier’s per-target **`check_ids`** allowlist (from `target_notifier_configs`), then calls `notify(ctx)` with a ready-made title and body. The notifier only sends.
 
@@ -200,7 +201,7 @@ interface CheckPlugin {
 
 - Receives the target row + plugin config (`ctx.target`, `ctx.config`) resolved per target.
 - Always return a complete `CheckOutcome` (including `latencyMs`). Never throw for a failed probe; return `ok: false`.
-- Optional `evaluateTarget` inspects address / interval / group before the probe. Return `{ ok: false, reason }` when this check cannot use the target (e.g. HTTP needs an `http://` or `https://` URL). Core exposes results via `POST /api/targets/evaluate-checks`, disables those checks in the Targets UI, rejects selecting them in `check_ids`, and skips them in the pipeline (they are not recorded as failures). Empty `check_ids` still means “all enabled checks,” then compatibility filtering applies.
+- Optional `evaluateTarget` — see [Target parameter validation](#target-parameter-validation). Omit it only when every valid target address works for your probe.
 - Optional `registerRoutes` is for **plugin config/CRUD**, not for running the probe. Core calls `check(ctx)` on a schedule.
 
 Aggregation (after selected checks finish):
@@ -212,6 +213,82 @@ Aggregation (after selected checks finish):
 | Mix | `partial` |
 
 Recorded `latency_ms` is the **max** of `latencyMs`. Failures are prefixed with `[pluginId]` and joined with `; `. DB encoding: `1` = up, `0` = down, `2` = partial.
+
+---
+
+## Target parameter validation
+
+Targets store an address in `targets.url` (field name is historical). That value may be a full `http(s)` URL **or** a bare hostname / IP (optional `:port`). Not every check can use every shape. **Plugins declare that**; core does not hard-code per-plugin rules.
+
+### Hook
+
+Implement optional `evaluateTarget` on your check plugin:
+
+```ts
+evaluateTarget?(params: {
+  url: string
+  interval_seconds: number
+  group_id: number | null
+}): { ok: true } | { ok: false; reason: string }
+```
+
+| Return | Meaning |
+|--------|---------|
+| `{ ok: true }` | This check may run for these params |
+| `{ ok: false, reason }` | Incompatible. `reason` is operator-facing (UI + API errors) |
+| hook omitted | Always compatible |
+
+Rules for authors:
+
+- Inspect only `params` (address, interval, group). Do not probe the network here.
+- Keep `reason` short and actionable (e.g. `requires an http:// or https:// URL`).
+- Reuse the same address rules you apply inside `check()` so UI and pipeline stay aligned.
+- Core already rejects wholly invalid addresses before create/update; `evaluateTarget` is for **plugin-specific** constraints on an otherwise valid target.
+
+### What core does with the result
+
+1. **Draft UI** — `POST /api/targets/evaluate-checks` with `{ url, interval_seconds?, group_id? }` returns `{ checks: [{ id, compatible, reason }] }` for every **enabled** loaded check. The Targets page grays out incompatible boxes and shows `reason`.
+2. **Save** — `POST` / `PATCH /api/targets` with a non-empty `check_ids` allowlist that includes an incompatible id returns **400** (`check "…" is incompatible with this target: …`). Empty `check_ids` (`[]` = all enabled) is still allowed; filtering happens at run time.
+3. **Pipeline** — After allowlist ∩ plugin manager, core drops checks where `evaluateTarget` fails. Those checks are **not** run and are **not** recorded as failures. If none remain, the cycle is `down` with an error that lists incompatibility reasons.
+
+Helpers live in [`api/src/checkCompatibility.ts`](../api/src/checkCompatibility.ts). Address parsing shared with several checks: [`api/src/targetAddress.ts`](../api/src/targetAddress.ts) (`parseTargetAddress` / `isValidTargetAddress`).
+
+### Shipped check rules (reference)
+
+| Plugin | Compatible when |
+|--------|-----------------|
+| `http` | Address parses and includes an `http://` or `https://` scheme |
+| `keyword-body` | Same as `http` |
+| `tls` | Address parses and is **not** an explicit `http://` URL (bare host or `https://` ok; TLS uses port 443 by default) |
+| `ping` | Address parses as URL or bare host/IP |
+| `tcp` | Same as `ping` (default port 80 for bare/`http`, 443 for `https`) |
+
+Example (HTTP-style scheme requirement):
+
+```ts
+import {parseTargetAddress} from '../../../api/src/targetAddress.js'
+import type {TargetCompatibility, TargetEvalParams} from '../../../api/src/plugins/types.js'
+
+export function evaluateHttpTarget(params: TargetEvalParams): TargetCompatibility {
+  const parsed = parseTargetAddress(params.url)
+  if (!parsed || !parsed.hasScheme) {
+    return {ok: false, reason: 'requires an http:// or https:// URL'}
+  }
+  return {ok: true}
+}
+
+const plugin: CheckPlugin = {
+  id: 'http',
+  evaluateTarget: evaluateHttpTarget,
+  async check(ctx) { /* … */ },
+}
+```
+
+When documenting your own check UI page, state the address shapes you accept so operators know why a box is disabled.
+
+### Notifiers and schedulers
+
+Only **check** plugins implement `evaluateTarget`. Notifiers do not validate the monitored address; schedulers only see interval/enabled via their own context.
 
 ### Notifier
 
@@ -953,9 +1030,10 @@ export default {
 | Do | Don’t |
 |----|--------|
 | Return a full `CheckOutcome` | Call notifiers or write `check_results` |
-| Timeouts with a sensible default; extra settings via plugin routes/files | Expect more than `url` from core |
+| Timeouts with a sensible default; extra settings via plugin routes/files | Expect more than `url` / interval / group from core |
 | `statusCode` when it applies, else `null` | Mutate core tables |
 | Config via plugin routes/files if you need more than `url` | Throw on probe failure; put settings in `.env` |
+| `evaluateTarget` when your probe needs a specific address shape (scheme, host, …) | Hard-fail in `check()` for shapes the UI could have disabled; probe the network inside `evaluateTarget` |
 
 ### Notifiers
 
@@ -1001,7 +1079,8 @@ After enabling a plugin:
 6. If the UI module exports `Dashboard`, `/` shows a panel titled with `label` (under the stats, before Targets)
 7. Docker: rebuild **api** and **web** from the repo root after adding code/UI; Vite glob is build-time. Stop Compose before `npm run dev` (both use 8089).
 8. Target checkboxes show the new check/notifier id
-9. For notifiers: fire a test alert; confirm delivery or an honest log skip
+9. For checks with `evaluateTarget`: `POST /api/targets/evaluate-checks` with a bare host vs `https://…` shows your `compatible` / `reason`; the Targets UI grays out the box
+10. For notifiers: fire a test alert; confirm delivery or an honest log skip
 
 ---
 
@@ -1009,9 +1088,10 @@ After enabling a plugin:
 
 | Plugin | Path | Why read it |
 |--------|------|-------------|
-| HTTP check | [`plugins/check/http/`](../plugins/check/http/) | Configurable check with plugin routes/UI, accepted status ranges, optional latency threshold |
+| HTTP check | [`plugins/check/http/`](../plugins/check/http/) | Configurable check with plugin routes/UI; `evaluateTarget` requires `http(s)` scheme |
+| Ping / TCP / TLS | [`plugins/check/ping/`](../plugins/check/ping/), [`tcp/`](../plugins/check/tcp/), [`tls/`](../plugins/check/tls/) | Host/IP targets + per-plugin `evaluateTarget` rules |
 | Interval scheduler | [`plugins/scheduler/interval/index.ts`](../plugins/scheduler/interval/index.ts) | Differential `reschedule`, Pause, stagger |
 | Webhook notifier | [`plugins/notify/webhook/`](../plugins/notify/webhook/) | Sidecar + method/URL/headers + test + UI |
 | FCM notifier | [`plugins/notify/fcm/`](../plugins/notify/fcm/) | Storage, CRUD, OpenAPI, test sends, full UI |
 
-Host pieces: [`registry.ts`](../api/src/plugins/registry.ts) (load from `plugins/`), [`manager.ts`](../api/src/plugins/manager.ts) (enable/disable), [`routes.ts`](../api/src/plugins/routes.ts) (mount + catalog), [`web/src/App.tsx`](../web/src/App.tsx) (UI glob + dashboard widgets), [`web/src/plugin-ui.ts`](../web/src/plugin-ui.ts) (`PluginUiModule` / `Dashboard`), [`web/src/pages/Dashboard.tsx`](../web/src/pages/Dashboard.tsx) (widget slot), [`web/src/api.ts`](../web/src/api.ts) (HTTP client).
+Host pieces: [`registry.ts`](../api/src/plugins/registry.ts) (load from `plugins/`), [`manager.ts`](../api/src/plugins/manager.ts) (enable/disable), [`routes.ts`](../api/src/plugins/routes.ts) (mount + catalog), [`checkCompatibility.ts`](../api/src/checkCompatibility.ts) (per-check target validation), [`web/src/App.tsx`](../web/src/App.tsx) (UI glob + dashboard widgets), [`web/src/plugin-ui.ts`](../web/src/plugin-ui.ts) (`PluginUiModule` / `Dashboard`), [`web/src/pages/Dashboard.tsx`](../web/src/pages/Dashboard.tsx) (widget slot), [`web/src/api.ts`](../web/src/api.ts) (HTTP client).

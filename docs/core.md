@@ -137,7 +137,8 @@ Empty `check_ids` / `notifier_ids` on a target means **all enabled** plugins of 
 
 ```text
 target missing or paused? → return
-run enabled checks (allowlist ∩ plugin manager)
+resolve checks (allowlist ∩ plugin manager ∩ evaluateTarget)
+run remaining checks
 aggregate → up / down / partial
 recordCheckResult + target_state
 publish status.updated + incidents.updated
@@ -154,12 +155,13 @@ if any notify succeeded → markAlertSent
 Rules core must keep:
 
 - Checks return `{ ok, statusCode, error, latencyMs }`. They do not write SQLite.
+- Optional `evaluateTarget` on a check plugin decides whether that check may run for the target’s `url` / interval / group. Core aggregates via [`checkCompatibility.ts`](../api/src/checkCompatibility.ts), exposes `POST /api/targets/evaluate-checks` for the UI, rejects incompatible ids in create/update allowlists, and **skips** incompatible checks in the pipeline (they are not failures). Plugin-authored rules: [Target parameter validation](plugins.md#target-parameter-validation).
 - All ok → `up`; all fail → `down`; mix → `partial`. `latency_ms` is the max. Failures are prefixed `[pluginId]` and joined with `; `.
 - Pause (`enabled = 0`) skips the cycle. An in-flight `run` is **not** cancelled.
 - `markAlertSent` only if at least one notifier actually ran `notify()` successfully. A check-allowlist skip does not count.
 - Core still calls `notify` when `isReady()` is false; the plugin no-ops. Soft skip = return; throw only on hard failure.
 
-Tests: [`api/src/pipeline.test.ts`](../api/src/pipeline.test.ts), [`api/src/alert.test.ts`](../api/src/alert.test.ts).
+Tests: [`api/src/pipeline.test.ts`](../api/src/pipeline.test.ts), [`api/src/alert.test.ts`](../api/src/alert.test.ts), [`api/src/checkCompatibility.test.ts`](../api/src/checkCompatibility.test.ts).
 
 ---
 
@@ -260,11 +262,11 @@ cd ../web && npm ci && npm run lint && npm run format:check && npm run build
 
 Minimum checks for the area you touched:
 
-1. Pipeline / policy: `npx jest src/pipeline.test.ts src/alert.test.ts` (from `api/`)
+1. Pipeline / policy / check compatibility: `npx jest src/pipeline.test.ts src/alert.test.ts src/checkCompatibility.test.ts` (from `api/`)
 2. Schema / store: `npx jest src/core/sqlite.test.ts`
 3. Notifier `check_ids`: `npx jest src/core/notifierRouting.test.ts`
 4. `GET /api/schema` still lists only frozen tables
-5. Web: Dashboard, Targets, Settings still load; plugin glob still picks up shipped UIs
+5. Web: Dashboard, Targets, Settings still load; plugin glob still picks up shipped UIs; Targets grays out incompatible checks for bare hosts vs URLs
 6. One full check cycle: paused target skipped; enabled target writes `check_results` + `target_state`
 7. Docker (if you touch images): build from repo root so `api/Dockerfile` / `web/Dockerfile` copy `plugins/`
 
@@ -276,6 +278,8 @@ Minimum checks for the area you touched:
 |-------|------|
 | Boot | [`api/src/index.ts`](../api/src/index.ts) |
 | Pipeline | [`api/src/pipeline.ts`](../api/src/pipeline.ts) |
+| Check ↔ target compatibility | [`api/src/checkCompatibility.ts`](../api/src/checkCompatibility.ts) |
+| Target address parse | [`api/src/targetAddress.ts`](../api/src/targetAddress.ts) |
 | Alert policy | [`api/src/alert.ts`](../api/src/alert.ts) |
 | Incidents | [`api/src/incidents.ts`](../api/src/incidents.ts) |
 | Schema | [`api/src/core/schema.ts`](../api/src/core/schema.ts) |
