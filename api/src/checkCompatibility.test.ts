@@ -5,35 +5,15 @@ import {setChecks} from './plugins/runtime.js'
 const {evaluateChecksForTarget, firstIncompatibleAllowlistId} = await import(
   './checkCompatibility.js'
 )
-const {evaluateHttpTarget} = await import('../../plugins/check/http/index.js')
-
-describe('evaluateHttpTarget', () => {
-  it('requires an http(s) scheme', () => {
-    expect(
-      evaluateHttpTarget({
-        url: 'https://example.com',
-        interval_seconds: 60,
-        group_id: null,
-      }),
-    ).toEqual({ok: true})
-    expect(
-      evaluateHttpTarget({
-        url: '8.8.8.8',
-        interval_seconds: 60,
-        group_id: null,
-      }),
-    ).toEqual({
-      ok: false,
-      reason: 'requires an http:// or https:// URL',
-    })
-  })
-})
 
 describe('evaluateChecksForTarget', () => {
-  it('aggregates plugin evaluateTarget results', () => {
-    const http: CheckPlugin = {
-      id: 'http',
-      evaluateTarget: evaluateHttpTarget,
+  it('aggregates plugin evaluateTarget results without knowing plugin ids', () => {
+    const needsScheme: CheckPlugin = {
+      id: 'needs-scheme',
+      evaluateTarget: ({url}) =>
+        url.includes('://')
+          ? {ok: true}
+          : {ok: false, reason: 'requires an http:// or https:// URL'},
       check: jest.fn(async () => ({
         ok: true,
         statusCode: 200,
@@ -41,8 +21,8 @@ describe('evaluateChecksForTarget', () => {
         latencyMs: 1,
       })),
     }
-    const ping: CheckPlugin = {
-      id: 'ping',
+    const alwaysOk: CheckPlugin = {
+      id: 'always-ok',
       check: jest.fn(async () => ({
         ok: true,
         statusCode: null,
@@ -50,7 +30,7 @@ describe('evaluateChecksForTarget', () => {
         latencyMs: 1,
       })),
     }
-    setChecks([http, ping])
+    setChecks([needsScheme, alwaysOk])
     expect(
       evaluateChecksForTarget({
         url: '8.8.8.8',
@@ -59,18 +39,18 @@ describe('evaluateChecksForTarget', () => {
       }),
     ).toEqual([
       {
-        id: 'http',
+        id: 'needs-scheme',
         compatible: false,
         reason: 'requires an http:// or https:// URL',
       },
-      {id: 'ping', compatible: true, reason: null},
+      {id: 'always-ok', compatible: true, reason: null},
     ])
     expect(
       firstIncompatibleAllowlistId(
         {url: '8.8.8.8', interval_seconds: 60, group_id: null},
-        ['http'],
+        ['needs-scheme'],
       ),
-    ).toMatchObject({id: 'http', compatible: false})
+    ).toMatchObject({id: 'needs-scheme', compatible: false})
     expect(
       firstIncompatibleAllowlistId(
         {url: '8.8.8.8', interval_seconds: 60, group_id: null},
