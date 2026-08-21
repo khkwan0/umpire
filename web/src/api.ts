@@ -305,13 +305,10 @@ export const api = {
       interval_seconds?: number
       group_id?: number | null
     }) =>
-      request<{checks: CheckCompatibility[]}>(
-        '/api/targets/evaluate-checks',
-        {
-          method: 'POST',
-          body: JSON.stringify(data),
-        },
-      ),
+      request<{checks: CheckCompatibility[]}>('/api/targets/evaluate-checks', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
     create: (data: {
       url: string
       interval_seconds: number

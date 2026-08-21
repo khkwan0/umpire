@@ -58,10 +58,7 @@ function parseIdListBody(
   }
 }
 
-function incompatibleCheckError(
-  id: string,
-  reason: string | null,
-): string {
+function incompatibleCheckError(id: string, reason: string | null): string {
   return reason
     ? `check "${id}" is incompatible with this target: ${reason}`
     : `check "${id}" is incompatible with this target`
@@ -204,8 +201,7 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
       }
       if (!url || !isValidTargetAddress(url)) {
         return reply.code(400).send({
-          error:
-            'valid target address required (http(s) URL, hostname, or IP)',
+          error: 'valid target address required (http(s) URL, hostname, or IP)',
         })
       }
       if (!Number.isFinite(interval) || interval < 5) {
@@ -223,10 +219,7 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
       )
       if (incompatible) {
         return reply.code(400).send({
-          error: incompatibleCheckError(
-            incompatible.id,
-            incompatible.reason,
-          ),
+          error: incompatibleCheckError(incompatible.id, incompatible.reason),
         })
       }
       try {
@@ -305,8 +298,7 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
         !isValidTargetAddress(String(req.body.url).trim())
       ) {
         return reply.code(400).send({
-          error:
-            'valid target address required (http(s) URL, hostname, or IP)',
+          error: 'valid target address required (http(s) URL, hostname, or IP)',
         })
       }
       if (
@@ -339,9 +331,7 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
       const existing = getCore().getTarget(id)
       if (!existing) return reply.code(404).send({error: 'not found'})
       const nextUrl =
-        req.body?.url !== undefined
-          ? String(req.body.url).trim()
-          : existing.url
+        req.body?.url !== undefined ? String(req.body.url).trim() : existing.url
       const nextInterval =
         req.body?.interval_seconds !== undefined
           ? req.body.interval_seconds
@@ -362,10 +352,7 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
       )
       if (incompatible) {
         return reply.code(400).send({
-          error: incompatibleCheckError(
-            incompatible.id,
-            incompatible.reason,
-          ),
+          error: incompatibleCheckError(incompatible.id, incompatible.reason),
         })
       }
       try {

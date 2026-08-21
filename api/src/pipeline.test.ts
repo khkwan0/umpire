@@ -155,10 +155,14 @@ describe('runCheck', () => {
   })
 
   it('skips checks that evaluateTarget rejects without recording them as failures', async () => {
-    const http = checkPlugin('http', {ok: false, error: 'should not run'}, () => ({
-      ok: false,
-      reason: 'requires an http:// or https:// URL',
-    }))
+    const http = checkPlugin(
+      'http',
+      {ok: false, error: 'should not run'},
+      () => ({
+        ok: false,
+        reason: 'requires an http:// or https:// URL',
+      }),
+    )
     const ping = checkPlugin('ping', {ok: true})
     setChecks([http, ping])
     setNotifiers([])

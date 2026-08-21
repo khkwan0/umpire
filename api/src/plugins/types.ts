@@ -158,9 +158,7 @@ export interface TargetEvalParams {
   group_id: number | null
 }
 
-export type TargetCompatibility =
-  | {ok: true}
-  | {ok: false; reason: string}
+export type TargetCompatibility = {ok: true} | {ok: false; reason: string}
 
 export interface CheckPlugin extends PluginInfo {
   check(ctx: CheckContext): Promise<CheckOutcome>

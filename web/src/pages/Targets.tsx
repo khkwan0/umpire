@@ -577,10 +577,7 @@ export default function Targets() {
                         <div className="check-ids-list">
                           {visibleChecks.map(c => {
                             const compatible = isCheckCompatible(compat, c.id)
-                            const reason = checkIncompatibleReason(
-                              compat,
-                              c.id,
-                            )
+                            const reason = checkIncompatibleReason(compat, c.id)
                             return (
                               <label
                                 key={c.id}

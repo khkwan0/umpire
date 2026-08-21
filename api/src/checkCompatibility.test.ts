@@ -2,9 +2,8 @@ import {jest} from '@jest/globals'
 import type {CheckPlugin} from './plugins/types.js'
 import {setChecks} from './plugins/runtime.js'
 
-const {evaluateChecksForTarget, firstIncompatibleAllowlistId} = await import(
-  './checkCompatibility.js'
-)
+const {evaluateChecksForTarget, firstIncompatibleAllowlistId} =
+  await import('./checkCompatibility.js')
 
 describe('evaluateChecksForTarget', () => {
   it('aggregates plugin evaluateTarget results without knowing plugin ids', () => {
