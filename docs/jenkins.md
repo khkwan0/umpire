@@ -8,7 +8,7 @@ This Jenkins pipeline is optional **on-host** CD. The repo ships a Declarative P
 
 | Stage | When | What |
 |-------|------|------|
-| **API** | every build | `npm ci`, Jest (`npm run test:ci`), `tsc` inside `node:lts-bookworm` |
+| **API** | every build | `npm ci`, Jest (`npm run test:ci`), `tsc` inside `node:current-bookworm` |
 | **Web** | every build | `npm ci`, Vite production build (same image, parallel with API) |
 | **Docker images** | `master`, or `DEPLOY` | `docker compose build` |
 | **Deploy** | `DEPLOY=true` | `docker compose up -d --build`, then poll `GET /api/health` |
@@ -29,7 +29,7 @@ Install at **Manage Jenkins → Plugins**:
 - **Timestamper** (`timestamps()`)
 - **Git**
 
-The agent that runs the job needs a Docker engine (the Node stages pull `node:lts-bookworm`; image/deploy stages call `docker compose`).
+The agent that runs the job needs a Docker engine (the API stage pulls `node:current-bookworm`, the Web stage `node:lts-bookworm`; image/deploy stages call `docker compose`).
 
 ## Create the job
 
@@ -51,7 +51,7 @@ Run **Build with Parameters** and check **DEPLOY** only on an agent that should 
 ## Agent notes
 
 - Use a Linux agent with Docker, not the built-in controller if you can avoid it.
-- `node:lts-bookworm` includes `python3` / `make` / `g++`, so `better-sqlite3` compiles and the SQLite store tests run.
+- `node:current-bookworm` (API CI stage) includes `python3` / `make` / `g++`, so `better-sqlite3` compiles and the SQLite store tests run.
 - The Node stages run as root in the container (`-u root:root`) so `npm ci` can write `node_modules` in the workspace.
 - Compose publish port defaults to **8089** (`WEB_PORT` in `.env`). Health check uses `http://127.0.0.1:${WEB_PORT:-8089}/api/health`.
 - Subdirectory public URL (`https://host/umpire`): set `BASE_PATH=/umpire` in `.env` before `docker compose build`. The web image bakes this in; `/api/health` on the published port is unchanged.

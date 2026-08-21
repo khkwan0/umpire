@@ -21,7 +21,8 @@ pipeline {
     CI = 'true'
     COMPOSE_DOCKER_CLI_BUILD = '1'
     DOCKER_BUILDKIT = '1'
-    NODE_IMAGE = 'node:lts-bookworm'
+    API_NODE_IMAGE = 'node:current-bookworm'
+    WEB_NODE_IMAGE = 'node:lts-bookworm'
   }
 
   stages {
@@ -30,7 +31,7 @@ pipeline {
         stage('API') {
           agent {
             docker {
-              image "${NODE_IMAGE}"
+              image "${API_NODE_IMAGE}"
               reuseNode true
               args '-u root:root'
             }
@@ -47,7 +48,7 @@ pipeline {
         stage('Web') {
           agent {
             docker {
-              image "${NODE_IMAGE}"
+              image "${WEB_NODE_IMAGE}"
               reuseNode true
               args '-u root:root'
             }

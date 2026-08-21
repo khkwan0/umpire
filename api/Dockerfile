@@ -1,7 +1,7 @@
 # Build from the repo root (plugins live next to api/):
 #   docker compose build api
 #   docker build -f api/Dockerfile .
-FROM node:22-bookworm-slim AS build
+FROM node:current-bookworm-slim AS build
 WORKDIR /src
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
   && rm -rf /var/lib/apt/lists/*
@@ -16,7 +16,7 @@ COPY plugins ./plugins
 WORKDIR /src/api
 RUN npm run build && npm prune --omit=dev
 
-FROM node:22-bookworm-slim
+FROM node:current-bookworm-slim
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends libstdc++6 curl \
   && rm -rf /var/lib/apt/lists/*
