@@ -2,13 +2,17 @@
 
 [![CI](https://github.com/khkwan0/umpire/actions/workflows/ci.yml/badge.svg)](https://github.com/khkwan0/umpire/actions/workflows/ci.yml)
 
-**Universal Monitoring Plugin & Incident Reporter** is a **plugin architecture** for monitoring. Core is the host: it stores data, runs the pipeline, and enforces contracts. **Check**, **scheduler**, and **notifier** plugins do the actual probing, timing, and delivery. Swap or add plugins without changing core.
+**Universal Monitoring Plugin & Incident Reporter** — monitoring you can stand up in minutes and grow without rewriting the host.
+
+Add a target, pick how often to check it, and get alerts when something fails. Defaults work out of the box: HTTP checks on an interval, webhook notifications when you point them at a URL. The UI covers day-to-day ops (targets, groups, pause, history, settings).
+
+When you need more — ping, TLS, Slack, FCM, a custom probe — you extend Umpire through a **developer-friendly plugin system**. Core stays a small host (storage, pipeline, contracts). **Check**, **scheduler**, and **notifier** plugins do the probing, timing, and delivery. Add or swap plugins without changing core; cookbooks live in the [plugin](docs/plugins.md) and [core](docs/core.md) guides.
 
 Default process-wide set in [`api/plugins.json`](api/plugins.json) + [`data/plugin-manager.json`](data/plugin-manager.json): **`http`** check, **`interval`** scheduler, **`webhook`** notifier. Other shipped notifiers (FCM, Slack, …) load but stay off until you enable them in **Settings → Plugin manager**.
 
 ## Getting started
 
-To run the stack locally (deploy script or Docker Compose), see **[Run locally](#run-locally)**.
+To run the stack locally (deploy script or Docker Compose), see **[Run locally](#run-locally)**. One script builds and starts API + UI; open the dashboard and add a target.
 
 ## Plugin architecture
 
