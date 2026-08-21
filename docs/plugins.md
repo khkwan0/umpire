@@ -1086,12 +1086,16 @@ After enabling a plugin:
 
 ## Shipped references
 
-| Plugin | Path | Why read it |
-|--------|------|-------------|
-| HTTP check | [`plugins/check/http/`](../plugins/check/http/) | Configurable check with plugin routes/UI; `evaluateTarget` requires `http(s)` scheme |
-| Ping / TCP / TLS | [`plugins/check/ping/`](../plugins/check/ping/), [`tcp/`](../plugins/check/tcp/), [`tls/`](../plugins/check/tls/) | Host/IP targets + per-plugin `evaluateTarget` rules |
-| Interval scheduler | [`plugins/scheduler/interval/index.ts`](../plugins/scheduler/interval/index.ts) | Differential `reschedule`, Pause, stagger |
-| Webhook notifier | [`plugins/notify/webhook/`](../plugins/notify/webhook/) | Sidecar + method/URL/headers + test + UI |
-| FCM notifier | [`plugins/notify/fcm/`](../plugins/notify/fcm/) | Storage, CRUD, OpenAPI, test sends, full UI |
+Each shipped plugin has **usage + developer** docs in [`plugins/<kind>/<id>/README.md`](../plugins/README.md#plugin-documentation). Index: [`plugins/README.md`](../plugins/README.md).
+
+| Plugin | Doc | Why read it |
+|--------|-----|-------------|
+| HTTP check | [`plugins/check/http/README.md`](../plugins/check/http/README.md) | Configurable check with plugin routes/UI; `evaluateTarget` requires `http(s)` scheme |
+| Ping / TCP / TLS | [`ping`](../plugins/check/ping/README.md), [`tcp`](../plugins/check/tcp/README.md), [`tls`](../plugins/check/tls/README.md) | Host/IP targets + per-plugin `evaluateTarget` rules |
+| Keyword/body | [`plugins/check/keyword-body/README.md`](../plugins/check/keyword-body/README.md) | Per-target-only config in DB |
+| Interval scheduler | [`plugins/scheduler/interval/README.md`](../plugins/scheduler/interval/README.md) | Differential `reschedule`, Pause, stagger |
+| Webhook notifier | [`plugins/notify/webhook/README.md`](../plugins/notify/webhook/README.md) | Sidecar + method/URL/headers + test + UI |
+| FCM notifier | [`plugins/notify/fcm/README.md`](../plugins/notify/fcm/README.md) | Service account sidecar, FID CRUD, test sends, full UI |
+| Slack / Telegram / Discord / Email | [`slack`](../plugins/notify/slack/README.md), [`telegram`](../plugins/notify/telegram/README.md), [`discord`](../plugins/notify/discord/README.md), [`email`](../plugins/notify/email/README.md) | Sidecar + per-target override pattern |
 
 Host pieces: [`registry.ts`](../api/src/plugins/registry.ts) (load from `plugins/`), [`manager.ts`](../api/src/plugins/manager.ts) (enable/disable), [`routes.ts`](../api/src/plugins/routes.ts) (mount + catalog), [`checkCompatibility.ts`](../api/src/checkCompatibility.ts) (per-check target validation), [`web/src/App.tsx`](../web/src/App.tsx) (UI glob + dashboard widgets), [`web/src/plugin-ui.ts`](../web/src/plugin-ui.ts) (`PluginUiModule` / `Dashboard`), [`web/src/pages/Dashboard.tsx`](../web/src/pages/Dashboard.tsx) (widget slot), [`web/src/api.ts`](../web/src/api.ts) (HTTP client).

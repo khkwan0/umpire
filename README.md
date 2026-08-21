@@ -82,7 +82,7 @@ File-backed notifiers (**webhook**, **slack**, **discord**, **telegram**, **emai
 
 At alert time, each notifier resolves **effective plugin config** = global defaults merged with any per-target override. Core then filters on `check_ids` before delivery.
 
-**FCM** (optional) stores the Admin SDK service account in `data/fcm-service-account.json` and device FIDs on the FCM page (`fcm-tokens.json`). Enable it in **Settings → Plugin manager**, then configure destinations. Per-target **destination** allowlists (`token_ids`) are on **Targets → fcm settings** when using custom settings.
+**FCM** (optional) stores the Admin SDK service account in `data/fcm-service-account.json` and device FIDs on the FCM page (`fcm-tokens.json`). Enable it in **Settings → Plugin manager**, then configure destinations. See [`plugins/notify/fcm/README.md`](plugins/notify/fcm/README.md). Per-target **destination** allowlists (`token_ids`) are on **Targets → fcm settings** when using custom settings.
 
 ### Plugin manager (runtime enable/disable)
 
