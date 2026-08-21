@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useRef, useState, type ReactNode} from 'react'
+import {withBase} from './basePath'
 import {RealtimeContext, type RealtimeMode} from './realtime'
 
 const REFRESH_EVENTS = [
@@ -64,7 +65,7 @@ export function RealtimeProvider({children}: {children: ReactNode}) {
       }, DEGRADE_AFTER_MS)
     }
 
-    es = new EventSource('/api/stream')
+    es = new EventSource(withBase('/api/stream'))
 
     es.addEventListener('open', markAlive)
     es.addEventListener('connected', markAlive)

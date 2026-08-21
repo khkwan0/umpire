@@ -20,13 +20,28 @@ const scheduler = {
   reschedule: jest.fn(),
 }
 
+let mockChecks: Array<{
+  id: string
+  evaluateTarget?: (params: {
+    url: string
+    interval_seconds: number
+    group_id: number | null
+  }) => {ok: true} | {ok: false; reason: string}
+  check: () => Promise<{
+    ok: boolean
+    statusCode: number | null
+    error: string | null
+    latencyMs: number
+  }>
+}> = []
+
 jest.unstable_mockModule('../core/index.js', () => ({
   getCore: () => core,
 }))
 
 jest.unstable_mockModule('../plugins/registry.js', () => ({
   getScheduler: () => scheduler,
-  getChecks: () => [],
+  getChecks: () => mockChecks,
   getNotifiers: () => [{id: 'webhook', isReady: () => true}],
 }))
 
@@ -35,6 +50,7 @@ const {targetsRoutes} = await import('./targets.js')
 describe('targets routes', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    mockChecks = []
   })
 
   it('creates a target and triggers scheduler reschedule', async () => {
@@ -87,13 +103,105 @@ describe('targets routes', () => {
       method: 'POST',
       url: '/api/targets',
       payload: {
-        url: 'not-a-url',
+        url: 'not a host',
       },
     })
 
     expect(res.statusCode).toBe(400)
     expect(core.createTarget).not.toHaveBeenCalled()
     expect(scheduler.reschedule).not.toHaveBeenCalled()
+    await app.close()
+  })
+
+  it('creates a target from a bare hostname', async () => {
+    const created: Target = {
+      id: 2,
+      url: 'example.com',
+      interval_seconds: 60,
+      enabled: 1,
+      group_id: null,
+      check_ids: ['ping'],
+      notifier_ids: [],
+      created_at: '2026-01-01T00:00:00.000Z',
+      updated_at: '2026-01-01T00:00:00.000Z',
+    }
+    core.createTarget.mockReturnValue(created)
+
+    const app = Fastify()
+    await registerOpenApi(app)
+    await app.register(targetsRoutes)
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/targets',
+      payload: {
+        url: 'example.com',
+        interval_seconds: 60,
+        check_ids: ['ping'],
+      },
+    })
+
+    expect(res.statusCode).toBe(201)
+    expect(core.createTarget).toHaveBeenCalledWith(
+      'example.com',
+      60,
+      true,
+      null,
+      ['ping'],
+      [],
+    )
+    await app.close()
+  })
+
+  it('evaluates check compatibility for draft target params', async () => {
+    const app = Fastify()
+    await registerOpenApi(app)
+    await app.register(targetsRoutes)
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/targets/evaluate-checks',
+      payload: {url: '8.8.8.8', interval_seconds: 60},
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({checks: []})
+    await app.close()
+  })
+
+  it('rejects creating a target with an incompatible check allowlist', async () => {
+    mockChecks = [
+      {
+        id: 'http',
+        evaluateTarget: ({url}) =>
+          url.includes('://')
+            ? {ok: true}
+            : {ok: false, reason: 'requires an http:// or https:// URL'},
+        check: async () => ({
+          ok: true,
+          statusCode: 200,
+          error: null,
+          latencyMs: 1,
+        }),
+      },
+    ]
+
+    const app = Fastify()
+    await registerOpenApi(app)
+    await app.register(targetsRoutes)
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/targets',
+      payload: {
+        url: '8.8.8.8',
+        check_ids: ['http'],
+      },
+    })
+
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error).toMatch(/incompatible/)
+    expect(core.createTarget).not.toHaveBeenCalled()
     await app.close()
   })
 

@@ -5,7 +5,27 @@ import react from '@vitejs/plugin-react'
 
 const root = path.dirname(fileURLToPath(import.meta.url))
 
+function viteBase(raw: string | undefined): string {
+  const value = (raw ?? '/').trim() || '/'
+  if (value === '/') return '/'
+  const withLead = value.startsWith('/') ? value : `/${value}`
+  const trimmed = withLead.replace(/\/+$/, '')
+  if (!/^\/[A-Za-z0-9/_-]+$/.test(trimmed)) {
+    throw new Error(
+      `Invalid BASE_PATH "${raw}". Use a simple path like /umpire.`,
+    )
+  }
+  return `${trimmed}/`
+}
+
+const base = viteBase(process.env.BASE_PATH)
+const prefix = base === '/' ? '' : base.slice(0, -1)
+const proxyRewrite = prefix
+  ? (proxyPath: string) => proxyPath.slice(prefix.length)
+  : undefined
+
 export default defineConfig({
+  base,
   plugins: [react()],
   resolve: {
     alias: {
@@ -25,8 +45,14 @@ export default defineConfig({
       allow: [root, path.resolve(root, '../plugins')],
     },
     proxy: {
-      '/api': 'http://localhost:3000',
-      '/documentation': 'http://localhost:3000',
+      [`${prefix}/api`]: {
+        target: 'http://localhost:3000',
+        ...(proxyRewrite ? {rewrite: proxyRewrite} : {}),
+      },
+      [`${prefix}/documentation`]: {
+        target: 'http://localhost:3000',
+        ...(proxyRewrite ? {rewrite: proxyRewrite} : {}),
+      },
     },
   },
 })

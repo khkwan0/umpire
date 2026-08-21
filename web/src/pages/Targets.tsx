@@ -3,6 +3,7 @@ import {Link} from 'react-router-dom'
 import {
   api,
   isTransientApiError,
+  type CheckCompatibility,
   type Group,
   type NotifierStatus,
   type PluginManagerState,
@@ -18,8 +19,36 @@ function toggleId(list: string[], id: string): string[] {
 
 const MIN_INTERVAL_SECONDS = 5
 
-function targetUsesHttpCheck(t: Target, httpEnabled: boolean): boolean {
+function compatibilityMap(
+  rows: CheckCompatibility[],
+): Map<string, CheckCompatibility> {
+  return new Map(rows.map(row => [row.id, row]))
+}
+
+function isCheckCompatible(
+  map: Map<string, CheckCompatibility> | undefined,
+  checkId: string,
+): boolean {
+  const row = map?.get(checkId)
+  return row ? row.compatible : true
+}
+
+function checkIncompatibleReason(
+  map: Map<string, CheckCompatibility> | undefined,
+  checkId: string,
+): string | null {
+  const row = map?.get(checkId)
+  if (!row || row.compatible) return null
+  return row.reason
+}
+
+function targetUsesHttpCheck(
+  t: Target,
+  httpEnabled: boolean,
+  compat?: Map<string, CheckCompatibility>,
+): boolean {
   if (!httpEnabled) return false
+  if (!isCheckCompatible(compat, 'http')) return false
   const checkIds = t.check_ids ?? []
   return checkIds.length === 0 || checkIds.includes('http')
 }
@@ -106,11 +135,18 @@ export default function Targets() {
   const [notifierCustomTargetIds, setNotifierCustomTargetIds] = useState<
     Map<string, Set<number>>
   >(() => new Map())
-  const [url, setUrl] = useState('https://')
+  const [url, setUrl] = useState('')
+
   const [interval, setIntervalSeconds] = useState(60)
   const [groupId, setGroupId] = useState<number | ''>('')
   const [createCheckIds, setCreateCheckIds] = useState<string[]>([])
   const [createNotifierIds, setCreateNotifierIds] = useState<string[]>([])
+  const [createCompat, setCreateCompat] = useState<
+    Map<string, CheckCompatibility>
+  >(() => new Map())
+  const [rowCompat, setRowCompat] = useState<
+    Map<number, Map<string, CheckCompatibility>>
+  >(() => new Map())
   const [error, setError] = useState<string | null>(null)
   const [reconnecting, setReconnecting] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -151,6 +187,23 @@ export default function Targets() {
         customMap.set(item.notifierId, new Set(item.targetIds))
       }
       setNotifierCustomTargetIds(customMap)
+
+      const compatEntries = await Promise.all(
+        nextTargets.map(async t => {
+          try {
+            const res = await api.targets.evaluateChecks({
+              url: t.url,
+              interval_seconds: t.interval_seconds,
+              group_id: t.group_id,
+            })
+            return [t.id, compatibilityMap(res.checks)] as const
+          } catch {
+            return [t.id, new Map<string, CheckCompatibility>()] as const
+          }
+        }),
+      )
+      setRowCompat(new Map(compatEntries))
+
       setError(null)
       setReconnecting(false)
     } catch (err) {
@@ -183,11 +236,51 @@ export default function Targets() {
     [notifiers, enabledNotifierIds],
   )
 
+  const createCompatibleIds = useMemo(
+    () =>
+      visibleChecks
+        .filter(c => isCheckCompatible(createCompat, c.id))
+        .map(c => c.id),
+    [visibleChecks, createCompat],
+  )
+
   useEffect(() => {
     void load()
   }, [load])
 
   useRealtimeRefresh(load)
+
+  useEffect(() => {
+    const trimmed = url.trim()
+    if (!trimmed) {
+      setCreateCompat(new Map())
+      return
+    }
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      void api.targets
+        .evaluateChecks({
+          url: trimmed,
+          interval_seconds: interval,
+          group_id: groupId === '' ? null : groupId,
+        })
+        .then(res => {
+          if (cancelled) return
+          const next = compatibilityMap(res.checks)
+          setCreateCompat(next)
+          setCreateCheckIds(prev =>
+            prev.filter(id => isCheckCompatible(next, id)),
+          )
+        })
+        .catch(() => {
+          if (!cancelled) setCreateCompat(new Map())
+        })
+    }, 200)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [url, interval, groupId])
 
   async function onCreate(e: FormEvent) {
     e.preventDefault()
@@ -199,14 +292,17 @@ export default function Targets() {
         interval_seconds: interval,
         enabled: true,
         group_id: groupId === '' ? null : groupId,
-        check_ids: createCheckIds,
+        check_ids: createCheckIds.filter(id =>
+          isCheckCompatible(createCompat, id),
+        ),
         notifier_ids: createNotifierIds,
       })
-      setUrl('https://')
+      setUrl('')
       setIntervalSeconds(60)
       setGroupId('')
       setCreateCheckIds([])
       setCreateNotifierIds([])
+      setCreateCompat(new Map())
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -270,20 +366,19 @@ export default function Targets() {
   return (
     <div className="stack">
       {reconnecting && <ReconnectBanner />}
-      <section className="panel">
+      <section className="panel" data-onboarding="add-target">
         <h2>Add target</h2>
         <p className="muted">
           Assign targets to a <strong>child</strong> group (not a root).{' '}
-          <Link to="/groups">Manage groups</Link>. Leave checks / notifiers
-          unchecked to use <strong>all</strong> loaded plugins of that kind.
+          <Link to="/groups">Manage groups</Link>.
         </p>
         <form className="form-row" onSubmit={onCreate}>
           <label className="grow">
-            URL
+            Address
             <input
               value={url}
               onChange={e => setUrl(e.target.value)}
-              placeholder="https://example.com"
+              placeholder="example.com, 10.0.0.5, or https://example.com/health"
               required
             />
           </label>
@@ -317,33 +412,91 @@ export default function Targets() {
             Add
           </button>
         </form>
+        <p className="muted small">
+          Hostname or IP is enough for ping/TCP (e.g. <code>example.com</code>,{' '}
+          <code>10.0.0.5</code>). HTTP and keyword checks need a full{' '}
+          <code>http://</code> or <code>https://</code> URL.
+        </p>
         {visibleChecks.length > 0 && (
           <fieldset className="check-ids">
-            <legend>Checks (optional allowlist)</legend>
-            <div className="check-ids-list">
-              {visibleChecks.map(c => (
-                <label key={c.id} className="check-ids-item">
-                  <input
-                    type="checkbox"
-                    checked={createCheckIds.includes(c.id)}
-                    onChange={() =>
-                      setCreateCheckIds(prev => toggleId(prev, c.id))
-                    }
-                  />
-                  {c.id}
-                </label>
-              ))}
-            </div>
+            <legend>Checks</legend>
             <p className="muted small">
-              {createCheckIds.length === 0
-                ? 'All loaded checks will run.'
-                : `Only: ${createCheckIds.join(', ')}`}
+              {createCheckIds.length === 0 ? (
+                <>
+                  <strong>
+                    Nothing selected — every compatible loaded check will run
+                  </strong>
+                  {createCompatibleIds.length > 0
+                    ? ` (${createCompatibleIds.join(', ')})`
+                    : url.trim()
+                      ? ' (none are compatible with this address yet)'
+                      : ''}
+                  . Select one or more boxes below only if you want to limit
+                  which checks run. Incompatible checks stay disabled.
+                </>
+              ) : (
+                <>
+                  Only the selected checks will run:{' '}
+                  <strong>{createCheckIds.join(', ')}</strong>
+                </>
+              )}
             </p>
+            <div className="check-ids-list">
+              {visibleChecks.map(c => {
+                const compatible = isCheckCompatible(createCompat, c.id)
+                const reason = checkIncompatibleReason(createCompat, c.id)
+                return (
+                  <label
+                    key={c.id}
+                    className={
+                      compatible
+                        ? 'check-ids-item'
+                        : 'check-ids-item incompatible'
+                    }
+                    title={reason ?? undefined}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={createCheckIds.includes(c.id)}
+                      disabled={!compatible}
+                      onChange={() =>
+                        setCreateCheckIds(prev => toggleId(prev, c.id))
+                      }
+                    />
+                    <span>
+                      {c.id}
+                      {!compatible && reason ? (
+                        <span className="check-incompat-reason">
+                          {' '}
+                          — {reason}
+                        </span>
+                      ) : null}
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
           </fieldset>
         )}
         {visibleNotifiers.length > 0 && (
           <fieldset className="check-ids">
-            <legend>Notifiers (optional allowlist)</legend>
+            <legend>Notifiers</legend>
+            <p className="muted small">
+              {createNotifierIds.length === 0 ? (
+                <>
+                  <strong>
+                    Nothing selected — every loaded notifier will alert
+                  </strong>{' '}
+                  for this target. Select one or more boxes below only if you
+                  want to limit which notifiers fire.
+                </>
+              ) : (
+                <>
+                  Only the selected notifiers will alert:{' '}
+                  <strong>{createNotifierIds.join(', ')}</strong>
+                </>
+              )}
+            </p>
             <div className="check-ids-list">
               {visibleNotifiers.map(n => (
                 <label key={n.id} className="check-ids-item">
@@ -359,11 +512,6 @@ export default function Targets() {
                 </label>
               ))}
             </div>
-            <p className="muted small">
-              {createNotifierIds.length === 0
-                ? 'All loaded notifiers will alert.'
-                : `Only: ${createNotifierIds.join(', ')}`}
-            </p>
           </fieldset>
         )}
         {error && <p className="error">{error}</p>}
@@ -383,7 +531,7 @@ export default function Targets() {
           <table>
             <thead>
               <tr>
-                <th>URL</th>
+                <th>Address</th>
                 <th>Group</th>
                 <th>Checks</th>
                 <th>Notifiers</th>
@@ -397,6 +545,7 @@ export default function Targets() {
                 const g = t.group_id != null ? groupById.get(t.group_id) : null
                 const checkIds = t.check_ids ?? []
                 const notifierIds = t.notifier_ids ?? []
+                const compat = rowCompat.get(t.id)
                 return (
                   <tr key={t.id}>
                     <td className="mono">{t.url}</td>
@@ -426,26 +575,60 @@ export default function Targets() {
                         <span className="muted">—</span>
                       ) : (
                         <div className="check-ids-list">
-                          {visibleChecks.map(c => (
-                            <label key={c.id} className="check-ids-item">
-                              <input
-                                type="checkbox"
-                                checked={checkIds.includes(c.id)}
-                                onChange={() =>
-                                  void changeChecks(t, toggleId(checkIds, c.id))
+                          {visibleChecks.map(c => {
+                            const compatible = isCheckCompatible(compat, c.id)
+                            const reason = checkIncompatibleReason(
+                              compat,
+                              c.id,
+                            )
+                            return (
+                              <label
+                                key={c.id}
+                                className={
+                                  compatible
+                                    ? 'check-ids-item'
+                                    : 'check-ids-item incompatible'
                                 }
-                              />
-                              {c.id}
-                            </label>
-                          ))}
+                                title={reason ?? undefined}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={
+                                    compatible && checkIds.includes(c.id)
+                                  }
+                                  disabled={!compatible}
+                                  onChange={() =>
+                                    void changeChecks(
+                                      t,
+                                      toggleId(checkIds, c.id).filter(id =>
+                                        isCheckCompatible(compat, id),
+                                      ),
+                                    )
+                                  }
+                                />
+                                <span>
+                                  {c.id}
+                                  {!compatible && reason ? (
+                                    <span className="check-incompat-reason">
+                                      {' '}
+                                      — {reason}
+                                    </span>
+                                  ) : null}
+                                </span>
+                              </label>
+                            )
+                          })}
                           <div className="muted small">
                             {checkIds.length === 0
-                              ? 'all'
-                              : checkIds.join(', ')}
+                              ? 'all compatible'
+                              : checkIds
+                                  .filter(id => isCheckCompatible(compat, id))
+                                  .join(', ') || 'none compatible'}
                           </div>
                           {targetUsesHttpCheck(
                             t,
                             enabledCheckIds.has('http'),
+                            compat,
                           ) && (
                             <Link
                               className={

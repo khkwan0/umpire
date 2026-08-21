@@ -41,9 +41,11 @@ function target(partial: Partial<Target> = {}): Target {
 function checkPlugin(
   id: string,
   outcome: {ok: boolean; statusCode?: number | null; error?: string | null},
+  evaluateTarget?: CheckPlugin['evaluateTarget'],
 ): CheckPlugin {
   return {
     id,
+    evaluateTarget,
     check: jest.fn(async () => ({
       ok: outcome.ok,
       statusCode: outcome.statusCode ?? (outcome.ok ? 200 : 500),
@@ -150,6 +152,24 @@ describe('runCheck', () => {
     expect(dns.check).not.toHaveBeenCalled()
     expect(fcm.notify).toHaveBeenCalledTimes(1)
     expect(webhook.notify).not.toHaveBeenCalled()
+  })
+
+  it('skips checks that evaluateTarget rejects without recording them as failures', async () => {
+    const http = checkPlugin('http', {ok: false, error: 'should not run'}, () => ({
+      ok: false,
+      reason: 'requires an http:// or https:// URL',
+    }))
+    const ping = checkPlugin('ping', {ok: true})
+    setChecks([http, ping])
+    setNotifiers([])
+    store.getTarget.mockReturnValue(target({url: '8.8.8.8', check_ids: []}))
+    await runCheck(1)
+
+    expect(http.check).not.toHaveBeenCalled()
+    expect(ping.check).toHaveBeenCalled()
+    expect(store.recordCheckResult).toHaveBeenCalledWith(
+      expect.objectContaining({targetId: 1, status: 'up'}),
+    )
   })
 
   it('still marks the alert sent if one notifier succeeds', async () => {

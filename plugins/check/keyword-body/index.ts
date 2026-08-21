@@ -2,7 +2,10 @@ import type {
   CheckContext,
   CheckOutcome,
   CheckPlugin,
+  TargetCompatibility,
+  TargetEvalParams,
 } from '../../../api/src/plugins/types.js'
+import {parseTargetAddress} from '../../../api/src/targetAddress.js'
 import {resolveKeywordBodyConfig} from './config.js'
 import {registerKeywordBodyCheckRoutes} from './routes.js'
 
@@ -11,10 +14,22 @@ function timeoutMs(): number {
   return Number.isFinite(n) && n > 0 ? n : 10_000
 }
 
+export function evaluateKeywordBodyTarget(
+  params: TargetEvalParams,
+): TargetCompatibility {
+  const parsed = parseTargetAddress(params.url)
+  if (!parsed || !parsed.hasScheme) {
+    return {ok: false, reason: 'requires an http:// or https:// URL'}
+  }
+  return {ok: true}
+}
+
 const keywordBodyCheck: CheckPlugin = {
   id: 'keyword-body',
   description:
     'Fetches the target URL and requires a configured keyword to appear in the response body.',
+
+  evaluateTarget: evaluateKeywordBodyTarget,
 
   async registerRoutes(app) {
     await registerKeywordBodyCheckRoutes(app)

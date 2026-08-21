@@ -1,10 +1,21 @@
 import {execFile} from 'node:child_process'
-import {URL} from 'node:url'
 import type {
   CheckContext,
   CheckOutcome,
   CheckPlugin,
+  TargetCompatibility,
+  TargetEvalParams,
 } from '../../../api/src/plugins/types.js'
+import {parseTargetAddress} from '../../../api/src/targetAddress.js'
+
+export function evaluatePingTarget(
+  params: TargetEvalParams,
+): TargetCompatibility {
+  if (!parseTargetAddress(params.url)) {
+    return {ok: false, reason: 'invalid target address'}
+  }
+  return {ok: true}
+}
 
 function timeoutMs(): number {
   const n = Number(process.env.CHECK_TIMEOUT_MS)
@@ -45,15 +56,20 @@ function runPing(
 
 const pingCheck: CheckPlugin = {
   id: 'ping',
-  description: 'ICMP-pings the target hostname and reports round-trip time.',
+  description:
+    'ICMP-pings the target hostname or IP and reports round-trip time.',
+  evaluateTarget: evaluatePingTarget,
   async check(ctx: CheckContext): Promise<CheckOutcome> {
     const startedAt = Date.now()
-    let parsed: URL
-    try {
-      parsed = new URL(ctx.target.url)
-    } catch {
+    const parsed = parseTargetAddress(ctx.target.url)
+    if (!parsed) {
       const latencyMs = Date.now() - startedAt
-      return {ok: false, statusCode: null, error: 'invalid URL', latencyMs}
+      return {
+        ok: false,
+        statusCode: null,
+        error: 'invalid target address',
+        latencyMs,
+      }
     }
     const result = await runPing(parsed.hostname, timeoutMs())
     const latencyMs = result.latencyMs ?? Date.now() - startedAt

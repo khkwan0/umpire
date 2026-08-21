@@ -5,12 +5,12 @@ export default function PingCheckPage() {
     <section className="panel stack">
       <h2>Ping check</h2>
       <p className="muted">
-        Runs an ICMP ping probe against the target host. This validates basic
-        network reachability at host level.
+        Runs an ICMP ping against the target hostname or IP. A full URL is not
+        required — <code>example.com</code> or <code>10.0.0.5</code> is enough.
       </p>
       <p className="muted small">
-        Uses system <code>ping</code> command. Some hosts may block ICMP; in that
-        case use HTTP or TCP checks too.
+        Uses system <code>ping</code>. Some hosts block ICMP; in that case use
+        HTTP or TCP checks too.
       </p>
     </section>
   )

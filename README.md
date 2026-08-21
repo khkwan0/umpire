@@ -168,6 +168,29 @@ WEB_PORT=8090 ./scripts/deploy.sh
 
 (`WEB_PORT` is read from `.env` for Compose; the script also uses it for the health-check URL.)
 
+### Public URL path (`BASE_PATH`)
+
+`BASE_PATH` is the public URL prefix where the UI is served. It must match the path users open in the browser.
+
+| How you host | `BASE_PATH` |
+|--------------|-------------|
+| `http://localhost:8089/` or `https://example.com/` | `/` (default) |
+| `https://example.com/umpire` | `/umpire` |
+
+If the browser path is `/umpire` but the image was built for `/`, the HTML still requests `/assets/...` at the domain root. Those requests 404 and the page stays blank.
+
+Set it in `.env` (copied from [`.env.example`](.env.example)) or pass it on the command line:
+
+```bash
+BASE_PATH=/umpire ./scripts/deploy.sh
+# or
+BASE_PATH=/umpire docker compose up -d --build
+```
+
+Asset URLs, React Router’s basename, API/SSE fetches, and the web container’s nginx rewrite are baked into the **web image** at build time. Changing `BASE_PATH` requires a rebuild (`--build`), not only a container restart.
+
+Your reverse proxy can either forward `/umpire/...` as-is or strip the prefix before proxying; the web container accepts both when built with that `BASE_PATH`. Local health checks stay on the published port without the prefix: `http://127.0.0.1:8089/api/health`.
+
 ### Docker Compose
 
 Same images and volumes, without the format step or health wait:
@@ -207,6 +230,7 @@ Vite serves the UI on [http://localhost:8089](http://localhost:8089) (same host 
 
 - `./scripts/deploy.sh` — build and start with Docker Compose, then wait for `/api/health`
 - `WEB_PORT=8090 ./scripts/deploy.sh` — deploy and health-check with a custom web port
+- `BASE_PATH=/umpire ./scripts/deploy.sh` — bake a subdirectory public path into the web image
 
 ### API (`api/package.json`)
 

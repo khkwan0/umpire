@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -15,19 +16,21 @@ import {
   type PluginManagerState,
 } from './api'
 import ReconnectBanner from './ReconnectBanner'
-import {useRealtimeMode, useRealtimeRefresh} from './realtime'
+import {assetUrl} from './basePath'
 import {
   hasDashboardWidget,
   isPluginUiModule,
   type DashboardWidgetModule,
   type PluginUiModule,
 } from './plugin-ui'
+import {useRealtimeMode, useRealtimeRefresh} from './realtime'
 import Dashboard from './pages/Dashboard'
 import Groups from './pages/Groups'
 import Targets from './pages/Targets'
 import SettingsPage from './pages/Settings'
 import HttpCheckTargetOverride from './pages/HttpCheckTargetOverride'
 import NotifierTargetOverride from './pages/NotifierTargetOverride'
+import {useOnboarding} from './onboarding'
 
 const uiModules = Object.values(
   import.meta.glob('../../plugins/*/*/ui/index.tsx', {
@@ -48,10 +51,14 @@ function NavDropdown({
   label,
   active,
   children,
+  forceOpen = false,
+  dataOnboarding,
 }: {
   label: string
   active: boolean
   children: ReactNode
+  forceOpen?: boolean
+  dataOnboarding?: string
 }) {
   const detailsRef = useRef<HTMLDetailsElement>(null)
   const location = useLocation()
@@ -62,18 +69,27 @@ function NavDropdown({
   }, [])
 
   useEffect(() => {
+    if (forceOpen) return
     close()
-  }, [close, location.pathname])
+  }, [close, forceOpen, location.pathname])
+
+  useLayoutEffect(() => {
+    const el = detailsRef.current
+    if (forceOpen && el) el.open = true
+  }, [forceOpen])
 
   useEffect(() => {
     function onPointerDown(event: PointerEvent) {
       const el = detailsRef.current
       if (!el || !el.open || el.contains(event.target as Node)) return
+      if (forceOpen) return
       close()
     }
 
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape' && detailsRef.current?.open) close()
+      if (event.key === 'Escape' && detailsRef.current?.open && !forceOpen) {
+        close()
+      }
     }
 
     document.addEventListener('pointerdown', onPointerDown)
@@ -82,13 +98,17 @@ function NavDropdown({
       document.removeEventListener('pointerdown', onPointerDown)
       document.removeEventListener('keydown', onKeyDown)
     }
-  }, [close])
+  }, [close, forceOpen])
 
   return (
     <details
       ref={detailsRef}
       name="nav-dropdown"
       className={`nav-dropdown${active ? ' active' : ''}`}
+      data-onboarding={dataOnboarding}
+      onToggle={() => {
+        if (forceOpen && detailsRef.current) detailsRef.current.open = true
+      }}
     >
       <summary>{label}</summary>
       <div className="nav-dropdown-menu" onClick={close}>
@@ -188,6 +208,7 @@ export default function App() {
   const notifierMenuActive = notifierUi.some(
     ui => ui.path === location.pathname,
   )
+  const {forceNotifiersOpen} = useOnboarding()
 
   return (
     <div className="shell">
@@ -195,7 +216,7 @@ export default function App() {
         <div className="brand">
           <img
             className="brand-logo"
-            src="/umpire_logo.svg"
+            src={assetUrl('umpire_logo.svg')}
             alt="UMPIRE"
             width={128}
             height={128}
@@ -227,7 +248,9 @@ export default function App() {
             Dashboard
           </NavLink>
           <NavLink to="/groups">Groups</NavLink>
-          <NavLink to="/targets">Targets</NavLink>
+          <NavLink to="/targets" data-onboarding="targets-nav">
+            Targets
+          </NavLink>
           {nonDropdownUi.map(ui => (
             <NavLink key={`${ui.kind}:${ui.id}`} to={ui.path}>
               {ui.label}
@@ -244,7 +267,12 @@ export default function App() {
               ))
             )}
           </NavDropdown>
-          <NavDropdown label="Notifiers" active={notifierMenuActive}>
+          <NavDropdown
+            label="Notifiers"
+            active={notifierMenuActive}
+            forceOpen={forceNotifiersOpen}
+            dataOnboarding="notifiers-nav"
+          >
             {notifierUi.length === 0 ? (
               <span className="muted small">No notifier pages</span>
             ) : (

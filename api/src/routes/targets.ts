@@ -1,4 +1,8 @@
 import type {FastifyInstance} from 'fastify'
+import {
+  evaluateChecksForTarget,
+  firstIncompatibleAllowlistId,
+} from '../checkCompatibility.js'
 import {getCore} from '../core/index.js'
 import {
   applyNotifierCheckIds,
@@ -9,6 +13,7 @@ import {
 import {normalizePluginIds} from '../core/sqlite.js'
 import {getChecks, getNotifiers, getScheduler} from '../plugins/registry.js'
 import {publishRealtime} from '../realtime.js'
+import {isValidTargetAddress} from '../targetAddress.js'
 
 const errorResponse = {
   type: 'object',
@@ -28,14 +33,15 @@ const notifierIdsSchema = {
     'Notifier plugin ids for alerts. Empty array = all loaded notifiers.',
 } as const
 
-function isValidUrl(url: string): boolean {
-  try {
-    const u = new URL(url)
-    return u.protocol === 'http:' || u.protocol === 'https:'
-  } catch {
-    return false
-  }
-}
+const checkCompatibilityItemSchema = {
+  type: 'object',
+  required: ['id', 'compatible', 'reason'],
+  properties: {
+    id: {type: 'string'},
+    compatible: {type: 'boolean'},
+    reason: {type: ['string', 'null']},
+  },
+} as const
 
 function parseIdListBody(
   raw: unknown,
@@ -50,6 +56,15 @@ function parseIdListBody(
       error: err instanceof Error ? err.message : String(err),
     }
   }
+}
+
+function incompatibleCheckError(
+  id: string,
+  reason: string | null,
+): string {
+  return reason
+    ? `check "${id}" is incompatible with this target: ${reason}`
+    : `check "${id}" is incompatible with this target`
 }
 
 export async function targetsRoutes(app: FastifyInstance): Promise<void> {
@@ -71,6 +86,69 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
     Body: {
       url?: string
       interval_seconds?: number
+      group_id?: number | null
+    }
+  }>(
+    '/api/targets/evaluate-checks',
+    {
+      schema: {
+        tags: ['targets'],
+        summary:
+          'Ask each enabled check plugin whether it can use these target params',
+        body: {
+          type: 'object',
+          required: ['url'],
+          properties: {
+            url: {type: 'string'},
+            interval_seconds: {type: 'integer', minimum: 5, default: 60},
+            group_id: {type: ['integer', 'null']},
+          },
+        },
+        response: {
+          200: {
+            type: 'object',
+            required: ['checks'],
+            properties: {
+              checks: {
+                type: 'array',
+                items: checkCompatibilityItemSchema,
+              },
+            },
+          },
+          400: errorResponse,
+        },
+      },
+    },
+    async (req, reply) => {
+      const url = req.body?.url?.trim() ?? ''
+      const interval = Number(req.body?.interval_seconds ?? 60)
+      const groupId =
+        req.body?.group_id === undefined ? null : req.body.group_id
+      if (!url) {
+        return reply.code(400).send({error: 'url required'})
+      }
+      if (!Number.isFinite(interval) || interval < 5) {
+        return reply.code(400).send({error: 'interval_seconds must be >= 5'})
+      }
+      if (groupId !== null && (!Number.isInteger(groupId) || groupId < 1)) {
+        return reply
+          .code(400)
+          .send({error: 'group_id must be a group id or null'})
+      }
+      return {
+        checks: evaluateChecksForTarget({
+          url,
+          interval_seconds: interval,
+          group_id: groupId,
+        }),
+      }
+    },
+  )
+
+  app.post<{
+    Body: {
+      url?: string
+      interval_seconds?: number
       enabled?: boolean
       group_id?: number | null
       check_ids?: string[]
@@ -86,7 +164,11 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
           type: 'object',
           required: ['url'],
           properties: {
-            url: {type: 'string', format: 'uri'},
+            url: {
+              type: 'string',
+              description:
+                'http(s) URL, or bare hostname / IP (optional :port). Ping/TCP can use a host alone; HTTP checks need a full URL.',
+            },
             interval_seconds: {type: 'integer', minimum: 5, default: 60},
             enabled: {type: 'boolean', default: true},
             group_id: {
@@ -120,8 +202,11 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
       if (!notifierIdsParsed.ok) {
         return reply.code(400).send({error: notifierIdsParsed.error})
       }
-      if (!url || !isValidUrl(url)) {
-        return reply.code(400).send({error: 'valid http(s) url required'})
+      if (!url || !isValidTargetAddress(url)) {
+        return reply.code(400).send({
+          error:
+            'valid target address required (http(s) URL, hostname, or IP)',
+        })
       }
       if (!Number.isFinite(interval) || interval < 5) {
         return reply.code(400).send({error: 'interval_seconds must be >= 5'})
@@ -131,13 +216,26 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
           .code(400)
           .send({error: 'group_id must be a group id or null'})
       }
+      const checkIds = checkIdsParsed.value ?? []
+      const incompatible = firstIncompatibleAllowlistId(
+        {url, interval_seconds: interval, group_id: groupId},
+        checkIds,
+      )
+      if (incompatible) {
+        return reply.code(400).send({
+          error: incompatibleCheckError(
+            incompatible.id,
+            incompatible.reason,
+          ),
+        })
+      }
       try {
         const target = getCore().createTarget(
           url,
           interval,
           enabled,
           groupId,
-          checkIdsParsed.value ?? [],
+          checkIds,
           notifierIdsParsed.value ?? [],
         )
         getScheduler().reschedule()
@@ -179,7 +277,11 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
         body: {
           type: 'object',
           properties: {
-            url: {type: 'string', format: 'uri'},
+            url: {
+              type: 'string',
+              description:
+                'http(s) URL, or bare hostname / IP (optional :port)',
+            },
             interval_seconds: {type: 'integer', minimum: 5},
             enabled: {type: 'boolean'},
             group_id: {type: ['integer', 'null']},
@@ -198,8 +300,14 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
       const id = Number(req.params.id)
       if (!Number.isInteger(id))
         return reply.code(400).send({error: 'invalid id'})
-      if (req.body?.url !== undefined && !isValidUrl(req.body.url)) {
-        return reply.code(400).send({error: 'valid http(s) url required'})
+      if (
+        req.body?.url !== undefined &&
+        !isValidTargetAddress(String(req.body.url).trim())
+      ) {
+        return reply.code(400).send({
+          error:
+            'valid target address required (http(s) URL, hostname, or IP)',
+        })
       }
       if (
         req.body?.interval_seconds !== undefined &&
@@ -228,6 +336,38 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
       if (!notifierIdsParsed.ok) {
         return reply.code(400).send({error: notifierIdsParsed.error})
       }
+      const existing = getCore().getTarget(id)
+      if (!existing) return reply.code(404).send({error: 'not found'})
+      const nextUrl =
+        req.body?.url !== undefined
+          ? String(req.body.url).trim()
+          : existing.url
+      const nextInterval =
+        req.body?.interval_seconds !== undefined
+          ? req.body.interval_seconds
+          : existing.interval_seconds
+      const nextGroupId =
+        req.body?.group_id !== undefined ? req.body.group_id : existing.group_id
+      const nextCheckIds =
+        checkIdsParsed.value !== undefined
+          ? checkIdsParsed.value
+          : existing.check_ids
+      const incompatible = firstIncompatibleAllowlistId(
+        {
+          url: nextUrl,
+          interval_seconds: nextInterval,
+          group_id: nextGroupId,
+        },
+        nextCheckIds,
+      )
+      if (incompatible) {
+        return reply.code(400).send({
+          error: incompatibleCheckError(
+            incompatible.id,
+            incompatible.reason,
+          ),
+        })
+      }
       try {
         const patch: {
           url?: string
@@ -237,6 +377,9 @@ export async function targetsRoutes(app: FastifyInstance): Promise<void> {
           check_ids?: string[]
           notifier_ids?: string[]
         } = {...(req.body ?? {})}
+        if (req.body?.url !== undefined) {
+          patch.url = nextUrl
+        }
         if (checkIdsParsed.value !== undefined) {
           patch.check_ids = checkIdsParsed.value
         }

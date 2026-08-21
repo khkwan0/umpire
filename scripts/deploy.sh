@@ -8,6 +8,7 @@ set -euo pipefail
 # Usage:
 #   ./scripts/deploy.sh
 #   WEB_PORT=8090 ./scripts/deploy.sh
+#   BASE_PATH=/umpire ./scripts/deploy.sh
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WEB_PORT="${WEB_PORT:-8089}"

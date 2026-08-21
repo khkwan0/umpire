@@ -9,6 +9,7 @@ import {
 import ReconnectBanner from '../ReconnectBanner'
 import ThemeSwitcher from '../ThemeSwitcher'
 import TimezoneSelect from '../TimezoneSelect'
+import {useOnboarding} from '../onboarding'
 
 const MISSING_PLUGIN_DESCRIPTION =
   "No description offered by the plugin's author"
@@ -55,6 +56,7 @@ function PluginManagerRow({
 }
 
 export default function SettingsPage() {
+  const {restart} = useOnboarding()
   const [settings, setSettings] = useState<Settings | null>(null)
   const [policy, setPolicy] = useState<AlertPolicy>('state_change')
   const [throttle, setThrottle] = useState(30)
@@ -139,6 +141,16 @@ export default function SettingsPage() {
         </p>
         <ThemeSwitcher labelledBy="appearance-heading" />
         <TimezoneSelect labelledBy="appearance-heading" />
+      </section>
+      <section className="panel">
+        <h2>Setup tutorial</h2>
+        <p className="muted small">
+          Replay the first-run walkthrough for adding a target and a notifier,
+          even if you skipped or finished it.
+        </p>
+        <button type="button" onClick={restart}>
+          Rerun tutorial
+        </button>
       </section>
       <section className="panel">
         <h2>Alert policy</h2>

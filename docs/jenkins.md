@@ -54,6 +54,7 @@ Run **Build with Parameters** and check **DEPLOY** only on an agent that should 
 - `node:lts-bookworm` includes `python3` / `make` / `g++`, so `better-sqlite3` compiles and the SQLite store tests run.
 - The Node stages run as root in the container (`-u root:root`) so `npm ci` can write `node_modules` in the workspace.
 - Compose publish port defaults to **8089** (`WEB_PORT` in `.env`). Health check uses `http://127.0.0.1:${WEB_PORT:-8089}/api/health`.
+- Subdirectory public URL (`https://host/umpire`): set `BASE_PATH=/umpire` in `.env` before `docker compose build`. The web image bakes this in; `/api/health` on the published port is unchanged.
 - Image builds use repo-root context (`api/Dockerfile`, `web/Dockerfile`) so `plugins/` is copied. The workspace must include that folder.
 
 ## Local equivalent

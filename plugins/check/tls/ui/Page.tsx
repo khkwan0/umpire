@@ -5,8 +5,9 @@ export default function TlsCheckPage() {
     <section className="panel stack">
       <h2>TLS check</h2>
       <p className="muted">
-        Validates TLS handshake for <code>https://</code> targets using certificate
-        verification. Non-HTTPS targets fail this check.
+        Validates TLS handshake (certificate verification). Accepts an{' '}
+        <code>https://</code> URL or a bare hostname / IP (port defaults to{' '}
+        <code>443</code>). Explicit <code>http://</code> targets fail this check.
       </p>
       <p className="muted small">
         Uses <code>CHECK_TIMEOUT_MS</code> for timeout control.

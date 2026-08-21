@@ -204,7 +204,7 @@ export default function Dashboard({
         </section>
       ))}
 
-      <section className="panel">
+      <section className="panel" data-onboarding="targets-panel">
         <div className="panel-head">
           <h2>Targets</h2>
           <Link to="/targets">Manage</Link>

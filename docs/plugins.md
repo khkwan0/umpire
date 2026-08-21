@@ -176,15 +176,31 @@ interface CheckOutcome {
   latencyMs: number
 }
 
+interface TargetEvalParams {
+  url: string
+  interval_seconds: number
+  group_id: number | null
+}
+
+type TargetCompatibility =
+  | { ok: true }
+  | { ok: false; reason: string }
+
 interface CheckPlugin {
   id: string
   check(ctx: { target: Target; config: unknown }): Promise<CheckOutcome>
+  /**
+   * Optional. When omitted, always compatible.
+   * Core uses this to gray out checks in the UI and skip them at run time.
+   */
+  evaluateTarget?(params: TargetEvalParams): TargetCompatibility
   registerRoutes?(app: FastifyInstance): void | Promise<void>
 }
 ```
 
 - Receives the target row + plugin config (`ctx.target`, `ctx.config`) resolved per target.
 - Always return a complete `CheckOutcome` (including `latencyMs`). Never throw for a failed probe; return `ok: false`.
+- Optional `evaluateTarget` inspects address / interval / group before the probe. Return `{ ok: false, reason }` when this check cannot use the target (e.g. HTTP needs an `http://` or `https://` URL). Core exposes results via `POST /api/targets/evaluate-checks`, disables those checks in the Targets UI, rejects selecting them in `check_ids`, and skips them in the pipeline (they are not recorded as failures). Empty `check_ids` still means “all enabled checks,” then compatibility filtering applies.
 - Optional `registerRoutes` is for **plugin config/CRUD**, not for running the probe. Core calls `check(ctx)` on a schedule.
 
 Aggregation (after selected checks finish):
@@ -890,7 +906,7 @@ keywordBody: {
 },
 ```
 
-Plugin pages import `{ api } from '@umpire/web-api'`. Reuse the existing `request()` helper (JSON, `204`, `error` field).
+Plugin pages import `{ api, withBase } from '@umpire/web-api'`. Reuse the existing `request()` helper (JSON, `204`, `error` field). It prefixes `BASE_PATH`. Raw `fetch('/api/...')` must use `withBase(path)` so subdirectory deploys work.
 
 ### 7. Dashboard widget (FCM-style counts)
 

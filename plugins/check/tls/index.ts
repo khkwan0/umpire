@@ -1,10 +1,25 @@
 import tls from 'node:tls'
-import {URL} from 'node:url'
 import type {
   CheckContext,
   CheckOutcome,
   CheckPlugin,
+  TargetCompatibility,
+  TargetEvalParams,
 } from '../../../api/src/plugins/types.js'
+import {parseTargetAddress} from '../../../api/src/targetAddress.js'
+
+export function evaluateTlsTarget(
+  params: TargetEvalParams,
+): TargetCompatibility {
+  const parsed = parseTargetAddress(params.url)
+  if (!parsed) {
+    return {ok: false, reason: 'invalid target address'}
+  }
+  if (parsed.hasScheme && parsed.protocol !== 'https:') {
+    return {ok: false, reason: 'requires https:// or a bare host'}
+  }
+  return {ok: true}
+}
 
 function timeoutMs(): number {
   const n = Number(process.env.CHECK_TIMEOUT_MS)
@@ -18,16 +33,15 @@ function fail(latencyMs: number, error: string): CheckOutcome {
 const tlsCheck: CheckPlugin = {
   id: 'tls',
   description:
-    'Opens a TLS connection to HTTPS targets and fails if the handshake or certificate is invalid.',
+    'Opens a TLS connection to the target (https URL or bare host on 443) and fails if the handshake or certificate is invalid.',
+  evaluateTarget: evaluateTlsTarget,
   async check(ctx: CheckContext): Promise<CheckOutcome> {
     const startedAt = Date.now()
-    let parsed: URL
-    try {
-      parsed = new URL(ctx.target.url)
-    } catch {
-      return fail(Date.now() - startedAt, 'invalid URL')
+    const parsed = parseTargetAddress(ctx.target.url)
+    if (!parsed) {
+      return fail(Date.now() - startedAt, 'invalid target address')
     }
-    if (parsed.protocol !== 'https:') {
+    if (parsed.hasScheme && parsed.protocol !== 'https:') {
       return fail(Date.now() - startedAt, 'TLS check requires https URL')
     }
 

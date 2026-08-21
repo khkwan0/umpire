@@ -8,6 +8,7 @@ firebase-service-account.json
 *.log
 .DS_Store
 web/dist/
+web/nginx.generated.conf
 api/dist/
 junit.xml
 coverage/

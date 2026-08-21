@@ -1,3 +1,7 @@
+import {withBase} from './basePath'
+
+export {withBase}
+
 export type AlertPolicy = 'state_change' | 'every_fail' | 'throttle'
 
 export interface Target {
@@ -72,6 +76,12 @@ export interface StatusTarget {
 
 export interface PluginRef {
   id: string
+}
+
+export interface CheckCompatibility {
+  id: string
+  compatible: boolean
+  reason: string | null
 }
 
 export interface NotifierStatus {
@@ -239,7 +249,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   let res: Response
   try {
-    res = await fetch(path, {...init, headers})
+    res = await fetch(withBase(path), {...init, headers})
   } catch {
     throw new ApiError('API temporarily unavailable', 0, true)
   }
@@ -290,6 +300,18 @@ export const api = {
   },
   targets: {
     list: () => request<Target[]>('/api/targets'),
+    evaluateChecks: (data: {
+      url: string
+      interval_seconds?: number
+      group_id?: number | null
+    }) =>
+      request<{checks: CheckCompatibility[]}>(
+        '/api/targets/evaluate-checks',
+        {
+          method: 'POST',
+          body: JSON.stringify(data),
+        },
+      ),
     create: (data: {
       url: string
       interval_seconds: number

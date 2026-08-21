@@ -1,10 +1,11 @@
 import {aggregateCheckOutcomes, alertCopy, shouldAlert} from './alert.js'
+import {compatibleCheckPlugins} from './checkCompatibility.js'
 import {getCore} from './core/index.js'
 import {
   eventMatchesNotifierCheckFilter,
   extractNotifierCheckIds,
 } from './core/notifierRouting.js'
-import {getChecks, getNotifiers} from './plugins/registry.js'
+import {getNotifiers} from './plugins/registry.js'
 import {isPluginEnabled} from './plugins/manager.js'
 import type {AggregatedCheck, HealthStatus, Target} from './plugins/types.js'
 import {healthFromDb} from './plugins/types.js'
@@ -16,15 +17,31 @@ async function runAllChecks(
   checkIds: string[],
 ): Promise<AggregatedCheck> {
   const store = getCore()
-  const loaded = getChecks().filter(c => isPluginEnabled('check', c.id))
-  const checks =
-    checkIds.length === 0 ? loaded : loaded.filter(c => checkIds.includes(c.id))
+  const params = {
+    url: target.url,
+    interval_seconds: target.interval_seconds,
+    group_id: target.group_id,
+  }
+  const {plugins: checks, incompatible} = compatibleCheckPlugins(
+    params,
+    checkIds,
+  )
 
   if (checks.length === 0) {
-    const detail =
-      checkIds.length === 0
-        ? 'no check plugins loaded'
-        : `no loaded checks match allowlist [${checkIds.join(', ')}]`
+    let detail: string
+    if (incompatible.length > 0 && checkIds.length === 0) {
+      detail = `no compatible checks for this target address (${incompatible
+        .map(c => `${c.id}: ${c.reason}`)
+        .join('; ')})`
+    } else if (incompatible.length > 0) {
+      detail = `no compatible checks match allowlist [${checkIds.join(', ')}] (${incompatible
+        .map(c => `${c.id}: ${c.reason}`)
+        .join('; ')})`
+    } else if (checkIds.length === 0) {
+      detail = 'no check plugins loaded'
+    } else {
+      detail = `no loaded checks match allowlist [${checkIds.join(', ')}]`
+    }
     return {
       status: 'down',
       statusCode: null,

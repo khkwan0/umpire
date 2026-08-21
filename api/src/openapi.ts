@@ -73,7 +73,11 @@ const targetSchema = {
   ],
   properties: {
     id: {type: 'integer'},
-    url: {type: 'string', format: 'uri'},
+    url: {
+      type: 'string',
+      description:
+        'http(s) URL, or bare hostname / IP (optional :port). Field name is historical.',
+    },
     interval_seconds: {type: 'integer', minimum: 5},
     enabled: {type: 'integer', enum: [0, 1]},
     group_id: {

@@ -151,8 +151,24 @@ export interface NotifierPlugin extends PluginInfo {
   registerRoutes?(app: FastifyInstance): void | Promise<void>
 }
 
+/** Target fields check plugins may inspect before accepting a target. */
+export interface TargetEvalParams {
+  url: string
+  interval_seconds: number
+  group_id: number | null
+}
+
+export type TargetCompatibility =
+  | {ok: true}
+  | {ok: false; reason: string}
+
 export interface CheckPlugin extends PluginInfo {
   check(ctx: CheckContext): Promise<CheckOutcome>
+  /**
+   * Optional. When omitted, the check is always compatible with any target.
+   * Core uses this to gray out checks in the UI and skip them at run time.
+   */
+  evaluateTarget?(params: TargetEvalParams): TargetCompatibility
   /** Optional HTTP routes under /api/plugins/<kind>/<id>/… (host applies the prefix). */
   registerRoutes?(app: FastifyInstance): void | Promise<void>
 }

@@ -5,12 +5,13 @@ export default function TcpCheckPage() {
     <section className="panel stack">
       <h2>TCP check</h2>
       <p className="muted">
-        Verifies TCP connectivity to the target host and port. Port is derived from
-        the URL when explicit port is not set.
+        Verifies TCP connectivity to the target host and port. Accepts an http(s)
+        URL, or a bare hostname / IP (optional <code>:port</code>).
       </p>
       <p className="muted small">
-        Default ports: <code>80</code> for <code>http</code>, <code>443</code> for{' '}
-        <code>https</code>. Uses <code>CHECK_TIMEOUT_MS</code>.
+        Default ports when omitted: <code>80</code> for bare hosts and{' '}
+        <code>http</code>, <code>443</code> for <code>https</code>. Uses{' '}
+        <code>CHECK_TIMEOUT_MS</code>.
       </p>
     </section>
   )

@@ -1,4 +1,5 @@
 import type { FormEvent, ReactNode } from 'react'
+import { withBase } from '@umpire/web-api'
 
 export const METHODS = [
   'GET',
@@ -53,7 +54,7 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (init?.body != null && !headers.has('content-type')) {
     headers.set('content-type', 'application/json')
   }
-  const res = await fetch(path, { ...init, headers })
+  const res = await fetch(withBase(path), { ...init, headers })
   const body = await res.json().catch(() => ({}))
   if (!res.ok) {
     throw new Error((body as { error?: string }).error || res.statusText)
