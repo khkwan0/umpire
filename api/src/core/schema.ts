@@ -13,7 +13,7 @@ export interface CoreColumnDef {
   references?: {
     table: string
     column: string
-    onDelete?: 'CASCADE' | 'SET NULL'
+    onDelete?: 'CASCADE' | 'SET NULL' | 'RESTRICT'
   }
 }
 
@@ -182,6 +182,99 @@ export const CORE_TABLES: CoreTableDef[] = [
         columns: ['target_id', 'notifier_id'],
         unique: true,
       },
+    ],
+  },
+  {
+    name: 'roles',
+    columns: [
+      {name: 'id', type: 'integer', primaryKey: true, autoIncrement: true},
+      {name: 'slug', type: 'text', notNull: true, unique: true},
+      {name: 'name', type: 'text', notNull: true},
+      {name: 'is_system', type: 'integer', notNull: true, default: 0},
+      {name: 'can_write', type: 'integer', notNull: true, default: 0},
+      {
+        name: 'created_at',
+        type: 'text',
+        notNull: true,
+        default: {type: 'now'},
+      },
+      {
+        name: 'updated_at',
+        type: 'text',
+        notNull: true,
+        default: {type: 'now'},
+      },
+    ],
+  },
+  {
+    name: 'role_plugins',
+    columns: [
+      {
+        name: 'role_id',
+        type: 'integer',
+        notNull: true,
+        references: {table: 'roles', column: 'id', onDelete: 'CASCADE'},
+      },
+      {name: 'kind', type: 'text', notNull: true},
+      {name: 'plugin_id', type: 'text', notNull: true},
+    ],
+    indexes: [
+      {
+        name: 'idx_role_plugins_role_kind_plugin',
+        columns: ['role_id', 'kind', 'plugin_id'],
+        unique: true,
+      },
+    ],
+  },
+  {
+    name: 'users',
+    columns: [
+      {name: 'id', type: 'integer', primaryKey: true, autoIncrement: true},
+      {name: 'username', type: 'text', notNull: true, unique: true},
+      {name: 'password_hash', type: 'text', notNull: true},
+      {
+        name: 'role_id',
+        type: 'integer',
+        notNull: true,
+        references: {table: 'roles', column: 'id', onDelete: 'RESTRICT'},
+      },
+      {
+        name: 'created_at',
+        type: 'text',
+        notNull: true,
+        default: {type: 'now'},
+      },
+      {
+        name: 'updated_at',
+        type: 'text',
+        notNull: true,
+        default: {type: 'now'},
+      },
+    ],
+    indexes: [{name: 'idx_users_role_id', columns: ['role_id']}],
+  },
+  {
+    name: 'sessions',
+    columns: [
+      {name: 'id', type: 'integer', primaryKey: true, autoIncrement: true},
+      {
+        name: 'user_id',
+        type: 'integer',
+        notNull: true,
+        references: {table: 'users', column: 'id', onDelete: 'CASCADE'},
+      },
+      {name: 'token_hash', type: 'text', notNull: true, unique: true},
+      {name: 'expires_at', type: 'text', notNull: true},
+      {
+        name: 'created_at',
+        type: 'text',
+        notNull: true,
+        default: {type: 'now'},
+      },
+    ],
+    indexes: [
+      {name: 'idx_sessions_user_id', columns: ['user_id']},
+      {name: 'idx_sessions_expires_at', columns: ['expires_at']},
     ],
   },
 ]

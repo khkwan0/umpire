@@ -165,13 +165,116 @@ const checkResultSchema = {
 const settingsSchema = {
   $id: 'Settings',
   type: 'object',
-  required: ['alert_policy', 'throttle_minutes'],
+  required: [
+    'alert_policy',
+    'throttle_minutes',
+    'auth_enabled',
+    'allow_readonly_without_auth',
+  ],
   properties: {
     alert_policy: {
       type: 'string',
       enum: ['state_change', 'every_fail', 'throttle'],
     },
     throttle_minutes: {type: 'integer', minimum: 1},
+    auth_enabled: {type: 'boolean'},
+    allow_readonly_without_auth: {type: 'boolean'},
+  },
+} as const
+
+const rolePluginRefSchema = {
+  $id: 'RolePluginRef',
+  type: 'object',
+  required: ['kind', 'id'],
+  properties: {
+    kind: {type: 'string', enum: ['check', 'notify', 'scheduler']},
+    id: {type: 'string'},
+  },
+} as const
+
+const roleSchema = {
+  $id: 'Role',
+  type: 'object',
+  required: [
+    'id',
+    'slug',
+    'name',
+    'is_system',
+    'can_write',
+    'plugins',
+    'created_at',
+    'updated_at',
+  ],
+  properties: {
+    id: {type: 'integer'},
+    slug: {type: 'string'},
+    name: {type: 'string'},
+    is_system: {type: 'boolean'},
+    can_write: {type: 'boolean'},
+    plugins: {
+      oneOf: [
+        {type: 'string', enum: ['all']},
+        {type: 'array', items: {$ref: 'RolePluginRef#'}},
+      ],
+    },
+    created_at: {type: 'string'},
+    updated_at: {type: 'string'},
+  },
+} as const
+
+const userSchema = {
+  $id: 'User',
+  type: 'object',
+  required: [
+    'id',
+    'username',
+    'role_id',
+    'role_slug',
+    'created_at',
+    'updated_at',
+  ],
+  properties: {
+    id: {type: 'integer'},
+    username: {type: 'string'},
+    role_id: {type: 'integer'},
+    role_slug: {type: 'string'},
+    created_at: {type: 'string'},
+    updated_at: {type: 'string'},
+  },
+} as const
+
+const authPrincipalSchema = {
+  $id: 'AuthPrincipal',
+  type: 'object',
+  required: [
+    'kind',
+    'user',
+    'is_admin',
+    'can_write',
+    'plugins',
+    'single_user_mode',
+  ],
+  properties: {
+    kind: {type: 'string', enum: ['anonymous', 'user']},
+    user: {oneOf: [{$ref: 'User#'}, {type: 'null'}]},
+    is_admin: {type: 'boolean'},
+    can_write: {type: 'boolean'},
+    plugins: {
+      oneOf: [
+        {type: 'string', enum: ['all']},
+        {type: 'array', items: {$ref: 'RolePluginRef#'}},
+      ],
+    },
+    single_user_mode: {type: 'boolean'},
+  },
+} as const
+
+const authMeSchema = {
+  $id: 'AuthMe',
+  type: 'object',
+  required: ['principal'],
+  properties: {
+    principal: {$ref: 'AuthPrincipal#'},
   },
 } as const
 
@@ -353,6 +456,11 @@ export async function registerOpenApi(app: FastifyInstance): Promise<void> {
     incidentSchema,
     checkResultSchema,
     settingsSchema,
+    rolePluginRefSchema,
+    roleSchema,
+    userSchema,
+    authPrincipalSchema,
+    authMeSchema,
     pluginRefSchema,
     notifierStatusSchema,
     statusTargetSchema,
@@ -372,11 +480,14 @@ export async function registerOpenApi(app: FastifyInstance): Promise<void> {
       info: {
         title: 'UMPIRE API',
         description:
-          'Universal Monitoring Plugin & Incident Reporter. Manage targets (with per-target check_ids / notifier_ids allowlists), groups, alert settings, and plugins. Plugin HTTP APIs are namespaced under /api/plugins/<kind>/<id>. See GET /api/plugins for the route catalog. Notifier plugins receive an AlertEvent (see components); the webhook notifier delivers that JSON with the HTTP method set in its UI.',
+          'Universal Monitoring Plugin & Incident Reporter. Manage targets (with per-target check_ids / notifier_ids allowlists), groups, alert settings, auth/users/roles, and plugins. Plugin HTTP APIs are namespaced under /api/plugins/<kind>/<id>. See GET /api/plugins for the route catalog. Notifier plugins receive an AlertEvent (see components); the webhook notifier delivers that JSON with the HTTP method set in its UI.',
         version: '1.0.0',
       },
       tags: [
         {name: 'health', description: 'Liveness'},
+        {name: 'auth', description: 'Session and auth policy'},
+        {name: 'users', description: 'User accounts (admin)'},
+        {name: 'roles', description: 'Roles and plugin allowlists (admin)'},
         {name: 'groups', description: 'Group trees and tags'},
         {
           name: 'targets',
@@ -400,7 +511,7 @@ export async function registerOpenApi(app: FastifyInstance): Promise<void> {
           description:
             'Webhook URL, HTTP method, and headers at /api/plugins/notify/webhook/config (webhook notifier)',
         },
-        {name: 'settings', description: 'Alert policy'},
+        {name: 'settings', description: 'Alert policy and auth toggles'},
         {name: 'status', description: 'Dashboard summary'},
         {
           name: 'incidents',

@@ -1,12 +1,16 @@
 import type {Incident} from '../incidents.js'
 import type {
+  AuthPrincipal,
   CheckResult,
   Group,
   GroupTreeNode,
   HealthStatus,
+  Role,
+  RolePluginRef,
   Settings,
   Target,
   TargetState,
+  User,
 } from '../plugins/types.js'
 import type {CoreTableDef} from './schema.js'
 
@@ -86,4 +90,42 @@ export interface CoreStore {
   schema(): CoreTableDef[]
   /** Snapshot of all core table rows (for GET /api/schema?data=1). */
   dumpData(): Record<string, unknown[]>
+
+  countUsers(): number
+  listUsers(): User[]
+  getUser(id: number): User | undefined
+  getUserByUsername(username: string): User | undefined
+  createUser(input: {username: string; password: string; role_id: number}): User
+  updateUser(
+    id: number,
+    patch: Partial<{username: string; password: string; role_id: number}>,
+  ): User | undefined
+  deleteUser(id: number): boolean
+  getUserPasswordHash(id: number): string | undefined
+
+  listRoles(): Role[]
+  getRole(id: number): Role | undefined
+  getRoleBySlug(slug: string): Role | undefined
+  createRole(input: {
+    name: string
+    can_write: boolean
+    plugins: RolePluginRef[]
+  }): Role
+  updateRole(
+    id: number,
+    patch: Partial<{
+      name: string
+      can_write: boolean
+      plugins: RolePluginRef[]
+    }>,
+  ): Role | undefined
+  deleteRole(id: number): boolean
+
+  createSession(userId: number, tokenHash: string, expiresAtIso: string): void
+  deleteSessionByTokenHash(tokenHash: string): void
+  deleteSessionsForUser(userId: number): void
+  pruneExpiredSessions(): void
+  resolveSessionPrincipal(rawToken: string): AuthPrincipal | null
+  anonymousReadOnlyPrincipal(): AuthPrincipal
+  principalForUser(userId: number): AuthPrincipal | null
 }

@@ -10,16 +10,17 @@ Writing a check, scheduler, or notifier: **[Plugin developer guide](plugins.md)*
 2. [Start here](#start-here)
 3. [Layout](#layout)
 4. [Boot sequence](#boot-sequence)
-5. [Frozen schema](#frozen-schema)
-6. [Pipeline](#pipeline)
-7. [Alert policy](#alert-policy)
-8. [Notifier routing](#notifier-routing)
-9. [Plugin host](#plugin-host)
-10. [HTTP API and UI shell](#http-api-and-ui-shell)
-11. [Realtime](#realtime)
-12. [Do / don’t](#do--dont)
-13. [Verify](#verify)
-14. [Source map](#source-map)
+5. [Authentication and RBAC](#authentication-and-rbac)
+6. [Frozen schema](#frozen-schema)
+7. [Pipeline](#pipeline)
+8. [Alert policy](#alert-policy)
+9. [Notifier routing](#notifier-routing)
+10. [Plugin host](#plugin-host)
+11. [HTTP API and UI shell](#http-api-and-ui-shell)
+12. [Realtime](#realtime)
+13. [Do / don’t](#do--dont)
+14. [Verify](#verify)
+15. [Source map](#source-map)
 
 ---
 
@@ -44,6 +45,7 @@ Shared TypeScript contracts live in [`api/src/plugins/types.ts`](../api/src/plug
 | Change *which* notifier gets an alert | [`api/src/core/notifierRouting.ts`](../api/src/core/notifierRouting.ts) | Plugin UI reimplementing `check_ids` |
 | Change what a cycle does | [`api/src/pipeline.ts`](../api/src/pipeline.ts) | Check plugins writing `check_results` |
 | Add a core HTTP resource | `api/src/routes/` + OpenAPI in that file | Plugin `registerRoutes` on `/api/targets` |
+| Add auth / users / roles | [`api/src/auth/`](../api/src/auth/) + routes | A new plugin kind for login |
 | Add a core UI page | `web/src/pages/` + [`web/src/App.tsx`](../web/src/App.tsx) | Plugin `ui/` (that is plugin-owned) |
 | Persist new monitoring fields | [`api/src/core/schema.ts`](../api/src/core/schema.ts) + [`sqlite.ts`](../api/src/core/sqlite.ts) | Plugin sidecar JSON for core history |
 | Enable/disable a loaded plugin | Plugin manager ([`manager.ts`](../api/src/plugins/manager.ts)) | Removing it from the pipeline by hard-coding ids |
@@ -101,11 +103,33 @@ Docker: [`api/Dockerfile`](../api/Dockerfile) and [`web/Dockerfile`](../web/Dock
 1. `initCore(DATABASE_PATH)` — open SQLite, apply frozen schema.
 2. `initPlugins()` — read [`api/plugins.json`](../api/plugins.json), load modules, call notifier `init()`, then `initPluginManager()`.
 3. `scheduler.init({ getTargets, run })` — `run` **is** `runCheck`. That is the only way a cycle starts.
-4. Register core Fastify routes, then `mountAllPluginRoutes`, then `GET /api/plugins` (catalog is filled by the mount).
+4. Register auth gate (`onRequest`), core Fastify routes (including auth/users/roles), then `mountAllPluginRoutes`, then `GET /api/plugins` (catalog is filled by the mount).
 5. `listen`, then `scheduler.start()`.
 6. On `SIGTERM` / `SIGINT`: `scheduler.stop()`, `closeCore()`.
 
 `PLUGINS_CONFIG` overrides the `plugins.json` path. `PLUGINS_ROOT` overrides the implementations directory (default: repo `plugins/`). `DATABASE_PATH` defaults to `./data/monitor.sqlite`.
+
+---
+
+## Authentication and RBAC
+
+Auth is **host-owned** (not a plugin kind). Default: disabled — every HTTP API is open.
+
+| Setting | Meaning |
+|---------|---------|
+| `auth_enabled` | When true, mutating methods need a session with `can_write`; admin-only paths need `is_admin` |
+| `allow_readonly_without_auth` | When auth is on, allow unauthenticated `GET`/`HEAD` as read-only |
+
+Rules:
+
+- Cannot set `auth_enabled` until at least one user exists.
+- With exactly one user, that user is always effective **admin** (full access), regardless of assigned role.
+- Built-in roles `admin` and `read_only` are seeded and immutable. Custom roles have `can_write` plus a plugin allowlist (`role_plugins`). Empty allowlist = no plugin HTTP/UI access.
+- Admin-only: `/api/users`, `/api/roles`, `PUT /api/settings`, plugin-manager mutations.
+- Plugin namespaces `/api/plugins/<kind>/<id>/…` are gated by the allowlist for non-admin roles.
+- Pipeline / in-process `runCheck` writes are **not** gated by HTTP auth.
+
+Source: [`api/src/auth/`](../api/src/auth/), routes in `api/src/routes/auth.ts`, `users.ts`, `roles.ts`. UI: Settings + `/login`.
 
 ---
 
@@ -117,11 +141,15 @@ Source of truth: [`api/src/core/schema.ts`](../api/src/core/schema.ts). Publishe
 |-------|------|
 | `groups` | Tree (`parent = 0` is a root). Targets attach to **child** groups only. |
 | `targets` | What to watch: `url`, `interval_seconds`, `enabled`, `group_id`, `check_ids`, `notifier_ids` |
-| `settings` | Alert policy + throttle (`key` / `value`) |
+| `settings` | Alert policy, throttle, and auth toggles (`key` / `value`) |
 | `check_results` | History of aggregated runs |
 | `target_state` | Latest health, last check, last alert time |
 | `target_check_configs` | Per-target check plugin JSON overrides |
 | `target_notifier_configs` | Per-target notifier JSON + core `check_ids` allowlist |
+| `roles` | Built-in `admin` / `read_only` plus custom roles (`can_write`) |
+| `role_plugins` | Custom role plugin allowlists (`kind` + `plugin_id`) |
+| `users` | Local accounts (`username`, `password_hash`, `role_id`) |
+| `sessions` | HttpOnly cookie sessions (`token_hash`, `expires_at`) |
 
 Plugins **must not** `ALTER` these tables. Adding a column is a core migration in `schema.ts` **and** `sqlite.ts` (including any `ensureColumn` path). Prefer JSON override blobs over new columns when the data is plugin-specific.
 
@@ -217,9 +245,9 @@ Pipeline and UI both honor `isPluginEnabled`. Disabled check/notifier plugins st
 
 ## HTTP API and UI shell
 
-Core Fastify modules live in [`api/src/routes/`](../api/src/routes/). Add `schema` on new routes so Swagger lists them. Do not let plugins register core paths.
+Core Fastify modules live in [`api/src/routes/`](../api/src/routes/). Add `schema` on new routes so Swagger lists them. Do not let plugins register core paths. Auth gate: [`api/src/auth/`](../api/src/auth/).
 
-Core UI pages (always present): Dashboard, Groups, Targets, Settings, plus host screens for HTTP check overrides and notifier target overrides. Plugin pages are globbed at build time from `plugins/*/*/ui/index.tsx` ([`web/src/App.tsx`](../web/src/App.tsx)). Rebuild **web** after adding a plugin UI.
+Core UI pages (always present): Dashboard, Groups, Targets, Settings, Login (when auth requires it), plus host screens for HTTP check overrides and notifier target overrides. Plugin pages are globbed at build time from `plugins/*/*/ui/index.tsx` ([`web/src/App.tsx`](../web/src/App.tsx)). Rebuild **web** after adding a plugin UI.
 
 [`PluginUiModule`](../web/src/plugin-ui.ts): `check` → Checks dropdown, `notify` → Notifiers dropdown, `scheduler` → top-level link. Optional `Dashboard` is a panel on the core home page, not a replacement for it.
 
@@ -245,6 +273,7 @@ Known events: `plugin-manager.updated`, `targets.updated`, `status.updated`, `in
 | Filter on plugin manager in the pipeline | Hard-code plugin ids in `runCheck` |
 | Apply `check_ids` in `notifierRouting.ts` | Duplicate check allowlists in notifiers |
 | Namespace plugin HTTP | Accept `registerRoutes` on `/api/targets` |
+| Use correct HTTP verbs on plugin routes (auth gate) | Hide mutations behind `GET` |
 | Put plugin secrets in sidecar files | Put FCM/webhook secrets in core `.env` |
 | Add Jest coverage next to the module you change | Skip `pipeline.test.ts` / `sqlite.test.ts` for behavior changes |
 | Update this guide + [`plugins.md`](plugins.md) when contracts move | Grow core to “just this one probe” |
@@ -264,11 +293,12 @@ Minimum checks for the area you touched:
 
 1. Pipeline / policy / check compatibility: `npx jest src/pipeline.test.ts src/alert.test.ts src/checkCompatibility.test.ts` (from `api/`)
 2. Schema / store: `npx jest src/core/sqlite.test.ts`
-3. Notifier `check_ids`: `npx jest src/core/notifierRouting.test.ts`
-4. `GET /api/schema` still lists only frozen tables
-5. Web: Dashboard, Targets, Settings still load; plugin glob still picks up shipped UIs; Targets grays out incompatible checks for bare hosts vs URLs
-6. One full check cycle: paused target skipped; enabled target writes `check_results` + `target_state`
-7. Docker (if you touch images): build from repo root so `api/Dockerfile` / `web/Dockerfile` copy `plugins/`
+3. Auth / RBAC: `npx jest src/auth/`
+4. Notifier `check_ids`: `npx jest src/core/notifierRouting.test.ts`
+5. `GET /api/schema` still lists only frozen tables
+6. Web: Dashboard, Targets, Settings still load; plugin glob still picks up shipped UIs; Targets grays out incompatible checks for bare hosts vs URLs
+7. One full check cycle: paused target skipped; enabled target writes `check_results` + `target_state`
+8. Docker (if you touch images): build from repo root so `api/Dockerfile` / `web/Dockerfile` copy `plugins/`
 
 ---
 
@@ -277,6 +307,7 @@ Minimum checks for the area you touched:
 | Piece | Path |
 |-------|------|
 | Boot | [`api/src/index.ts`](../api/src/index.ts) |
+| Auth gate / sessions | [`api/src/auth/`](../api/src/auth/) |
 | Pipeline | [`api/src/pipeline.ts`](../api/src/pipeline.ts) |
 | Check ↔ target compatibility | [`api/src/checkCompatibility.ts`](../api/src/checkCompatibility.ts) |
 | Target address parse | [`api/src/targetAddress.ts`](../api/src/targetAddress.ts) |

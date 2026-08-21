@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import {NavLink, Route, Routes} from 'react-router-dom'
+import {NavLink, Navigate, Route, Routes} from 'react-router-dom'
 import {useLocation} from 'react-router-dom'
 import {
   api,
@@ -15,6 +15,7 @@ import {
   type PluginCatalogEntry,
   type PluginManagerState,
 } from './api'
+import {useAuth} from './auth'
 import ReconnectBanner from './ReconnectBanner'
 import {assetUrl} from './basePath'
 import {
@@ -28,6 +29,7 @@ import Dashboard from './pages/Dashboard'
 import Groups from './pages/Groups'
 import Targets from './pages/Targets'
 import SettingsPage from './pages/Settings'
+import LoginPage from './pages/Login'
 import HttpCheckTargetOverride from './pages/HttpCheckTargetOverride'
 import NotifierTargetOverride from './pages/NotifierTargetOverride'
 import {useOnboarding} from './onboarding'
@@ -120,6 +122,14 @@ function NavDropdown({
 
 export default function App() {
   const location = useLocation()
+  const {
+    ready: authReady,
+    policy,
+    principal,
+    reconnecting: authReconnecting,
+    logout,
+    canAccessPlugin,
+  } = useAuth()
   const [catalog, setCatalog] = useState<PluginCatalogEntry[] | null>(null)
   const [pluginManager, setPluginManager] = useState<PluginManagerState | null>(
     null,
@@ -127,6 +137,7 @@ export default function App() {
   const [reconnecting, setReconnecting] = useState(false)
 
   const load = useCallback(async () => {
+    if (policy?.login_required && principal?.kind !== 'user') return
     try {
       const [nextCatalog, nextManager] = await Promise.all([
         api.plugins.list(),
@@ -143,7 +154,7 @@ export default function App() {
       setCatalog([])
       setReconnecting(false)
     }
-  }, [])
+  }, [policy, principal])
 
   useEffect(() => {
     void load()
@@ -161,6 +172,7 @@ export default function App() {
     if (!catalog) return []
     return uiModules.filter(ui => {
       if (!catalog.some(e => isLoaded(e, ui))) return false
+      if (!canAccessPlugin(ui.kind, ui.id)) return false
       if (ui.kind === 'notify') {
         const notifier = pluginManager?.notifiers.find(n => n.id === ui.id)
         return notifier ? notifier.enabled : true
@@ -171,7 +183,7 @@ export default function App() {
       }
       return true
     })
-  }, [catalog, pluginManager])
+  }, [catalog, pluginManager, canAccessPlugin])
 
   const dashboardWidgets = useMemo(() => {
     if (!catalog) return []
@@ -179,6 +191,7 @@ export default function App() {
     for (const entry of catalog) {
       const ui = uiModules.find(m => isLoaded(entry, m))
       if (!ui || !hasDashboardWidget(ui)) continue
+      if (!canAccessPlugin(ui.kind, ui.id)) continue
       if (ui.kind === 'notify') {
         const notifier = pluginManager?.notifiers.find(n => n.id === ui.id)
         if (notifier && !notifier.enabled) continue
@@ -190,7 +203,7 @@ export default function App() {
       out.push(ui)
     }
     return out
-  }, [catalog, pluginManager])
+  }, [catalog, pluginManager, canAccessPlugin])
 
   const nonDropdownUi = useMemo(
     () => activeUi.filter(ui => ui.kind === 'scheduler'),
@@ -210,6 +223,28 @@ export default function App() {
   )
   const {forceNotifiersOpen} = useOnboarding()
 
+  if (!authReady) {
+    return (
+      <div className="shell">
+        <main>
+          <p className="muted">Loading…</p>
+        </main>
+      </div>
+    )
+  }
+
+  if (location.pathname === '/login') {
+    return (
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+      </Routes>
+    )
+  }
+
+  if (policy?.login_required && principal?.kind !== 'user') {
+    return <Navigate to="/login" replace state={{from: location.pathname}} />
+  }
+
   return (
     <div className="shell">
       <header className="top">
@@ -228,14 +263,14 @@ export default function App() {
         </div>
         <div
           className={
-            reconnecting || realtimeMode === 'reconnecting'
+            reconnecting || authReconnecting || realtimeMode === 'reconnecting'
               ? 'warn small'
               : realtimeMode === 'sse'
                 ? 'ok-text small'
                 : 'error small'
           }
         >
-          {reconnecting
+          {reconnecting || authReconnecting
             ? 'Reconnecting to API…'
             : realtimeMode === 'reconnecting'
               ? 'Realtime reconnecting…'
@@ -284,10 +319,28 @@ export default function App() {
             )}
           </NavDropdown>
           <NavLink to="/settings">Settings</NavLink>
+          {principal?.kind === 'user' ? (
+            <button
+              type="button"
+              className="nav-text-button"
+              onClick={() => void logout()}
+            >
+              Sign out ({principal.user?.username})
+            </button>
+          ) : policy?.auth_enabled ? (
+            <NavLink to="/login">Sign in</NavLink>
+          ) : null}
         </nav>
       </header>
       <main>
-        {reconnecting && <ReconnectBanner />}
+        {(reconnecting || authReconnecting) && <ReconnectBanner />}
+        {!principal?.can_write && policy?.auth_enabled && (
+          <p className="muted small read-only-banner">
+            Read-only mode
+            {principal?.kind === 'anonymous' ? ' (not signed in)' : ''}.
+            Mutations require a signed-in user with write access.
+          </p>
+        )}
         <Routes>
           <Route path="/" element={<Dashboard widgets={dashboardWidgets} />} />
           <Route path="/groups" element={<Groups />} />
@@ -310,6 +363,7 @@ export default function App() {
             />
           ))}
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/login" element={<LoginPage />} />
         </Routes>
       </main>
     </div>

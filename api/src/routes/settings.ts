@@ -13,7 +13,7 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
     {
       schema: {
         tags: ['settings'],
-        summary: 'Get alert settings',
+        summary: 'Get alert and auth settings',
         response: {
           200: {$ref: 'Settings#'},
         },
@@ -23,13 +23,18 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
   )
 
   app.put<{
-    Body: {alert_policy?: AlertPolicy; throttle_minutes?: number}
+    Body: {
+      alert_policy?: AlertPolicy
+      throttle_minutes?: number
+      auth_enabled?: boolean
+      allow_readonly_without_auth?: boolean
+    }
   }>(
     '/api/settings',
     {
       schema: {
         tags: ['settings'],
-        summary: 'Update alert settings',
+        summary: 'Update alert and auth settings',
         body: {
           type: 'object',
           properties: {
@@ -38,6 +43,8 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
               enum: ['state_change', 'every_fail', 'throttle'],
             },
             throttle_minutes: {type: 'integer', minimum: 1},
+            auth_enabled: {type: 'boolean'},
+            allow_readonly_without_auth: {type: 'boolean'},
           },
         },
         response: {

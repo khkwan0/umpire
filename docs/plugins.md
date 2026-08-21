@@ -380,6 +380,15 @@ Config path override: `PLUGINS_CONFIG`. Implementations directory override: `PLU
 
 Host module: [`api/src/plugins/routes.ts`](../api/src/plugins/routes.ts).
 
+### Auth contract (required)
+
+When operators enable auth in Settings, core enforces permissions on **all** `/api/*` routes, including every plugin namespace:
+
+- Use real HTTP verbs: `GET`/`HEAD` for reads, `POST`/`PUT`/`PATCH`/`DELETE` for mutations. Do **not** hide writes behind `GET`.
+- Custom roles may be limited to specific `kind`/`id` plugins; core returns `403` for other plugin paths.
+- Users/roles/settings/plugin-manager remain core/admin concerns — plugins must not reimplement them.
+- Optional helper: `getAuthContext(request)` from [`api/src/auth/`](../api/src/auth/) if a handler needs the principal beyond the automatic gate.
+
 ### What `registerRoutes(app)` does
 
 At startup, after core routes are registered, the host calls `registerRoutes` (if present) with a **scoped** Fastify instance already prefixed:

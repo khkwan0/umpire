@@ -59,6 +59,52 @@ export interface Target {
 export interface Settings {
   alert_policy: AlertPolicy
   throttle_minutes: number
+  /** When false (default), all HTTP APIs are open. */
+  auth_enabled: boolean
+  /**
+   * When auth is enabled, allow unauthenticated GET/HEAD as read-only.
+   * Ignored when auth_enabled is false.
+   */
+  allow_readonly_without_auth: boolean
+}
+
+export type AuthPluginKind = 'check' | 'notify' | 'scheduler'
+
+export interface RolePluginRef {
+  kind: AuthPluginKind
+  id: string
+}
+
+export interface Role {
+  id: number
+  slug: string
+  name: string
+  is_system: boolean
+  can_write: boolean
+  /** System roles always have all plugins; custom roles use an allowlist. */
+  plugins: 'all' | RolePluginRef[]
+  created_at: string
+  updated_at: string
+}
+
+/** Public user record (never includes password_hash). */
+export interface User {
+  id: number
+  username: string
+  role_id: number
+  role_slug: string
+  created_at: string
+  updated_at: string
+}
+
+export interface AuthPrincipal {
+  kind: 'anonymous' | 'user'
+  user: User | null
+  is_admin: boolean
+  can_write: boolean
+  plugins: 'all' | RolePluginRef[]
+  /** True when exactly one user exists; that user is always effective admin. */
+  single_user_mode: boolean
 }
 
 export interface CheckResult {

@@ -1,15 +1,22 @@
 import Database from 'better-sqlite3'
 import fs from 'node:fs'
 import path from 'node:path'
+import {hashSessionToken} from '../auth/cookies.js'
+import {assertPasswordPolicy, hashPassword} from '../auth/password.js'
 import type {
   AlertPolicy,
+  AuthPluginKind,
+  AuthPrincipal,
   CheckResult,
   Group,
   GroupTreeNode,
   HealthStatus,
+  Role,
+  RolePluginRef,
   Settings,
   Target,
   TargetState,
+  User,
 } from '../plugins/types.js'
 import {buildIncidents, type IncidentSourceRow} from '../incidents.js'
 import {healthToDb} from '../plugins/types.js'
@@ -154,6 +161,72 @@ function buildStatements(database: Database.Database) {
     insertSettingIgnore: database.prepare(
       `INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`,
     ),
+    insertRoleIgnore: database.prepare(
+      `INSERT OR IGNORE INTO roles (slug, name, is_system, can_write) VALUES (?, ?, ?, ?)`,
+    ),
+    countUsers: database.prepare(`SELECT COUNT(*) AS n FROM users`),
+    selectUsers: database.prepare(
+      `SELECT u.id, u.username, u.role_id, r.slug AS role_slug, u.created_at, u.updated_at
+       FROM users u JOIN roles r ON r.id = u.role_id
+       ORDER BY u.id ASC`,
+    ),
+    selectUserById: database.prepare(
+      `SELECT u.id, u.username, u.role_id, r.slug AS role_slug, u.created_at, u.updated_at
+       FROM users u JOIN roles r ON r.id = u.role_id
+       WHERE u.id = ?`,
+    ),
+    selectUserByUsername: database.prepare(
+      `SELECT u.id, u.username, u.role_id, r.slug AS role_slug, u.created_at, u.updated_at
+       FROM users u JOIN roles r ON r.id = u.role_id
+       WHERE u.username = ? COLLATE NOCASE`,
+    ),
+    selectUserPasswordHash: database.prepare(
+      `SELECT password_hash FROM users WHERE id = ?`,
+    ),
+    insertUser: database.prepare(
+      `INSERT INTO users (username, password_hash, role_id) VALUES (?, ?, ?)`,
+    ),
+    updateUser: database.prepare(
+      `UPDATE users SET username = ?, password_hash = ?, role_id = ?, updated_at = datetime('now') WHERE id = ?`,
+    ),
+    deleteUserById: database.prepare(`DELETE FROM users WHERE id = ?`),
+    selectRoles: database.prepare(`SELECT * FROM roles ORDER BY id ASC`),
+    selectRoleById: database.prepare(`SELECT * FROM roles WHERE id = ?`),
+    selectRoleBySlug: database.prepare(`SELECT * FROM roles WHERE slug = ?`),
+    insertRole: database.prepare(
+      `INSERT INTO roles (slug, name, is_system, can_write) VALUES (?, ?, 0, ?)`,
+    ),
+    updateRole: database.prepare(
+      `UPDATE roles SET name = ?, can_write = ?, updated_at = datetime('now') WHERE id = ?`,
+    ),
+    deleteRoleById: database.prepare(`DELETE FROM roles WHERE id = ?`),
+    selectRolePlugins: database.prepare(
+      `SELECT kind, plugin_id AS id FROM role_plugins WHERE role_id = ? ORDER BY kind ASC, plugin_id ASC`,
+    ),
+    deleteRolePlugins: database.prepare(
+      `DELETE FROM role_plugins WHERE role_id = ?`,
+    ),
+    insertRolePlugin: database.prepare(
+      `INSERT INTO role_plugins (role_id, kind, plugin_id) VALUES (?, ?, ?)`,
+    ),
+    countUsersWithRole: database.prepare(
+      `SELECT COUNT(*) AS n FROM users WHERE role_id = ?`,
+    ),
+    insertSession: database.prepare(
+      `INSERT INTO sessions (user_id, token_hash, expires_at) VALUES (?, ?, ?)`,
+    ),
+    deleteSessionByHash: database.prepare(
+      `DELETE FROM sessions WHERE token_hash = ?`,
+    ),
+    deleteSessionsForUser: database.prepare(
+      `DELETE FROM sessions WHERE user_id = ?`,
+    ),
+    pruneExpiredSessions: database.prepare(
+      `DELETE FROM sessions WHERE expires_at < datetime('now')`,
+    ),
+    selectSessionByHash: database.prepare(
+      `SELECT user_id FROM sessions WHERE token_hash = ? AND expires_at >= datetime('now')`,
+    ),
     dumpSelect: Object.fromEntries(
       CORE_TABLES.map(table => [
         table.name,
@@ -289,6 +362,148 @@ function parsePluginIdsJson(raw: unknown, fieldName: string): string[] {
   }
 }
 
+type UserRow = {
+  id: number
+  username: string
+  role_id: number
+  role_slug: string
+  created_at: string
+  updated_at: string
+}
+
+type RoleRow = {
+  id: number
+  slug: string
+  name: string
+  is_system: number
+  can_write: number
+  created_at: string
+  updated_at: string
+}
+
+function mapUser(row: UserRow): User {
+  return {
+    id: row.id,
+    username: row.username,
+    role_id: row.role_id,
+    role_slug: row.role_slug,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  }
+}
+
+function mapRole(row: RoleRow): Role {
+  const isSystem = Boolean(row.is_system)
+  const plugins: Role['plugins'] = isSystem
+    ? 'all'
+    : (
+        getStmts().selectRolePlugins.all(row.id) as Array<{
+          kind: string
+          id: string
+        }>
+      ).map(p => ({
+        kind: p.kind as AuthPluginKind,
+        id: p.id,
+      }))
+  return {
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
+    is_system: isSystem,
+    can_write: Boolean(row.can_write),
+    plugins,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  }
+}
+
+function normalizeUsername(username: string): string {
+  if (typeof username !== 'string' || !username.trim()) {
+    throw new Error('username is required')
+  }
+  const trimmed = username.trim()
+  if (trimmed.length < 2) {
+    throw new Error('username must be at least 2 characters')
+  }
+  if (!/^[a-zA-Z0-9._-]+$/.test(trimmed)) {
+    throw new Error(
+      'username may only contain letters, numbers, dots, underscores, and hyphens',
+    )
+  }
+  return trimmed
+}
+
+function normalizeRoleName(name: string): string {
+  if (typeof name !== 'string' || !name.trim()) {
+    throw new Error('name is required')
+  }
+  return name.trim()
+}
+
+function slugify(name: string): string {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+  return slug || 'role'
+}
+
+function uniqueRoleSlug(base: string): string {
+  let slug = base
+  let n = 2
+  while (getStmts().selectRoleBySlug.get(slug)) {
+    slug = `${base}_${n}`
+    n += 1
+  }
+  return slug
+}
+
+const AUTH_PLUGIN_KINDS = new Set<AuthPluginKind>([
+  'check',
+  'notify',
+  'scheduler',
+])
+
+function normalizeRolePlugins(input: RolePluginRef[]): RolePluginRef[] {
+  if (!Array.isArray(input)) {
+    throw new Error('plugins must be an array')
+  }
+  const out: RolePluginRef[] = []
+  const seen = new Set<string>()
+  for (const item of input) {
+    if (
+      !item ||
+      typeof item !== 'object' ||
+      typeof item.kind !== 'string' ||
+      typeof item.id !== 'string'
+    ) {
+      throw new Error('plugins entries must include kind and id')
+    }
+    const kind = item.kind as AuthPluginKind
+    const id = item.id.trim()
+    if (!AUTH_PLUGIN_KINDS.has(kind)) {
+      throw new Error(`invalid plugin kind: ${item.kind}`)
+    }
+    if (!id) throw new Error('plugin id is required')
+    const key = `${kind}:${id}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push({kind, id})
+  }
+  return out
+}
+
+function replaceRolePlugins(roleId: number, plugins: RolePluginRef[]): void {
+  const stmts = getStmts()
+  const tx = getDb().transaction(() => {
+    stmts.deleteRolePlugins.run(roleId)
+    for (const p of plugins) {
+      stmts.insertRolePlugin.run(roleId, p.kind, p.id)
+    }
+  })
+  tx()
+}
+
 type TargetRow = Omit<Target, 'check_ids' | 'notifier_ids'> & {
   check_ids?: string | null
   notifier_ids?: string | null
@@ -373,7 +588,22 @@ export const core: CoreStore = {
     const out: Record<string, unknown[]> = {}
     const dumpSelect = getStmts().dumpSelect
     for (const table of CORE_TABLES) {
-      out[table.name] = dumpSelect[table.name]!.all() as unknown[]
+      const rows = dumpSelect[table.name]!.all() as Array<
+        Record<string, unknown>
+      >
+      if (table.name === 'users') {
+        out[table.name] = rows.map(row => ({
+          ...row,
+          password_hash: '[redacted]',
+        }))
+      } else if (table.name === 'sessions') {
+        out[table.name] = rows.map(row => ({
+          ...row,
+          token_hash: '[redacted]',
+        }))
+      } else {
+        out[table.name] = rows
+      }
     }
     return out
   },
@@ -390,6 +620,8 @@ export const core: CoreStore = {
         ? policy
         : 'state_change',
       throttle_minutes: Math.max(1, Number(map.throttle_minutes) || 30),
+      auth_enabled: map.auth_enabled === '1',
+      allow_readonly_without_auth: map.allow_readonly_without_auth === '1',
     }
   },
 
@@ -398,6 +630,10 @@ export const core: CoreStore = {
     const next: Settings = {
       alert_policy: partial.alert_policy ?? current.alert_policy,
       throttle_minutes: partial.throttle_minutes ?? current.throttle_minutes,
+      auth_enabled: partial.auth_enabled ?? current.auth_enabled,
+      allow_readonly_without_auth:
+        partial.allow_readonly_without_auth ??
+        current.allow_readonly_without_auth,
     }
     if (
       !['state_change', 'every_fail', 'throttle'].includes(next.alert_policy)
@@ -407,9 +643,17 @@ export const core: CoreStore = {
     if (!Number.isFinite(next.throttle_minutes) || next.throttle_minutes < 1) {
       throw new Error('throttle_minutes must be >= 1')
     }
+    if (next.auth_enabled && core.countUsers() < 1) {
+      throw new Error('Cannot enable auth until at least one user exists')
+    }
     const upsert = getStmts().upsertSetting
     upsert.run('alert_policy', next.alert_policy)
     upsert.run('throttle_minutes', String(next.throttle_minutes))
+    upsert.run('auth_enabled', next.auth_enabled ? '1' : '0')
+    upsert.run(
+      'allow_readonly_without_auth',
+      next.allow_readonly_without_auth ? '1' : '0',
+    )
     return next
   },
 
@@ -730,6 +974,227 @@ export const core: CoreStore = {
   getStatusSummary() {
     return getStmts().selectStatusSummary.all()
   },
+
+  countUsers(): number {
+    const row = getStmts().countUsers.get() as {n: number}
+    return Number(row.n) || 0
+  },
+
+  listUsers(): User[] {
+    return (getStmts().selectUsers.all() as UserRow[]).map(mapUser)
+  },
+
+  getUser(id: number): User | undefined {
+    const row = getStmts().selectUserById.get(id) as UserRow | undefined
+    return row ? mapUser(row) : undefined
+  },
+
+  getUserByUsername(username: string): User | undefined {
+    const row = getStmts().selectUserByUsername.get(username) as
+      UserRow | undefined
+    return row ? mapUser(row) : undefined
+  },
+
+  getUserPasswordHash(id: number): string | undefined {
+    const row = getStmts().selectUserPasswordHash.get(id) as
+      {password_hash: string} | undefined
+    return row?.password_hash
+  },
+
+  createUser(input: {
+    username: string
+    password: string
+    role_id: number
+  }): User {
+    const username = normalizeUsername(input.username)
+    assertPasswordPolicy(input.password)
+    const role = core.getRole(input.role_id)
+    if (!role) throw new Error('role not found')
+    if (core.getUserByUsername(username)) {
+      throw new Error('username already exists')
+    }
+    const result = getStmts().insertUser.run(
+      username,
+      hashPassword(input.password),
+      input.role_id,
+    )
+    return core.getUser(Number(result.lastInsertRowid))!
+  },
+
+  updateUser(
+    id: number,
+    patch: Partial<{username: string; password: string; role_id: number}>,
+  ): User | undefined {
+    const existing = core.getUser(id)
+    if (!existing) return undefined
+    const passwordHash = core.getUserPasswordHash(id)
+    if (!passwordHash) return undefined
+
+    const username =
+      patch.username !== undefined
+        ? normalizeUsername(patch.username)
+        : existing.username
+    if (username !== existing.username && core.getUserByUsername(username)) {
+      throw new Error('username already exists')
+    }
+
+    let nextHash = passwordHash
+    if (patch.password !== undefined) {
+      assertPasswordPolicy(patch.password)
+      nextHash = hashPassword(patch.password)
+    }
+
+    const roleId = patch.role_id ?? existing.role_id
+    if (!core.getRole(roleId)) throw new Error('role not found')
+
+    getStmts().updateUser.run(username, nextHash, roleId, id)
+    if (patch.password !== undefined) {
+      core.deleteSessionsForUser(id)
+    }
+    return core.getUser(id)
+  },
+
+  deleteUser(id: number): boolean {
+    const settings = core.getSettings()
+    if (settings.auth_enabled && core.countUsers() <= 1) {
+      throw new Error('Cannot delete the last user while auth is enabled')
+    }
+    const result = getStmts().deleteUserById.run(id)
+    return result.changes > 0
+  },
+
+  listRoles(): Role[] {
+    const rows = getStmts().selectRoles.all() as RoleRow[]
+    return rows.map(mapRole)
+  },
+
+  getRole(id: number): Role | undefined {
+    const row = getStmts().selectRoleById.get(id) as RoleRow | undefined
+    return row ? mapRole(row) : undefined
+  },
+
+  getRoleBySlug(slug: string): Role | undefined {
+    const row = getStmts().selectRoleBySlug.get(slug) as RoleRow | undefined
+    return row ? mapRole(row) : undefined
+  },
+
+  createRole(input: {
+    name: string
+    can_write: boolean
+    plugins: RolePluginRef[]
+  }): Role {
+    const name = normalizeRoleName(input.name)
+    const slug = uniqueRoleSlug(slugify(name))
+    const plugins = normalizeRolePlugins(input.plugins)
+    const result = getStmts().insertRole.run(
+      slug,
+      name,
+      input.can_write ? 1 : 0,
+    )
+    const id = Number(result.lastInsertRowid)
+    replaceRolePlugins(id, plugins)
+    return core.getRole(id)!
+  },
+
+  updateRole(
+    id: number,
+    patch: Partial<{
+      name: string
+      can_write: boolean
+      plugins: RolePluginRef[]
+    }>,
+  ): Role | undefined {
+    const existing = core.getRole(id)
+    if (!existing) return undefined
+    if (existing.is_system) {
+      throw new Error('System roles cannot be modified')
+    }
+    const name =
+      patch.name !== undefined ? normalizeRoleName(patch.name) : existing.name
+    const canWrite =
+      patch.can_write !== undefined ? patch.can_write : existing.can_write
+    getStmts().updateRole.run(name, canWrite ? 1 : 0, id)
+    if (patch.plugins !== undefined) {
+      replaceRolePlugins(id, normalizeRolePlugins(patch.plugins))
+    }
+    return core.getRole(id)
+  },
+
+  deleteRole(id: number): boolean {
+    const existing = core.getRole(id)
+    if (!existing) return false
+    if (existing.is_system) {
+      throw new Error('System roles cannot be deleted')
+    }
+    const users = getStmts().countUsersWithRole.get(id) as {n: number}
+    if (Number(users.n) > 0) {
+      throw new Error('Cannot delete a role that is assigned to users')
+    }
+    const result = getStmts().deleteRoleById.run(id)
+    return result.changes > 0
+  },
+
+  createSession(userId: number, tokenHash: string, expiresAtIso: string): void {
+    getStmts().insertSession.run(userId, tokenHash, expiresAtIso)
+  },
+
+  deleteSessionByTokenHash(tokenHash: string): void {
+    getStmts().deleteSessionByHash.run(tokenHash)
+  },
+
+  deleteSessionsForUser(userId: number): void {
+    getStmts().deleteSessionsForUser.run(userId)
+  },
+
+  pruneExpiredSessions(): void {
+    getStmts().pruneExpiredSessions.run()
+  },
+
+  resolveSessionPrincipal(rawToken: string): AuthPrincipal | null {
+    core.pruneExpiredSessions()
+    const tokenHash = hashSessionToken(rawToken)
+    const row = getStmts().selectSessionByHash.get(tokenHash) as
+      {user_id: number} | undefined
+    if (!row) return null
+    return core.principalForUser(row.user_id)
+  },
+
+  anonymousReadOnlyPrincipal(): AuthPrincipal {
+    return {
+      kind: 'anonymous',
+      user: null,
+      is_admin: false,
+      can_write: false,
+      plugins: 'all',
+      single_user_mode: core.countUsers() === 1,
+    }
+  },
+
+  principalForUser(userId: number): AuthPrincipal | null {
+    const user = core.getUser(userId)
+    if (!user) return null
+    const role = core.getRole(user.role_id)
+    if (!role) return null
+    const singleUserMode = core.countUsers() === 1
+    if (singleUserMode || role.slug === 'admin') {
+      return {
+        kind: 'user',
+        user,
+        is_admin: true,
+        can_write: true,
+        plugins: 'all',
+        single_user_mode: singleUserMode,
+      }
+    }
+    return {
+      kind: 'user',
+      user,
+      is_admin: false,
+      can_write: role.can_write,
+      plugins: role.plugins,
+      single_user_mode: false,
+    }
+  },
 }
 
 export function initCore(databasePath: string): void {
@@ -817,6 +1282,48 @@ export function initCore(databasePath: string): void {
 
     CREATE UNIQUE INDEX IF NOT EXISTS idx_target_notifier_configs_target_notifier
       ON target_notifier_configs(target_id, notifier_id);
+
+    CREATE TABLE IF NOT EXISTS roles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      is_system INTEGER NOT NULL DEFAULT 0,
+      can_write INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS role_plugins (
+      role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL,
+      plugin_id TEXT NOT NULL,
+      UNIQUE(role_id, kind, plugin_id)
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_role_plugins_role_kind_plugin
+      ON role_plugins(role_id, kind, plugin_id);
+
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE RESTRICT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_users_role_id ON users(role_id);
+
+    CREATE TABLE IF NOT EXISTS sessions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_hash TEXT NOT NULL UNIQUE,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
   `)
 
   ensureColumn(
@@ -832,6 +1339,12 @@ export function initCore(databasePath: string): void {
   const insertSetting = stmts.insertSettingIgnore
   insertSetting.run('alert_policy', 'state_change')
   insertSetting.run('throttle_minutes', '30')
+  insertSetting.run('auth_enabled', '0')
+  insertSetting.run('allow_readonly_without_auth', '0')
+
+  const insertRole = stmts.insertRoleIgnore
+  insertRole.run('admin', 'Admin', 1, 1)
+  insertRole.run('read_only', 'Read only', 1, 0)
 
   console.log(`[core] sqlite=${resolved}`)
 }

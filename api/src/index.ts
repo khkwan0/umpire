@@ -1,5 +1,6 @@
 import Fastify from 'fastify'
 import {initCore, getCore, closeCore} from './core/index.js'
+import {registerAuthGate} from './auth/index.js'
 import {
   initPlugins,
   getScheduler,
@@ -21,6 +22,9 @@ import {checksRoutes} from './routes/checks.js'
 import {notifiersRoutes} from './routes/notifiers.js'
 import {pluginsRoutes} from './routes/plugins.js'
 import {pluginManagerRoutes} from './routes/plugin-manager.js'
+import {authRoutes} from './routes/auth.js'
+import {usersRoutes} from './routes/users.js'
+import {rolesRoutes} from './routes/roles.js'
 
 const port = Number(process.env.PORT) || 3000
 const databasePath = process.env.DATABASE_PATH || './data/monitor.sqlite'
@@ -44,8 +48,12 @@ async function main() {
   const app = Fastify({logger: true})
 
   await registerOpenApi(app)
+  await registerAuthGate(app)
 
   await app.register(healthRoutes)
+  await app.register(authRoutes)
+  await app.register(usersRoutes)
+  await app.register(rolesRoutes)
   await app.register(targetsRoutes)
   await app.register(groupsRoutes)
   await app.register(settingsRoutes)

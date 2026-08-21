@@ -56,6 +56,55 @@ export interface FcmDestinationImportResult {
 export interface Settings {
   alert_policy: AlertPolicy
   throttle_minutes: number
+  auth_enabled: boolean
+  allow_readonly_without_auth: boolean
+}
+
+export type AuthPluginKind = 'check' | 'notify' | 'scheduler'
+
+export interface RolePluginRef {
+  kind: AuthPluginKind
+  id: string
+}
+
+export interface Role {
+  id: number
+  slug: string
+  name: string
+  is_system: boolean
+  can_write: boolean
+  plugins: 'all' | RolePluginRef[]
+  created_at: string
+  updated_at: string
+}
+
+export interface User {
+  id: number
+  username: string
+  role_id: number
+  role_slug: string
+  created_at: string
+  updated_at: string
+}
+
+export interface AuthPrincipal {
+  kind: 'anonymous' | 'user'
+  user: User | null
+  is_admin: boolean
+  can_write: boolean
+  plugins: 'all' | RolePluginRef[]
+  single_user_mode: boolean
+}
+
+export interface AuthPolicy {
+  auth_enabled: boolean
+  allow_readonly_without_auth: boolean
+  login_required: boolean
+  user_count: number
+}
+
+export interface AuthMe {
+  principal: AuthPrincipal
 }
 
 export interface StatusTarget {
@@ -249,7 +298,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   let res: Response
   try {
-    res = await fetch(withBase(path), {...init, headers})
+    res = await fetch(withBase(path), {
+      ...init,
+      headers,
+      credentials: 'include',
+    })
   } catch {
     throw new ApiError('API temporarily unavailable', 0, true)
   }
@@ -484,6 +537,60 @@ export const api = {
         method: 'PUT',
         body: JSON.stringify(data),
       }),
+  },
+  auth: {
+    policy: () => request<AuthPolicy>('/api/auth/policy'),
+    me: () => request<AuthMe>('/api/auth/me'),
+    login: (username: string, password: string) =>
+      request<AuthMe>('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({username, password}),
+      }),
+    logout: () => request<{ok: boolean}>('/api/auth/logout', {method: 'POST'}),
+  },
+  users: {
+    list: () => request<User[]>('/api/users'),
+    create: (data: {username: string; password: string; role_id: number}) =>
+      request<User>('/api/users', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    update: (
+      id: number,
+      data: Partial<{username: string; password: string; role_id: number}>,
+    ) =>
+      request<User>(`/api/users/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+    remove: (id: number) =>
+      request<void>(`/api/users/${id}`, {method: 'DELETE'}),
+  },
+  roles: {
+    list: () => request<Role[]>('/api/roles'),
+    create: (data: {
+      name: string
+      can_write: boolean
+      plugins: RolePluginRef[]
+    }) =>
+      request<Role>('/api/roles', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    update: (
+      id: number,
+      data: Partial<{
+        name: string
+        can_write: boolean
+        plugins: RolePluginRef[]
+      }>,
+    ) =>
+      request<Role>(`/api/roles/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+    remove: (id: number) =>
+      request<void>(`/api/roles/${id}`, {method: 'DELETE'}),
   },
   pluginManager: {
     get: () => request<PluginManagerState>('/api/plugin-manager'),

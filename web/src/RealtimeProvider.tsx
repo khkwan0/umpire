@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useRef, useState, type ReactNode} from 'react'
+import {useAuth} from './auth'
 import {withBase} from './basePath'
 import {RealtimeContext, type RealtimeMode} from './realtime'
 
@@ -13,10 +14,18 @@ const DEGRADE_AFTER_MS = 8000
 const POLL_INTERVAL_MS = 5000
 
 export function RealtimeProvider({children}: {children: ReactNode}) {
+  const {ready, policy, principal} = useAuth()
   const [mode, setMode] = useState<RealtimeMode>('sse')
   const listenersRef = useRef(new Set<() => void>())
+  const streamAllowed =
+    ready && (!policy?.login_required || principal?.kind === 'user')
 
   useEffect(() => {
+    if (!streamAllowed) {
+      setMode('sse')
+      return
+    }
+
     let es: EventSource | null = null
     let fallbackId: ReturnType<typeof setInterval> | null = null
     let degradeTimer: ReturnType<typeof setTimeout> | null = null
@@ -89,7 +98,7 @@ export function RealtimeProvider({children}: {children: ReactNode}) {
       es?.close()
       es = null
     }
-  }, [])
+  }, [streamAllowed])
 
   const subscribe = useCallback((handler: () => void) => {
     listenersRef.current.add(handler)
