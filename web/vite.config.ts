@@ -28,7 +28,13 @@ export default defineConfig({
   base,
   plugins: [react()],
   resolve: {
+    // Plugin UI modules live outside web/ and import `react` bare.
+    // Vite 8 / Rolldown does not walk up to web/node_modules for those paths.
+    dedupe: ['react', 'react-dom', 'react-router-dom'],
     alias: {
+      react: path.resolve(root, 'node_modules/react'),
+      'react-dom': path.resolve(root, 'node_modules/react-dom'),
+      'react-router-dom': path.resolve(root, 'node_modules/react-router-dom'),
       '@umpire/web-api': path.resolve(root, 'src/api.ts'),
       '@umpire/plugin-ui': path.resolve(root, 'src/plugin-ui.ts'),
       '@umpire/web-datetime': path.resolve(root, 'src/datetime.ts'),
