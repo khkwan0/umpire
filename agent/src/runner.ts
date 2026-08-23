@@ -55,8 +55,7 @@ export async function runAgentChat(input: {
       try {
         summary = await executeAgentTool(umpire, call.name, call.arguments)
       } catch (err) {
-        summary =
-          err instanceof Error ? err.message : 'Tool execution failed'
+        summary = err instanceof Error ? err.message : 'Tool execution failed'
       }
       onEvent?.({type: 'tool_end', tool: call.name, summary})
       messages.push({

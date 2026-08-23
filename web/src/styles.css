@@ -958,6 +958,63 @@ button.ghost:hover {
   color: var(--ink);
 }
 
+.api-token-reveal {
+  margin: 0.75rem 0 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--panel);
+  display: grid;
+  gap: 0.65rem;
+}
+
+.api-token-secret {
+  display: block;
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.35rem;
+  background: var(--control);
+  border: 1px solid var(--line);
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 0.82rem;
+  word-break: break-all;
+}
+
+.api-token-reveal-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.api-token-create {
+  margin-bottom: 1rem;
+}
+
+.api-tokens-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.api-tokens-table th,
+.api-tokens-table td {
+  padding: 0.55rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.api-tokens-table th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.api-tokens-table .actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
 @media (max-width: 800px) {
   .hero-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));

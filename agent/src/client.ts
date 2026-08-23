@@ -81,8 +81,11 @@ export class UmpireClient {
   }
 
   asCaller() {
-    return (method: string, path: string, opts?: Parameters<UmpireClient['request']>[2]) =>
-      this.request(method, path, opts)
+    return (
+      method: string,
+      path: string,
+      opts?: Parameters<UmpireClient['request']>[2],
+    ) => this.request(method, path, opts)
   }
 }
 

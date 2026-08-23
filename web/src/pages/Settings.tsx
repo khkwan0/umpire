@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState, type FormEvent} from 'react'
+import {useCallback, useEffect, useMemo, useState, type FormEvent} from 'react'
 import {
   api,
   isTransientApiError,
@@ -15,6 +15,7 @@ import {useAuth} from '../auth'
 import ReconnectBanner from '../ReconnectBanner'
 import ThemeSwitcher from '../ThemeSwitcher'
 import TimezoneSelect from '../TimezoneSelect'
+import ApiTokensPanel from './ApiTokensPanel'
 import {useOnboarding} from '../onboarding'
 
 const MISSING_PLUGIN_DESCRIPTION =
@@ -120,6 +121,7 @@ export default function SettingsPage() {
   const {principal, refresh: refreshAuth, policy} = useAuth()
   const isAdmin = Boolean(principal?.is_admin)
   const canWrite = Boolean(principal?.can_write)
+  const signedIn = principal?.kind === 'user'
 
   const [settings, setSettings] = useState<Settings | null>(null)
   const [policyAlert, setPolicyAlert] = useState<AlertPolicy>('state_change')
@@ -199,14 +201,14 @@ export default function SettingsPage() {
     setAgentApiKey('')
   }
 
-  async function loadAgentSettings() {
+  const loadAgentSettings = useCallback(async () => {
     if (!isAdmin) {
       setAgentSettings(null)
       return
     }
     const next = await api.agent.settings.get()
     applyAgentSettings(next)
-  }
+  }, [isAdmin])
 
   useEffect(() => {
     void Promise.all([api.settings.get(), api.pluginManager.get()])
@@ -236,7 +238,7 @@ export default function SettingsPage() {
         setError(err instanceof Error ? err.message : String(err))
         setReconnecting(false)
       })
-  }, [principal?.is_admin])
+  }, [loadAgentSettings, principal?.is_admin])
 
   async function togglePlugin(
     kind: 'check' | 'notify' | 'scheduler',
@@ -575,6 +577,8 @@ export default function SettingsPage() {
           </p>
         )}
       </section>
+
+      <ApiTokensPanel signedIn={signedIn} isAdmin={isAdmin} users={users} />
 
       {isAdmin && (
         <section className="panel">

@@ -1,4 +1,9 @@
-import type {AgentToolCall, ChatMessage, LlmConfig, LlmToolDef} from './types.js'
+import type {
+  AgentToolCall,
+  ChatMessage,
+  LlmConfig,
+  LlmToolDef,
+} from './types.js'
 
 type OpenAiMessage =
   | {role: 'system' | 'user' | 'assistant'; content: string}
@@ -138,9 +143,10 @@ type AnthropicMessage = {
   content: string | Array<{type: string; [key: string]: unknown}>
 }
 
-function toAnthropicMessages(
-  messages: ChatMessage[],
-): {system: string; messages: AnthropicMessage[]} {
+function toAnthropicMessages(messages: ChatMessage[]): {
+  system: string
+  messages: AnthropicMessage[]
+} {
   const systemParts: string[] = []
   const out: AnthropicMessage[] = []
 
@@ -221,11 +227,18 @@ export async function runAnthropicTurn(
     throw new Error(err)
   }
 
-  const content = (
-    body as {
-      content?: Array<{type: string; text?: string; id?: string; name?: string; input?: unknown}>
-    }
-  ).content ?? []
+  const content =
+    (
+      body as {
+        content?: Array<{
+          type: string
+          text?: string
+          id?: string
+          name?: string
+          input?: unknown
+        }>
+      }
+    ).content ?? []
 
   let message: string | null = null
   const toolCalls: AgentToolCall[] = []

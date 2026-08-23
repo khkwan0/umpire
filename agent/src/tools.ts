@@ -57,7 +57,10 @@ export const AGENT_TOOLS: LlmToolDef[] = [
           type: 'string',
           enum: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
         },
-        path: {type: 'string', description: 'e.g. /api/plugins/notify/slack/config'},
+        path: {
+          type: 'string',
+          description: 'e.g. /api/plugins/notify/slack/config',
+        },
         query: {
           type: 'object',
           additionalProperties: true,
@@ -71,8 +74,7 @@ export const AGENT_TOOLS: LlmToolDef[] = [
 ]
 
 function summarizeResult(data: unknown, maxLen = 4000): string {
-  const text =
-    typeof data === 'string' ? data : JSON.stringify(data, null, 2)
+  const text = typeof data === 'string' ? data : JSON.stringify(data, null, 2)
   if (text.length <= maxLen) return text
   return `${text.slice(0, maxLen)}\n… (truncated)`
 }
@@ -111,11 +113,8 @@ export async function executeAgentTool(
         throw new Error('agent routes cannot be called via tools')
       }
       const query = args.query as
-        | Record<string, string | number | boolean>
-        | undefined
-      return summarizeResult(
-        await call(method, path, {query, body: args.body}),
-      )
+        Record<string, string | number | boolean> | undefined
+      return summarizeResult(await call(method, path, {query, body: args.body}))
     }
     default:
       throw new Error(`Unknown tool: ${name}`)

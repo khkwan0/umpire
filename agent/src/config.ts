@@ -94,7 +94,7 @@ function llmConfigFromStored(stored: StoredAgentSettings): LlmConfig | null {
   const baseUrl =
     stored.provider === 'anthropic'
       ? undefined
-      : normalizeBaseUrl(stored.base_url) ?? meta.defaultBaseUrl ?? undefined
+      : (normalizeBaseUrl(stored.base_url) ?? meta.defaultBaseUrl ?? undefined)
 
   if (stored.provider !== 'anthropic' && !baseUrl) return null
 
@@ -125,7 +125,8 @@ export function loadLlmConfigFromEnv(
   }
 
   if (provider === 'ollama') {
-    const model = env.OLLAMA_MODEL?.trim() || env.OPENAI_MODEL?.trim() || 'llama3.2'
+    const model =
+      env.OLLAMA_MODEL?.trim() || env.OPENAI_MODEL?.trim() || 'llama3.2'
     const baseUrl =
       normalizeBaseUrl(env.OLLAMA_BASE_URL) ??
       normalizeBaseUrl(env.OPENAI_BASE_URL) ??
@@ -183,22 +184,17 @@ export function toAgentSettingsView(input: {
   configSource: AgentSettingsView['config_source']
 }): AgentSettingsView {
   const stored = input.stored
-  const provider = stored?.provider ?? parseLlmProvider(process.env.AGENT_LLM_PROVIDER)
+  const provider =
+    stored?.provider ?? parseLlmProvider(process.env.AGENT_LLM_PROVIDER)
   const meta = LLM_PROVIDER_META[provider]
 
   return {
     enabled: stored?.enabled ?? Boolean(input.llm),
     provider,
-    model:
-      stored?.model.trim() ||
-      input.llm?.model ||
-      meta.defaultModel,
-    base_url:
-      stored?.base_url ??
-      (input.llm?.baseUrl ?? meta.defaultBaseUrl),
+    model: stored?.model.trim() || input.llm?.model || meta.defaultModel,
+    base_url: stored?.base_url ?? input.llm?.baseUrl ?? meta.defaultBaseUrl,
     has_api_key: Boolean(stored?.api_key.trim() || input.llm?.apiKey),
-    max_tool_rounds:
-      stored?.max_tool_rounds ?? input.llm?.maxToolRounds ?? 12,
+    max_tool_rounds: stored?.max_tool_rounds ?? input.llm?.maxToolRounds ?? 12,
     configured: input.llm !== null,
     config_source: input.configSource,
   }

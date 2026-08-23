@@ -129,6 +129,22 @@ export interface AgentSettings {
   config_source: AgentConfigSource
 }
 
+/** Bearer token for MCP, agents, and automation (not FCM). */
+export interface ApiToken {
+  id: number
+  user_id: number
+  label: string
+  token_prefix: string
+  expires_at: string | null
+  last_used_at: string | null
+  created_at: string
+}
+
+export interface ApiTokenCreated {
+  token: string
+  api_token: ApiToken
+}
+
 export interface StatusTarget {
   id: number
   url: string
@@ -587,6 +603,16 @@ export const api = {
           body: JSON.stringify(data),
         }),
     },
+  },
+  apiTokens: {
+    list: () => request<ApiToken[]>('/api/tokens'),
+    create: (data: {label?: string; expires_in_days?: number | null}) =>
+      request<ApiTokenCreated>('/api/tokens', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    remove: (id: number) =>
+      request<{ok: boolean}>(`/api/tokens/${id}`, {method: 'DELETE'}),
   },
   users: {
     list: () => request<User[]>('/api/users'),

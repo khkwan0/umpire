@@ -46,7 +46,11 @@ export interface AgentConfig {
   systemPrompt?: string
 }
 
-export type {LlmProvider, StoredAgentSettings, AgentSettingsView} from './config.js'
+export type {
+  LlmProvider,
+  StoredAgentSettings,
+  AgentSettingsView,
+} from './config.js'
 export {
   LLM_PROVIDER_META,
   agentConfigured,

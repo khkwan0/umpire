@@ -73,9 +73,7 @@ if (cmd === 'chat') {
     JSON.stringify(
       {
         agent_configured: agentConfigured(),
-        llm: llm
-          ? {provider: llm.provider, model: llm.model}
-          : null,
+        llm: llm ? {provider: llm.provider, model: llm.model} : null,
         umpire_base_url: umpire.baseUrl,
         has_api_token: Boolean(umpire.apiToken),
       },

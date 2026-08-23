@@ -84,8 +84,7 @@ function registerRouteTool(
           pathParams[param] = value as string | number
         }
         const query = input.query as
-          | Record<string, string | number | boolean>
-          | undefined
+          Record<string, string | number | boolean> | undefined
         const body = input.body
         const url = buildPath(route.path, pathParams, query)
         const data = await client.request(route.method, url, {body})
@@ -112,9 +111,7 @@ export async function createServer(client: UmpireClient): Promise<McpServer> {
         method: z
           .enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'])
           .describe('HTTP method'),
-        path: z
-          .string()
-          .describe('Absolute API path starting with /api/…'),
+        path: z.string().describe('Absolute API path starting with /api/…'),
         query: z
           .record(z.union([z.string(), z.number(), z.boolean()]))
           .optional(),

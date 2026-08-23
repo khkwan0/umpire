@@ -1,11 +1,5 @@
 export type HttpMethod =
-  | 'GET'
-  | 'HEAD'
-  | 'POST'
-  | 'PUT'
-  | 'PATCH'
-  | 'DELETE'
-  | 'OPTIONS'
+  'GET' | 'HEAD' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIONS'
 
 export interface RouteDef {
   method: HttpMethod

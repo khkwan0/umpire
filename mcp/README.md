@@ -14,10 +14,10 @@ npm run build
 
 ## Configure
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `UMPIRE_BASE_URL` | No | UMPIRE web/API origin (default `http://localhost:8089`) |
-| `UMPIRE_API_TOKEN` | When auth is on | Bearer token from `POST /api/tokens` |
+| Variable           | Required        | Description                                             |
+| ------------------ | --------------- | ------------------------------------------------------- |
+| `UMPIRE_BASE_URL`  | No              | UMPIRE web/API origin (default `http://localhost:8089`) |
+| `UMPIRE_API_TOKEN` | When auth is on | Bearer token from `POST /api/tokens`                    |
 
 When `auth_enabled` is false, no token is needed.
 
@@ -73,11 +73,11 @@ UMPIRE_API_TOKEN=umpire_… npm run dev
 
 ## Tools
 
-| Tool | Purpose |
-|------|---------|
-| `umpire_request` | Generic HTTP proxy — any `/api/…` route including plugins |
-| `umpire_list_routes` | Discover core + plugin routes and their dedicated tool names |
-| `get_status`, `get_targets`, … | One tool per core/plugin route (generated at startup) |
+| Tool                           | Purpose                                                      |
+| ------------------------------ | ------------------------------------------------------------ |
+| `umpire_request`               | Generic HTTP proxy — any `/api/…` route including plugins    |
+| `umpire_list_routes`           | Discover core + plugin routes and their dedicated tool names |
+| `get_status`, `get_targets`, … | One tool per core/plugin route (generated at startup)        |
 
 Auth and RBAC match the HTTP API: the token inherits the creating user's role (`read_only`, custom plugin allowlists, admin, etc.).
 
