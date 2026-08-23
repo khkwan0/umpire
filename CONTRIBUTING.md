@@ -36,6 +36,14 @@ cd web && npm install && npm run dev
 
 UI: [http://localhost:8089](http://localhost:8089) (`web/vite.config.ts` `server.port`). That is the same host port Compose publishes (`WEB_PORT` in `.env`, default 8089). Do not run `npm run dev` and `docker compose` together — only one process can bind 8089.
 
+### Browser extensions
+
+Chrome + Firefox extensions live in [`extensions/`](extensions/) (WXT). They talk to the same HTTP API as the web UI (login, status, incidents, SSE). See [`extensions/README.md`](extensions/README.md).
+
+```bash
+cd extensions && npm install && npm run build && npm run build:firefox
+```
+
 ## Testing and CI expectations
 
 Before opening a pull request, run the same checks as CI:

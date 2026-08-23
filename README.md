@@ -338,5 +338,6 @@ SQLite file: `./data/monitor.sqlite` (bind-mounted in Compose at `/data/monitor.
 - CI: GitHub Actions on push/PR ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)). Optional CD: Jenkins — [setup](docs/jenkins.md)
 - Dependency updates: Dependabot (`.github/dependabot.yml`) for npm, Docker, and GitHub Actions
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Browser extensions (Chrome + Firefox): [extensions/README.md](extensions/README.md)
 - Plugin authoring (API + UI + dashboard widgets): [docs/plugins.md](docs/plugins.md) — implementations live in [`plugins/`](plugins/)
 - Core host (pipeline, schema, plugin host, UI shell): [docs/core.md](docs/core.md)
