@@ -80,7 +80,7 @@ api/src/
     manager.ts             # runtime enable/disable (data/plugin-manager.json)
     routes.ts              # namespace /api/plugins/<kind>/<id>/…
     runtime.ts             # in-memory loaded plugin lists
-  routes/                  # core Fastify modules only
+  routes/                  # core Fastify modules only (includes ws.ts bridge)
 web/src/
   App.tsx                  # shell: Dashboard, Groups, Targets, Settings, plugin glob
   pages/                   # core screens
@@ -263,6 +263,31 @@ Typed client: [`web/src/api.ts`](../web/src/api.ts). Keep it in sync when you ad
 
 Known events: `plugin-manager.updated`, `targets.updated`, `status.updated`, `incidents.updated`. Publish after core mutations that the dashboard must see. Do not invent a second `/api/status` loop in plugin UI — use the dashboard `status` prop / existing refresh.
 
+### WebSocket HTTP bridge
+
+[`routes/ws.ts`](../api/src/routes/ws.ts) exposes standard WebSockets at `GET /api/ws` (via `@fastify/websocket`, not socket.io). Clients send JSON frames that map onto the same Fastify routes as HTTP — including `/api/plugins/<kind>/<id>/…` — through `app.inject()`, so the auth gate and plugin mounts stay single-source.
+
+**Client → server**
+
+```json
+{
+  "id": "req-1",
+  "method": "GET",
+  "path": "/api/targets",
+  "query": { "limit": 10 },
+  "headers": { "content-type": "application/json" },
+  "body": null
+}
+```
+
+**Server → client (RPC reply)**
+
+```json
+{ "id": "req-1", "status": 200, "headers": { "content-type": "application/json" }, "body": [] }
+```
+
+On connect the server also sends `{ "type": "connected", "auth": { … } }`. Upgrade and each injected call use the session cookie (`umpire_session`); `Set-Cookie` from login/logout updates a per-connection cookie jar. `/api/ws` and `/api/stream` cannot be called via the bridge. nginx and the Vite `/api` proxy must forward `Upgrade` / `Connection` (see `web/nginx.conf`, `web/vite.config.ts`).
+
 ---
 
 ## Do / don’t
@@ -320,6 +345,8 @@ Minimum checks for the area you touched:
 | Plugin enable | [`api/src/plugins/manager.ts`](../api/src/plugins/manager.ts) |
 | Plugin HTTP namespace | [`api/src/plugins/routes.ts`](../api/src/plugins/routes.ts) |
 | Contracts | [`api/src/plugins/types.ts`](../api/src/plugins/types.ts) |
+| Realtime pub/sub | [`api/src/realtime.ts`](../api/src/realtime.ts) |
+| WebSocket HTTP bridge | [`api/src/routes/ws.ts`](../api/src/routes/ws.ts) |
 | Implementations | [`plugins/`](../plugins/) |
 | API image | [`api/Dockerfile`](../api/Dockerfile) (context = repo root) |
 | Web image | [`web/Dockerfile`](../web/Dockerfile) (context = repo root) |

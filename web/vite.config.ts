@@ -53,6 +53,7 @@ export default defineConfig({
     proxy: {
       [`${prefix}/api`]: {
         target: 'http://localhost:3000',
+        ws: true,
         ...(proxyRewrite ? {rewrite: proxyRewrite} : {}),
       },
       [`${prefix}/documentation`]: {

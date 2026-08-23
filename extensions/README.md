@@ -1,0 +1,73 @@
+# UMPIRE browser extensions
+
+Chrome (MV3) and Firefox (MV3) extensions that connect to your UMPIRE deployment to:
+
+- Sign in when the server requires authentication
+- Show target health in a popup and on the toolbar badge
+- Fire desktop notifications when a target goes down/partial or recovers
+
+One TypeScript codebase, built with [WXT](https://wxt.dev/).
+
+## Setup
+
+```bash
+cd extensions
+npm install
+```
+
+### Development
+
+```bash
+npm run dev            # Chrome
+npm run dev:firefox    # Firefox MV3
+```
+
+### Production builds
+
+```bash
+npm run build          # → .output/chrome-mv3/
+npm run build:firefox  # → .output/firefox-mv3/
+```
+
+Load unpacked:
+
+- **Chrome:** `chrome://extensions` → Developer mode → Load unpacked → `.output/chrome-mv3`
+- **Firefox:** `about:debugging#/runtime/this-firefox` → Load Temporary Add-on → pick `.output/firefox-mv3/manifest.json`
+
+## Configure
+
+1. Open the extension **Options** page.
+2. Set **UMPIRE base URL** to the same URL you use for the web UI (for example `http://localhost:8089`, or `https://host/umpire` if you deploy with `BASE_PATH`).
+3. Grant site access when prompted.
+4. Optionally enable/disable outage and recovery notifications and adjust the poll interval (backup when the SSE stream is asleep).
+
+## How it works
+
+| Piece | Behavior |
+|-------|----------|
+| Auth | `GET /api/auth/policy` → login form when `login_required`; session cookie `umpire_session` via `credentials: 'include'` |
+| Health | `GET /api/status` for the popup list and badge counts |
+| Incidents | `GET /api/incidents` for open outages in the popup |
+| Live updates | Best-effort `EventSource` on `/api/stream`; `chrome.alarms` / `browser.alarms` poll as fallback |
+| Notifications | Local OS notifications on healthy→unhealthy and unhealthy→healthy transitions |
+
+The extension does **not** use the `/api/ws` HTTP bridge (that is RPC, not a push channel). It does not register FCM tokens; server-side notifiers stay separate.
+
+## Permissions
+
+- `storage`, `alarms`, `notifications`
+- Optional host access to the configured UMPIRE origin only (requested when you save Options)
+
+## Layout
+
+```text
+extensions/
+  src/
+    entrypoints/
+      background.ts   # badge, SSE/poll, notifications
+      popup.html      # login + health UI
+      options.html    # base URL + notification prefs
+    utils/            # API client, storage, health helpers
+  public/icon/
+  wxt.config.ts
+```
