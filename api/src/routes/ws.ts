@@ -1,4 +1,8 @@
-import type {FastifyInstance, FastifyRequest, LightMyRequestResponse} from 'fastify'
+import type {
+  FastifyInstance,
+  FastifyRequest,
+  LightMyRequestResponse,
+} from 'fastify'
 import type {WebSocket} from 'ws'
 import {getAuthContext, type AuthRequest} from '../auth/index.js'
 
@@ -13,13 +17,7 @@ const ALLOWED_METHODS = new Set([
 ])
 
 type InjectMethod =
-  | 'GET'
-  | 'HEAD'
-  | 'POST'
-  | 'PUT'
-  | 'PATCH'
-  | 'DELETE'
-  | 'OPTIONS'
+  'GET' | 'HEAD' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIONS'
 
 const BLOCKED_PATHS = new Set(['/api/ws', '/api/stream'])
 
@@ -260,9 +258,7 @@ async function handleRpc(
       method,
       url,
       headers,
-      payload: hasBody
-        ? (parsed.body as string | object | Buffer)
-        : undefined,
+      payload: hasBody ? (parsed.body as string | object | Buffer) : undefined,
       remoteAddress: req.ip,
     })
 
