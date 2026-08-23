@@ -314,6 +314,8 @@ Swagger UI: [http://localhost:8089/documentation](http://localhost:8089/document
 - `GET /api/status`
 - `GET /api/schema`
 - `GET /api/health`
+- `GET /api/ws` — standard WebSocket; JSON frames call any `/api` route (including plugins). See [docs/core.md](docs/core.md#websocket-http-bridge).
+- `GET /api/stream` — SSE live updates for the UI
 
 ## Groups and tags
 

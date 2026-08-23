@@ -1,4 +1,5 @@
 import Fastify from 'fastify'
+import websocket from '@fastify/websocket'
 import {initCore, getCore, closeCore} from './core/index.js'
 import {registerAuthGate} from './auth/index.js'
 import {
@@ -17,6 +18,7 @@ import {settingsRoutes} from './routes/settings.js'
 import {statusRoutes} from './routes/status.js'
 import {incidentsRoutes} from './routes/incidents.js'
 import {streamRoutes} from './routes/stream.js'
+import {wsRoutes} from './routes/ws.js'
 import {schemaRoutes} from './routes/schema.js'
 import {checksRoutes} from './routes/checks.js'
 import {notifiersRoutes} from './routes/notifiers.js'
@@ -49,6 +51,10 @@ async function main() {
 
   await registerOpenApi(app)
   await registerAuthGate(app)
+  // Must register before routes so upgrades are intercepted correctly.
+  await app.register(websocket, {
+    options: {maxPayload: 1048576},
+  })
 
   await app.register(healthRoutes)
   await app.register(authRoutes)
@@ -60,6 +66,7 @@ async function main() {
   await app.register(statusRoutes)
   await app.register(incidentsRoutes)
   await app.register(streamRoutes)
+  await app.register(wsRoutes)
   await app.register(schemaRoutes)
   await app.register(checksRoutes)
   await app.register(notifiersRoutes)
