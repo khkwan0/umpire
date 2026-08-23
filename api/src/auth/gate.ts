@@ -1,6 +1,7 @@
 import type {FastifyInstance, FastifyReply, FastifyRequest} from 'fastify'
 import {getCore} from '../core/index.js'
 import type {AuthPrincipal} from '../plugins/types.js'
+import {getBearerToken} from './tokens.js'
 import {getSessionToken} from './cookies.js'
 import {
   isAdminOnlyPath,
@@ -34,12 +35,18 @@ function deny(
 }
 
 /**
- * Resolve the effective principal for a request (session or anonymous).
+ * Resolve the effective principal for a request (Bearer token, session, or anonymous).
  * Does not enforce; used by the gate and GET /api/auth/me.
  */
 export function resolvePrincipal(req: FastifyRequest): AuthPrincipal | null {
   const store = getCore()
   const settings = store.getSettings()
+
+  const bearer = getBearerToken(req)
+  if (bearer) {
+    return store.resolveApiTokenPrincipal(bearer)
+  }
+
   const token = getSessionToken(req)
   if (token) {
     const principal = store.resolveSessionPrincipal(token)
@@ -81,11 +88,19 @@ export async function registerAuthGate(app: FastifyInstance): Promise<void> {
 
     const method = req.method.toUpperCase()
     const read = isReadMethod(method)
-    const token = getSessionToken(req)
+    const bearer = getBearerToken(req)
     let principal: AuthPrincipal | null = null
 
-    if (token) {
-      principal = getCore().resolveSessionPrincipal(token)
+    if (bearer) {
+      principal = getCore().resolveApiTokenPrincipal(bearer)
+      if (!principal) {
+        return deny(reply, 401, 'Invalid or expired API token')
+      }
+    } else {
+      const token = getSessionToken(req)
+      if (token) {
+        principal = getCore().resolveSessionPrincipal(token)
+      }
     }
 
     if (!principal) {

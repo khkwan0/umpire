@@ -44,6 +44,14 @@ Chrome + Firefox extensions live in [`extensions/`](extensions/) (WXT). They tal
 cd extensions && npm install && npm run build && npm run build:firefox
 ```
 
+### MCP server (AI agents)
+
+```bash
+cd mcp && npm install && npm run build
+```
+
+See [`mcp/README.md`](mcp/README.md). Requires an API token when auth is enabled.
+
 ## Testing and CI expectations
 
 Before opening a pull request, run the same checks as CI:

@@ -278,6 +278,45 @@ const authMeSchema = {
   },
 } as const
 
+const apiTokenSchema = {
+  $id: 'ApiToken',
+  type: 'object',
+  required: [
+    'id',
+    'user_id',
+    'label',
+    'token_prefix',
+    'expires_at',
+    'last_used_at',
+    'created_at',
+  ],
+  properties: {
+    id: {type: 'integer'},
+    user_id: {type: 'integer'},
+    label: {type: 'string'},
+    token_prefix: {
+      type: 'string',
+      description: 'Leading characters of the token for identification',
+    },
+    expires_at: {type: ['string', 'null'], format: 'date-time'},
+    last_used_at: {type: ['string', 'null'], format: 'date-time'},
+    created_at: {type: 'string', format: 'date-time'},
+  },
+} as const
+
+const apiTokenCreatedSchema = {
+  $id: 'ApiTokenCreated',
+  type: 'object',
+  required: ['token', 'api_token'],
+  properties: {
+    token: {
+      type: 'string',
+      description: 'Full secret token — shown only once; use Authorization: Bearer',
+    },
+    api_token: {$ref: 'ApiToken#'},
+  },
+} as const
+
 const pluginRefSchema = {
   $id: 'PluginRef',
   type: 'object',
@@ -461,6 +500,8 @@ export async function registerOpenApi(app: FastifyInstance): Promise<void> {
     userSchema,
     authPrincipalSchema,
     authMeSchema,
+    apiTokenSchema,
+    apiTokenCreatedSchema,
     pluginRefSchema,
     notifierStatusSchema,
     statusTargetSchema,
@@ -485,7 +526,8 @@ export async function registerOpenApi(app: FastifyInstance): Promise<void> {
       },
       tags: [
         {name: 'health', description: 'Liveness'},
-        {name: 'auth', description: 'Session and auth policy'},
+        {name: 'auth', description: 'Session, API tokens, and auth policy'},
+        {name: 'api-tokens', description: 'Bearer tokens for agents and automation'},
         {name: 'users', description: 'User accounts (admin)'},
         {name: 'roles', description: 'Roles and plugin allowlists (admin)'},
         {name: 'groups', description: 'Group trees and tags'},

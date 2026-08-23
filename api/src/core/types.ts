@@ -1,5 +1,6 @@
 import type {Incident} from '../incidents.js'
 import type {
+  ApiToken,
   AuthPrincipal,
   CheckResult,
   Group,
@@ -126,6 +127,18 @@ export interface CoreStore {
   deleteSessionsForUser(userId: number): void
   pruneExpiredSessions(): void
   resolveSessionPrincipal(rawToken: string): AuthPrincipal | null
+  createApiToken(input: {
+    userId: number
+    label: string
+    tokenHash: string
+    tokenPrefix: string
+    expiresAt: string | null
+  }): ApiToken
+  listApiTokens(userId?: number): ApiToken[]
+  getApiToken(id: number): ApiToken | undefined
+  deleteApiToken(id: number): boolean
+  pruneExpiredApiTokens(): void
+  resolveApiTokenPrincipal(rawToken: string): AuthPrincipal | null
   anonymousReadOnlyPrincipal(): AuthPrincipal
   principalForUser(userId: number): AuthPrincipal | null
 }

@@ -2,9 +2,11 @@ import Database from 'better-sqlite3'
 import fs from 'node:fs'
 import path from 'node:path'
 import {hashSessionToken} from '../auth/cookies.js'
+import {hashApiToken} from '../auth/tokens.js'
 import {assertPasswordPolicy, hashPassword} from '../auth/password.js'
 import type {
   AlertPolicy,
+  ApiToken,
   AuthPluginKind,
   AuthPrincipal,
   CheckResult,
@@ -35,6 +37,28 @@ function getDb(): Database.Database {
 function getStmts() {
   if (!stmts) throw new Error('Core database not initialized')
   return stmts
+}
+
+type ApiTokenRow = {
+  id: number
+  user_id: number
+  label: string
+  token_prefix: string
+  expires_at: string | null
+  last_used_at: string | null
+  created_at: string
+}
+
+function mapApiTokenRow(row: ApiTokenRow): ApiToken {
+  return {
+    id: row.id,
+    user_id: row.user_id,
+    label: row.label,
+    token_prefix: row.token_prefix,
+    expires_at: row.expires_at,
+    last_used_at: row.last_used_at,
+    created_at: row.created_at,
+  }
 }
 
 function buildStatements(database: Database.Database) {
@@ -226,6 +250,32 @@ function buildStatements(database: Database.Database) {
     ),
     selectSessionByHash: database.prepare(
       `SELECT user_id FROM sessions WHERE token_hash = ? AND expires_at >= datetime('now')`,
+    ),
+    insertApiToken: database.prepare(
+      `INSERT INTO api_tokens (user_id, label, token_hash, token_prefix, expires_at)
+       VALUES (?, ?, ?, ?, ?)`,
+    ),
+    selectApiTokens: database.prepare(
+      `SELECT id, user_id, label, token_prefix, expires_at, last_used_at, created_at
+       FROM api_tokens
+       WHERE (? IS NULL OR user_id = ?)
+       ORDER BY id DESC`,
+    ),
+    selectApiTokenById: database.prepare(
+      `SELECT id, user_id, label, token_prefix, expires_at, last_used_at, created_at
+       FROM api_tokens WHERE id = ?`,
+    ),
+    selectApiTokenByHash: database.prepare(
+      `SELECT id, user_id FROM api_tokens
+       WHERE token_hash = ?
+         AND (expires_at IS NULL OR expires_at >= datetime('now'))`,
+    ),
+    touchApiTokenLastUsed: database.prepare(
+      `UPDATE api_tokens SET last_used_at = datetime('now') WHERE id = ?`,
+    ),
+    deleteApiTokenById: database.prepare(`DELETE FROM api_tokens WHERE id = ?`),
+    pruneExpiredApiTokens: database.prepare(
+      `DELETE FROM api_tokens WHERE expires_at IS NOT NULL AND expires_at < datetime('now')`,
     ),
     dumpSelect: Object.fromEntries(
       CORE_TABLES.map(table => [
@@ -597,6 +647,11 @@ export const core: CoreStore = {
           password_hash: '[redacted]',
         }))
       } else if (table.name === 'sessions') {
+        out[table.name] = rows.map(row => ({
+          ...row,
+          token_hash: '[redacted]',
+        }))
+      } else if (table.name === 'api_tokens') {
         out[table.name] = rows.map(row => ({
           ...row,
           token_hash: '[redacted]',
@@ -1154,8 +1209,60 @@ export const core: CoreStore = {
     core.pruneExpiredSessions()
     const tokenHash = hashSessionToken(rawToken)
     const row = getStmts().selectSessionByHash.get(tokenHash) as
-      {user_id: number} | undefined
+      | {user_id: number}
+      | undefined
     if (!row) return null
+    return core.principalForUser(row.user_id)
+  },
+
+  createApiToken(input: {
+    userId: number
+    label: string
+    tokenHash: string
+    tokenPrefix: string
+    expiresAt: string | null
+  }): ApiToken {
+    const result = getStmts().insertApiToken.run(
+      input.userId,
+      input.label,
+      input.tokenHash,
+      input.tokenPrefix,
+      input.expiresAt,
+    )
+    const id = Number(result.lastInsertRowid)
+    return core.getApiToken(id)!
+  },
+
+  listApiTokens(userId?: number): ApiToken[] {
+    core.pruneExpiredApiTokens()
+    const uid = userId ?? null
+    const rows = getStmts().selectApiTokens.all(uid, uid) as ApiTokenRow[]
+    return rows.map(mapApiTokenRow)
+  },
+
+  getApiToken(id: number): ApiToken | undefined {
+    const row = getStmts().selectApiTokenById.get(id) as ApiTokenRow | undefined
+    return row ? mapApiTokenRow(row) : undefined
+  },
+
+  deleteApiToken(id: number): boolean {
+    const result = getStmts().deleteApiTokenById.run(id)
+    return result.changes > 0
+  },
+
+  pruneExpiredApiTokens(): void {
+    getStmts().pruneExpiredApiTokens.run()
+  },
+
+  resolveApiTokenPrincipal(rawToken: string): AuthPrincipal | null {
+    if (!rawToken.startsWith('umpire_')) return null
+    core.pruneExpiredApiTokens()
+    const tokenHash = hashApiToken(rawToken)
+    const row = getStmts().selectApiTokenByHash.get(tokenHash) as
+      | {id: number; user_id: number}
+      | undefined
+    if (!row) return null
+    getStmts().touchApiTokenLastUsed.run(row.id)
     return core.principalForUser(row.user_id)
   },
 
@@ -1324,6 +1431,20 @@ export function initCore(databasePath: string): void {
 
     CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
+
+    CREATE TABLE IF NOT EXISTS api_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      label TEXT NOT NULL DEFAULT '',
+      token_hash TEXT NOT NULL UNIQUE,
+      token_prefix TEXT NOT NULL,
+      expires_at TEXT,
+      last_used_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_api_tokens_user_id ON api_tokens(user_id);
+    CREATE INDEX IF NOT EXISTS idx_api_tokens_expires_at ON api_tokens(expires_at);
   `)
 
   ensureColumn(

@@ -107,6 +107,17 @@ export interface AuthPrincipal {
   single_user_mode: boolean
 }
 
+/** API token metadata (secret value is never stored or returned after creation). */
+export interface ApiToken {
+  id: number
+  user_id: number
+  label: string
+  token_prefix: string
+  expires_at: string | null
+  last_used_at: string | null
+  created_at: string
+}
+
 export interface CheckResult {
   id: number
   target_id: number

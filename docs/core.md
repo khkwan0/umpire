@@ -129,7 +129,31 @@ Rules:
 - Plugin namespaces `/api/plugins/<kind>/<id>/…` are gated by the allowlist for non-admin roles.
 - Pipeline / in-process `runCheck` writes are **not** gated by HTTP auth.
 
-Source: [`api/src/auth/`](../api/src/auth/), routes in `api/src/routes/auth.ts`, `users.ts`, `roles.ts`. UI: Settings + `/login`.
+### API tokens (agents & automation)
+
+Bearer tokens complement browser cookie sessions for MCP servers, scripts, and other non-browser clients.
+
+| Endpoint | Access |
+|----------|--------|
+| `GET /api/tokens` | List own tokens; admin sees all |
+| `POST /api/tokens` | Create a token for the current user (`{ label?, expires_in_days? }`) — response includes `token` **once** |
+| `DELETE /api/tokens/:id` | Revoke own token; admin may revoke any |
+
+Send `Authorization: Bearer umpire_…` on HTTP and WebSocket-bridge requests. Tokens inherit the creating user's role and plugin allowlist. Store only a SHA-256 hash server-side (`api_tokens` table).
+
+When `auth_enabled` is false, tokens are optional (anonymous admin applies).
+
+### MCP agents
+
+The [`mcp/`](../mcp/) package is an MCP server (stdio) that exposes UMPIRE HTTP routes as tools for LLM hosts (Claude Desktop, Cursor, etc.). It does **not** embed an LLM — configure your model in the host.
+
+- `UMPIRE_BASE_URL` — same origin as the web UI
+- `UMPIRE_API_TOKEN` — Bearer token when auth is on
+- Tools: `umpire_request`, `umpire_list_routes`, plus one tool per core/plugin route
+
+See [`mcp/README.md`](../mcp/README.md).
+
+Source: [`api/src/auth/`](../api/src/auth/), routes in `api/src/routes/auth.ts`, `tokens.ts`, `users.ts`, `roles.ts`. UI: Settings + `/login`.
 
 ---
 
@@ -150,6 +174,7 @@ Source of truth: [`api/src/core/schema.ts`](../api/src/core/schema.ts). Publishe
 | `role_plugins` | Custom role plugin allowlists (`kind` + `plugin_id`) |
 | `users` | Local accounts (`username`, `password_hash`, `role_id`) |
 | `sessions` | HttpOnly cookie sessions (`token_hash`, `expires_at`) |
+| `api_tokens` | Bearer tokens for agents (`token_hash`, `token_prefix`, optional `expires_at`) |
 
 Plugins **must not** `ALTER` these tables. Adding a column is a core migration in `schema.ts` **and** `sqlite.ts` (including any `ensureColumn` path). Prefer JSON override blobs over new columns when the data is plugin-specific.
 
@@ -332,7 +357,8 @@ Minimum checks for the area you touched:
 | Piece | Path |
 |-------|------|
 | Boot | [`api/src/index.ts`](../api/src/index.ts) |
-| Auth gate / sessions | [`api/src/auth/`](../api/src/auth/) |
+| Auth gate / sessions / API tokens | [`api/src/auth/`](../api/src/auth/) |
+| MCP server (agents) | [`mcp/`](../mcp/) |
 | Pipeline | [`api/src/pipeline.ts`](../api/src/pipeline.ts) |
 | Check ↔ target compatibility | [`api/src/checkCompatibility.ts`](../api/src/checkCompatibility.ts) |
 | Target address parse | [`api/src/targetAddress.ts`](../api/src/targetAddress.ts) |

@@ -9,6 +9,14 @@ export {
   clearSessionCookie,
 } from './cookies.js'
 export {
+  API_TOKEN_PREFIX,
+  hashApiToken,
+  newApiToken,
+  apiTokenPrefix,
+  isApiTokenFormat,
+  getBearerToken,
+} from './tokens.js'
+export {
   registerAuthGate,
   resolvePrincipal,
   getAuthContext,

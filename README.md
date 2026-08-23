@@ -313,6 +313,8 @@ Swagger UI: [http://localhost:8089/documentation](http://localhost:8089/document
 - `GET/PUT /api/settings`
 - `GET /api/status`
 - `GET /api/schema`
+- `GET /api/auth/me` — current principal (session cookie or Bearer token)
+- `GET/POST/DELETE /api/tokens` — API tokens for agents (`Authorization: Bearer umpire_…`). See [docs/core.md](docs/core.md#api-tokens-agents--automation).
 - `GET /api/health`
 - `GET /api/ws` — standard WebSocket; JSON frames call any `/api` route (including plugins). See [docs/core.md](docs/core.md#websocket-http-bridge).
 - `GET /api/stream` — SSE live updates for the UI
@@ -339,5 +341,6 @@ SQLite file: `./data/monitor.sqlite` (bind-mounted in Compose at `/data/monitor.
 - Dependency updates: Dependabot (`.github/dependabot.yml`) for npm, Docker, and GitHub Actions
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Browser extensions (Chrome + Firefox): [extensions/README.md](extensions/README.md)
+- MCP server for AI agents: [mcp/README.md](mcp/README.md)
 - Plugin authoring (API + UI + dashboard widgets): [docs/plugins.md](docs/plugins.md) — implementations live in [`plugins/`](plugins/)
 - Core host (pipeline, schema, plugin host, UI shell): [docs/core.md](docs/core.md)

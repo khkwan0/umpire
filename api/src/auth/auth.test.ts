@@ -4,6 +4,7 @@ import path from 'node:path'
 import {core, initCore, closeCore} from '../core/sqlite.js'
 import {hashPassword, verifyPassword} from './password.js'
 import {hashSessionToken, newSessionToken} from './cookies.js'
+import {apiTokenPrefix, hashApiToken, newApiToken} from './tokens.js'
 
 function sqliteBindingsAvailable(): boolean {
   try {
@@ -117,6 +118,41 @@ describeAuth('auth store and RBAC', () => {
     expect(anon.plugins).toBe('all')
 
     expect(core.resolveSessionPrincipal('bogus')).toBeNull()
+  })
+
+  it('creates, resolves, and revokes API tokens', () => {
+    const admin = core.getRoleBySlug('admin')!
+    const readOnly = core.getRoleBySlug('read_only')!
+    core.createUser({
+      username: 'admin2',
+      password: 'password1',
+      role_id: admin.id,
+    })
+    const user = core.createUser({
+      username: 'agent',
+      password: 'password1',
+      role_id: readOnly.id,
+    })
+    core.updateSettings({auth_enabled: true})
+
+    const raw = newApiToken()
+    const created = core.createApiToken({
+      userId: user.id,
+      label: 'MCP agent',
+      tokenHash: hashApiToken(raw),
+      tokenPrefix: apiTokenPrefix(raw),
+      expiresAt: null,
+    })
+    expect(created.token_prefix.startsWith('umpire_')).toBe(true)
+
+    const principal = core.resolveApiTokenPrincipal(raw)!
+    expect(principal.user?.id).toBe(user.id)
+    expect(principal.can_write).toBe(false)
+    expect(principal.is_admin).toBe(false)
+
+    expect(core.listApiTokens(user.id)).toHaveLength(1)
+    expect(core.deleteApiToken(created.id)).toBe(true)
+    expect(core.resolveApiTokenPrincipal(raw)).toBeNull()
   })
 
   it('blocks deleting the last user while auth is enabled', () => {

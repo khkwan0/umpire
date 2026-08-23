@@ -25,6 +25,7 @@ import {notifiersRoutes} from './routes/notifiers.js'
 import {pluginsRoutes} from './routes/plugins.js'
 import {pluginManagerRoutes} from './routes/plugin-manager.js'
 import {authRoutes} from './routes/auth.js'
+import {tokensRoutes} from './routes/tokens.js'
 import {usersRoutes} from './routes/users.js'
 import {rolesRoutes} from './routes/roles.js'
 
@@ -58,6 +59,7 @@ async function main() {
 
   await app.register(healthRoutes)
   await app.register(authRoutes)
+  await app.register(tokensRoutes)
   await app.register(usersRoutes)
   await app.register(rolesRoutes)
   await app.register(targetsRoutes)

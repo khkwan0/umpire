@@ -277,4 +277,31 @@ export const CORE_TABLES: CoreTableDef[] = [
       {name: 'idx_sessions_expires_at', columns: ['expires_at']},
     ],
   },
+  {
+    name: 'api_tokens',
+    columns: [
+      {name: 'id', type: 'integer', primaryKey: true, autoIncrement: true},
+      {
+        name: 'user_id',
+        type: 'integer',
+        notNull: true,
+        references: {table: 'users', column: 'id', onDelete: 'CASCADE'},
+      },
+      {name: 'label', type: 'text', notNull: true, default: ''},
+      {name: 'token_hash', type: 'text', notNull: true, unique: true},
+      {name: 'token_prefix', type: 'text', notNull: true},
+      {name: 'expires_at', type: 'text'},
+      {name: 'last_used_at', type: 'text'},
+      {
+        name: 'created_at',
+        type: 'text',
+        notNull: true,
+        default: {type: 'now'},
+      },
+    ],
+    indexes: [
+      {name: 'idx_api_tokens_user_id', columns: ['user_id']},
+      {name: 'idx_api_tokens_expires_at', columns: ['expires_at']},
+    ],
+  },
 ]
