@@ -60,7 +60,8 @@ Run **Build with Parameters** and check **DEPLOY** only on an agent that should 
 ## Local equivalent
 
 ```bash
-cd api && npm ci && npm run test:ci && npm run build
+cd agent && npm install && npm run build
+cd ../api && npm ci && npm run test:ci && npm run build
 cd ../web && npm ci && npm run build
 docker compose build
 ```

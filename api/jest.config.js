@@ -5,6 +5,8 @@ export default {
   extensionsToTreatAsEsm: ['.ts'],
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
+    // Resolve local file: dep to TypeScript sources (agent/dist is built separately in CI).
+    '^umpire-agent$': '<rootDir>/../agent/src/index.ts',
   },
   transform: {
     '^.+\\.tsx?$': [

@@ -37,6 +37,12 @@ pipeline {
             }
           }
           steps {
+            sh '''
+              set -eu
+              cd agent
+              npm install
+              npm run build
+            '''
             dir('api') {
               sh 'node --version && npm ci'
               sh 'npm run test:ci'

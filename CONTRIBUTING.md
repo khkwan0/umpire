@@ -66,7 +66,8 @@ Web UI: **Agent** tab at `/agent` (WebSocket `/api/agent/ws`). The API server ne
 Before opening a pull request, run the same checks as CI:
 
 ```bash
-cd api && npm ci && npm run lint && npm run format:check && npm run test:ci && npm run build
+cd agent && npm install && npm run build
+cd ../api && npm ci && npm run lint && npm run format:check && npm run test:ci && npm run build
 cd ../web && npm ci && npm run lint && npm run format:check && npm run build
 ```
 

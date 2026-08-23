@@ -280,7 +280,8 @@ cd api && npm test
 CI locally (same as GitHub Actions / Jenkins API and Web jobs):
 
 ```bash
-cd api && npm ci && npm run lint && npm run format:check && npm run test:ci && npm run build
+cd agent && npm install && npm run build
+cd ../api && npm ci && npm run lint && npm run format:check && npm run test:ci && npm run build
 cd ../web && npm ci && npm run lint && npm run format:check && npm run build
 ```
 

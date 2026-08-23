@@ -354,7 +354,8 @@ On connect the server also sends `{ "type": "connected", "auth": { … } }`. Upg
 After a core change, from repo root (same as CI):
 
 ```bash
-cd api && npm ci && npm run lint && npm run format:check && npm run test:ci && npm run build
+cd agent && npm install && npm run build
+cd ../api && npm ci && npm run lint && npm run format:check && npm run test:ci && npm run build
 cd ../web && npm ci && npm run lint && npm run format:check && npm run build
 ```
 

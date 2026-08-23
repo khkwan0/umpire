@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "umpire": {
+      "command": "node",
+      "args": ["${workspaceFolder}/mcp/dist/index.js"],
+      "envFile": "${workspaceFolder}/.env"
+    }
+  }
+}

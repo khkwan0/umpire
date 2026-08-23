@@ -107,8 +107,9 @@ describe('websocket HTTP bridge', () => {
     await app.close()
   })
 
-  it('rejects blocked paths and requires auth when enabled', async () => {
+  it('defers WS handshake auth; rejects blocked paths and unauthenticated writes', async () => {
     settings.auth_enabled = true
+    settings.allow_readonly_without_auth = false
 
     const app = Fastify()
     await registerOpenApi(app)
@@ -118,7 +119,35 @@ describe('websocket HTTP bridge', () => {
     await app.register(wsRoutes)
     await app.ready()
 
-    await expect(app.injectWS('/api/ws')).rejects.toThrow()
+    // Upgrade is allowed without a session; auth is enforced on inject() frames.
+    const unauthSocket = await app.injectWS('/api/ws')
+    const unauthHello = await waitForMessage(
+      unauthSocket,
+      msg => msg.type === 'connected',
+    )
+    expect(unauthHello).toMatchObject({
+      type: 'connected',
+      auth: null,
+    })
+
+    const unauthWritePromise = waitForMessage(
+      unauthSocket,
+      msg => msg.id === 'unauth-write',
+    )
+    unauthSocket.send(
+      JSON.stringify({
+        id: 'unauth-write',
+        method: 'POST',
+        path: '/api/targets',
+        body: {url: 'https://example.com', interval_seconds: 60},
+      }),
+    )
+    expect(await unauthWritePromise).toMatchObject({
+      id: 'unauth-write',
+      status: 401,
+      body: {error: 'Authentication required'},
+    })
+    unauthSocket.terminate()
 
     settings.allow_readonly_without_auth = true
     const socket = await app.injectWS('/api/ws')

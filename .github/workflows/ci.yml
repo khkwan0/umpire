@@ -33,7 +33,13 @@ jobs:
         with:
           node-version: current
           cache: npm
-          cache-dependency-path: api/package-lock.json
+          cache-dependency-path: |
+            api/package-lock.json
+            agent/package.json
+
+      - name: Build umpire-agent
+        working-directory: agent
+        run: npm install && npm run build
 
       - run: npm ci
       - run: npm run lint
