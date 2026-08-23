@@ -83,6 +83,17 @@ export default function AgentPage() {
           )
           return [...prev.slice(0, -1), {...last, tools}]
         })
+      } else if (type === 'assistant_delta') {
+        const delta = String(msg.delta ?? '')
+        if (!delta) return
+        setEntries(prev => {
+          const last = prev[prev.length - 1]
+          if (!last || last.role !== 'assistant') return prev
+          return [
+            ...prev.slice(0, -1),
+            {...last, content: last.content + delta},
+          ]
+        })
       } else if (type === 'assistant' || type === 'done') {
         const message = String(msg.message ?? '')
         setEntries(prev => {
@@ -286,7 +297,14 @@ export default function AgentPage() {
               </ul>
             )}
             {entry.content ? (
-              <p>{entry.content}</p>
+              <p>
+                {entry.content}
+                {busy &&
+                  entry.role === 'assistant' &&
+                  entry.id === `a-${pendingIdRef.current}` && (
+                    <span className="agent-cursor">▋</span>
+                  )}
+              </p>
             ) : busy && entry.role === 'assistant' ? (
               <p className="muted">Thinking…</p>
             ) : null}

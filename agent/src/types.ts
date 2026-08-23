@@ -23,6 +23,7 @@ export interface LlmToolDef {
 export type AgentEvent =
   | {type: 'tool_start'; tool: string; args: Record<string, unknown>}
   | {type: 'tool_end'; tool: string; summary: string}
+  | {type: 'assistant_delta'; delta: string}
   | {type: 'assistant'; message: string}
   | {type: 'error'; error: string}
 

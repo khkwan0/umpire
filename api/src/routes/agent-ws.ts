@@ -245,6 +245,12 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
                     tool: event.tool,
                     summary: event.summary.slice(0, 8000),
                   })
+                } else if (event.type === 'assistant_delta') {
+                  sendJson(socket, {
+                    type: 'assistant_delta',
+                    id,
+                    delta: event.delta,
+                  })
                 } else if (event.type === 'assistant') {
                   sendJson(socket, {
                     type: 'assistant',

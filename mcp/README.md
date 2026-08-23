@@ -4,6 +4,8 @@
 
 The MCP server does **not** embed an LLM — you plug in your own model and API keys in the host application.
 
+For the built-in web chat (LLM runs on the UMPIRE server), see [agent/README.md](../agent/README.md) and [docs/agents.md](../docs/agents.md).
+
 ## Install
 
 ```bash
@@ -14,17 +16,19 @@ npm run build
 
 ## Configure
 
-| Variable           | Required        | Description                                             |
-| ------------------ | --------------- | ------------------------------------------------------- |
-| `UMPIRE_BASE_URL`  | No              | UMPIRE web/API origin (default `http://localhost:8089`) |
-| `UMPIRE_API_TOKEN` | When auth is on | Bearer token from `POST /api/tokens`                    |
+| Variable           | Required        | Description                                                                 |
+| ------------------ | --------------- | --------------------------------------------------------------------------- |
+| `UMPIRE_BASE_URL`  | No              | UMPIRE web/API origin (default `http://localhost:8089`)                     |
+| `UMPIRE_API_TOKEN` | When auth is on | Bearer token from **Settings → API tokens** or `POST /api/tokens`           |
 
 When `auth_enabled` is false, no token is needed.
+
+**`BASE_PATH`:** if UMPIRE is served at `https://example.com/umpire`, set `UMPIRE_BASE_URL` to that full prefix (e.g. `https://example.com/umpire`), not the domain root.
 
 ### Create an API token
 
 1. Enable auth and create a user in the UMPIRE Settings UI.
-2. Log in and create a token:
+2. Open **Settings → API tokens** and create a token, or use curl:
 
 ```bash
 curl -s -c /tmp/umpire.cookies -X POST http://localhost:8089/api/auth/login \
@@ -33,7 +37,7 @@ curl -s -c /tmp/umpire.cookies -X POST http://localhost:8089/api/auth/login \
 
 curl -s -b /tmp/umpire.cookies -X POST http://localhost:8089/api/tokens \
   -H 'content-type: application/json' \
-  -d '{"label":"claude-agent","expires_in_days":90}'
+  -d '{"label":"cursor-mcp","expires_in_days":90}'
 ```
 
 Copy the `token` field (`umpire_…`) into `UMPIRE_API_TOKEN`. It is shown **once**.
@@ -53,6 +57,24 @@ Or during development:
 ```bash
 UMPIRE_API_TOKEN=umpire_… npm run dev
 ```
+
+## Cursor example
+
+This repo includes [`.cursor/mcp.json`](../.cursor/mcp.json):
+
+```json
+{
+  "mcpServers": {
+    "umpire": {
+      "command": "node",
+      "args": ["${workspaceFolder}/mcp/dist/index.js"],
+      "envFile": "${workspaceFolder}/.env"
+    }
+  }
+}
+```
+
+Put `UMPIRE_BASE_URL` and `UMPIRE_API_TOKEN` in `.env` (see [`.env.example`](../.env.example)), run `npm run build` in `mcp/`, then reload MCP in Cursor.
 
 ## Claude Desktop example
 
@@ -81,6 +103,17 @@ UMPIRE_API_TOKEN=umpire_… npm run dev
 
 Auth and RBAC match the HTTP API: the token inherits the creating user's role (`read_only`, custom plugin allowlists, admin, etc.).
 
+## MCP vs built-in web agent
+
+| | MCP (this package) | Web agent |
+|--|-------------------|-----------|
+| LLM runs in | Cursor, Claude Desktop, … | UMPIRE API server |
+| Auth | Bearer token | Browser session cookie |
+| Setup | `UMPIRE_*` + host config | **Settings → AI Agent** + **Agent** tab |
+| Tool surface | Full route catalog (~90 tools) | Five curated tools + `umpire_api_request` |
+
+See [docs/agents.md](../docs/agents.md) for the full comparison and WebSocket details.
+
 ## Layout
 
 ```text
@@ -91,4 +124,4 @@ mcp/
     routes.ts   # Core route catalog + plugin route helpers
 ```
 
-See also [docs/core.md](../docs/core.md#authentication-and-rbac) and [docs/core.md](../docs/core.md#mcp-agents).
+See also [docs/agents.md](../docs/agents.md) and [docs/core.md](../docs/core.md#authentication-and-rbac).

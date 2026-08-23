@@ -8,6 +8,7 @@ Read these before changing code:
 
 - **[Plugin developer guide](docs/plugins.md)** — how to write check, scheduler, and notifier plugins (contracts, HTTP, UI, cookbooks).
 - **[Core developer guide](docs/core.md)** — how the host works (pipeline, frozen schema, alert policy, plugin host, UI shell) and what belongs in core vs a plugin.
+- **[AI agents guide](docs/agents.md)** — MCP server, built-in web chat, API tokens, WebSocket protocols, streaming.
 - **[`plugins/README.md`](plugins/README.md)** — implementations live in `plugins/<kind>/<id>/`; the host stays in `api/src/plugins/`.
 
 Operator setup and the HTTP API list live in [`README.md`](README.md).
@@ -50,7 +51,7 @@ cd extensions && npm install && npm run build && npm run build:firefox
 cd mcp && npm install && npm run build
 ```
 
-See [`mcp/README.md`](mcp/README.md). Requires an API token when auth is enabled.
+See [`mcp/README.md`](mcp/README.md) and [`docs/agents.md`](docs/agents.md). Requires an API token when auth is enabled (`UMPIRE_API_TOKEN` or **Settings → API tokens**).
 
 ### Agent CLI and web chat
 
@@ -59,7 +60,7 @@ cd agent && npm install && npm run build
 OPENAI_API_KEY=sk-… UMPIRE_API_TOKEN=umpire_… npm start   # terminal chat
 ```
 
-Web UI: **Agent** tab at `/agent` (WebSocket `/api/agent/ws`). The API server needs `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`. See [`agent/README.md`](agent/README.md).
+**Web UI:** **Agent** tab at `/agent` (WebSocket `/api/agent/ws`). Prefer **Settings → AI Agent** for LLM config on the API server; env vars are the fallback. Responses stream via `assistant_delta` frames. See [`agent/README.md`](agent/README.md) and [`docs/agents.md`](docs/agents.md).
 
 ## Testing and CI expectations
 
@@ -96,7 +97,7 @@ Dependabot (`.github/dependabot.yml`) keeps npm, Docker, and GitHub Actions depe
   - why it changed
   - how you tested it
 - If UI behavior changes, include screenshots or short notes of before/after behavior.
-- If API behavior changes, update relevant docs in `README.md`, [`docs/core.md`](docs/core.md), and/or [`docs/plugins.md`](docs/plugins.md).
+- If API behavior changes, update relevant docs in `README.md`, [`docs/core.md`](docs/core.md), [`docs/agents.md`](docs/agents.md), and/or [`docs/plugins.md`](docs/plugins.md).
 
 ## Plugin and core boundaries
 

@@ -34,12 +34,22 @@ export async function runAgentChat(input: {
   ]
 
   for (let round = 0; round < llm.maxToolRounds; round += 1) {
-    const turn = await runLlmTurn(llm, messages, AGENT_TOOLS)
+    let streamed = false
+    const turn = await runLlmTurn(llm, messages, AGENT_TOOLS, {
+      onDelta: onEvent
+        ? delta => {
+            streamed = true
+            onEvent({type: 'assistant_delta', delta})
+          }
+        : undefined,
+    })
 
     if (turn.toolCalls.length === 0) {
       const reply =
         turn.message ?? 'I could not produce a response. Please try again.'
-      onEvent?.({type: 'assistant', message: reply})
+      if (!streamed) {
+        onEvent?.({type: 'assistant', message: reply})
+      }
       return reply
     }
 

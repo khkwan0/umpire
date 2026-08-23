@@ -2,7 +2,7 @@
 
 Cookbook for changing UMPIRE **core** — the host that stores data, runs the pipeline, and enforces plugin contracts. Written so a developer or LLM can change core without reverse-engineering the repo.
 
-Writing a check, scheduler, or notifier: **[Plugin developer guide](plugins.md)**. Operator setup (run the app, shipped plugins, HTTP API list): [`README.md`](../README.md).
+Writing a check, scheduler, or notifier: **[Plugin developer guide](plugins.md)**. Operator setup (run the app, shipped plugins, HTTP API list): [`README.md`](../README.md). AI agents (MCP, web chat, tokens): **[Agents guide](agents.md)**.
 
 ## Contents
 
@@ -141,34 +141,31 @@ Bearer tokens complement browser cookie sessions for MCP servers, scripts, and o
 
 Send `Authorization: Bearer umpire_…` on HTTP and WebSocket-bridge requests. Tokens inherit the creating user's role and plugin allowlist. Store only a SHA-256 hash server-side (`api_tokens` table).
 
+**UI:** **Settings → API tokens** — create and revoke tokens without curl.
+
 When `auth_enabled` is false, tokens are optional (anonymous admin applies).
 
-### MCP agents
+### AI agents (MCP and built-in web chat)
 
-The [`mcp/`](../mcp/) package is an MCP server (stdio) that exposes UMPIRE HTTP routes as tools for LLM hosts (Claude Desktop, Cursor, etc.). It does **not** embed an LLM — configure your model in the host.
+UMPIRE supports MCP (external LLM host) and a built-in web agent (LLM on the API server). Full operator guide: **[docs/agents.md](agents.md)**.
 
-- `UMPIRE_BASE_URL` — same origin as the web UI
-- `UMPIRE_API_TOKEN` — Bearer token when auth is on
-- Tools: `umpire_request`, `umpire_list_routes`, plus one tool per core/plugin route
+| Package | Role |
+|---------|------|
+| [`mcp/`](../mcp/) | stdio MCP server — exposes HTTP routes as tools for Cursor, Claude Desktop, etc. |
+| [`agent/`](../agent/) | LLM tool-calling loop — CLI + web chat at `/api/agent/ws` |
 
-See [`mcp/README.md`](../mcp/README.md).
+**MCP:** `UMPIRE_BASE_URL` + `UMPIRE_API_TOKEN`. Does not embed an LLM. See [`mcp/README.md`](../mcp/README.md).
 
-### Agent CLI and web chat
+**Web agent:** Configure under **Settings → AI Agent** (database) or API server env vars (fallback). Chat at **Agent** (`/agent`) over WebSocket. Uses session cookie auth, not Bearer tokens.
 
-The [`agent/`](../agent/) package runs an LLM tool-calling loop against the UMPIRE API:
+**Agent HTTP:** `GET /api/agent/status`, `GET/PUT /api/agent/settings` (admin), `GET /api/agent/ws`.
 
-- **CLI:** `umpire-agent chat` — terminal chat (needs `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` + `UMPIRE_*` on the machine running the CLI)
-- **Web UI:** `/agent` in the shell — WebSocket at `GET /api/agent/ws` (same LLM env vars on the **API server**)
+**Agent WebSocket protocol** (summary):
 
-Server env (OpenAI-compatible default):
+- Client: `{ type: "chat", id, message, history? }`
+- Server: `ready`, `started`, `tool_start`, `tool_end`, `assistant_delta` (streaming tokens), `assistant` (non-streaming fallback), `done`, `error`
 
-```bash
-OPENAI_API_KEY=sk-…
-OPENAI_MODEL=gpt-4o-mini
-# or AGENT_LLM_PROVIDER=anthropic + ANTHROPIC_API_KEY
-```
-
-WebSocket frames: client sends `{ type: "chat", id, message, history? }`; server streams `tool_start`, `tool_end`, `assistant`, `done`, or `error`. Tool calls use the authenticated user's cookie/Bearer and respect RBAC via `app.inject()`.
+Tool calls use `app.inject()` with the WS session cookie. Streaming is implemented in [`agent/src/llm.ts`](../agent/src/llm.ts) (OpenAI-compatible + Anthropic SSE).
 
 See [`agent/README.md`](../agent/README.md).
 
@@ -307,6 +304,14 @@ Typed client: [`web/src/api.ts`](../web/src/api.ts). Keep it in sync when you ad
 
 Known events: `plugin-manager.updated`, `targets.updated`, `status.updated`, `incidents.updated`. Publish after core mutations that the dashboard must see. Do not invent a second `/api/status` loop in plugin UI — use the dashboard `status` prop / existing refresh.
 
+This is **not** LLM token streaming. For agent chat streaming, see [Agent chat WebSocket](agents.md#agent-chat-websocket-apagentws) in the agents guide.
+
+### Agent chat WebSocket
+
+[`routes/agent-ws.ts`](../api/src/routes/agent-ws.ts) — dedicated WebSocket at `GET /api/agent/ws` for the built-in LLM agent. Deferred auth on upgrade (same pattern as `/api/ws`); each `chat` frame requires a session cookie.
+
+UI: [`web/src/pages/Agent.tsx`](../web/src/pages/Agent.tsx). Full frame reference: [docs/agents.md](agents.md#agent-chat-websocket-apagentws).
+
 ### WebSocket HTTP bridge
 
 [`routes/ws.ts`](../api/src/routes/ws.ts) exposes standard WebSockets at `GET /api/ws` (via `@fastify/websocket`, not socket.io). Clients send JSON frames that map onto the same Fastify routes as HTTP — including `/api/plugins/<kind>/<id>/…` — through `app.inject()`, so the auth gate and plugin mounts stay single-source.
@@ -330,7 +335,7 @@ Known events: `plugin-manager.updated`, `targets.updated`, `status.updated`, `in
 { "id": "req-1", "status": 200, "headers": { "content-type": "application/json" }, "body": [] }
 ```
 
-On connect the server also sends `{ "type": "connected", "auth": { … } }`. Upgrade and each injected call use the session cookie (`umpire_session`); `Set-Cookie` from login/logout updates a per-connection cookie jar. `/api/ws` and `/api/stream` cannot be called via the bridge. nginx and the Vite `/api` proxy must forward `Upgrade` / `Connection` (see `web/nginx.conf`, `web/vite.config.ts`).
+On connect the server also sends `{ "type": "connected", "auth": { … } }`. Upgrade and each injected call use the session cookie (`umpire_session`); `Set-Cookie` from login/logout updates a per-connection cookie jar. `/api/ws`, `/api/agent/ws`, and `/api/stream` cannot be called via the bridge. nginx and the Vite `/api` proxy must forward `Upgrade` / `Connection` (see `web/nginx.conf`, `web/vite.config.ts`).
 
 ---
 
@@ -380,6 +385,9 @@ Minimum checks for the area you touched:
 | Auth gate / sessions / API tokens | [`api/src/auth/`](../api/src/auth/) |
 | MCP server (agents) | [`mcp/`](../mcp/) |
 | Agent CLI + web chat | [`agent/`](../agent/) |
+| Agent WebSocket route | [`api/src/routes/agent-ws.ts`](../api/src/routes/agent-ws.ts) |
+| Agent settings | [`api/src/agent/`](../api/src/agent/), [`api/src/routes/agent-settings.ts`](../api/src/routes/agent-settings.ts) |
+| Agents operator guide | [`docs/agents.md`](agents.md) |
 | Pipeline | [`api/src/pipeline.ts`](../api/src/pipeline.ts) |
 | Check ↔ target compatibility | [`api/src/checkCompatibility.ts`](../api/src/checkCompatibility.ts) |
 | Target address parse | [`api/src/targetAddress.ts`](../api/src/targetAddress.ts) |

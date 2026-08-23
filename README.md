@@ -147,7 +147,7 @@ api/src/plugins/  host only (types, loader, manager, route namespace)
 api/plugins.json  which implementations load
 web/              UI shell; globs plugins/*/*/ui at build time
 data/             SQLite + plugin sidecar JSON (not in git)
-docs/             plugin guide, core guide, Jenkins
+docs/             plugin guide, core guide, agents, Jenkins
 ```
 
 Do not confuse filesystem `plugins/` with HTTP `/api/plugins/<kind>/<id>/…` (the host namespace).
@@ -195,7 +195,9 @@ Asset URLs, React Router’s basename, API/SSE fetches, and the web container’
 
 Your reverse proxy can either forward `/umpire/...` as-is or strip the prefix before proxying; the web container accepts both when built with that `BASE_PATH`. Local health checks stay on the published port without the prefix: `http://127.0.0.1:8089/api/health`.
 
-**WebSockets (Agent chat, `/api/ws`):** the web image proxies `/umpire/api/agent/ws` directly when built with `BASE_PATH=/umpire`. Your front reverse proxy must also forward `Upgrade` and `Connection` headers for that path, for example:
+**WebSockets:** UMPIRE uses three realtime channels — **agent chat** at `/api/agent/ws`, **HTTP bridge** at `/api/ws`, and **dashboard SSE** at `/api/stream`. See [docs/agents.md](docs/agents.md#websockets).
+
+When `BASE_PATH=/umpire`, the web image proxies `/umpire/api/agent/ws` directly. Your front reverse proxy must forward `Upgrade` and `Connection` for WebSocket paths, for example:
 
 ```nginx
 location /umpire/ {
@@ -329,9 +331,12 @@ Swagger UI: [http://localhost:8089/documentation](http://localhost:8089/document
 - `GET /api/status`
 - `GET /api/schema`
 - `GET /api/auth/me` — current principal (session cookie or Bearer token)
-- `GET/POST/DELETE /api/tokens` — API tokens for agents (`Authorization: Bearer umpire_…`). See [docs/core.md](docs/core.md#api-tokens-agents--automation).
+- `GET/POST/DELETE /api/tokens` — API tokens for agents (`Authorization: Bearer umpire_…`). UI: **Settings → API tokens**. See [docs/agents.md](docs/agents.md#api-tokens).
+- `GET /api/agent/status` — AI agent enabled/configured state (public)
+- `GET/PUT /api/agent/settings` — AI agent LLM config (admin). UI: **Settings → AI Agent**
+- `GET /api/agent/ws` — WebSocket chat with the built-in agent (streaming). UI: **Agent** (`/agent`)
 - `GET /api/health`
-- `GET /api/ws` — standard WebSocket; JSON frames call any `/api` route (including plugins). See [docs/core.md](docs/core.md#websocket-http-bridge).
+- `GET /api/ws` — WebSocket HTTP bridge; JSON frames call any `/api` route (including plugins). See [docs/core.md](docs/core.md#websocket-http-bridge).
 - `GET /api/stream` — SSE live updates for the UI
 
 ## Groups and tags
@@ -356,7 +361,8 @@ SQLite file: `./data/monitor.sqlite` (bind-mounted in Compose at `/data/monitor.
 - Dependency updates: Dependabot (`.github/dependabot.yml`) for npm, Docker, and GitHub Actions
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Browser extensions (Chrome + Firefox): [extensions/README.md](extensions/README.md)
-- MCP server for AI agents: [mcp/README.md](mcp/README.md)
+- AI agents (MCP, web chat, tokens, WebSockets): [docs/agents.md](docs/agents.md)
+- MCP server: [mcp/README.md](mcp/README.md)
 - Agent CLI + web chat: [agent/README.md](agent/README.md)
 - Plugin authoring (API + UI + dashboard widgets): [docs/plugins.md](docs/plugins.md) — implementations live in [`plugins/`](plugins/)
 - Core host (pipeline, schema, plugin host, UI shell): [docs/core.md](docs/core.md)
