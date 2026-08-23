@@ -19,6 +19,8 @@ import {statusRoutes} from './routes/status.js'
 import {incidentsRoutes} from './routes/incidents.js'
 import {streamRoutes} from './routes/stream.js'
 import {wsRoutes} from './routes/ws.js'
+import {agentRoutes} from './routes/agent-ws.js'
+import {agentSettingsRoutes} from './routes/agent-settings.js'
 import {schemaRoutes} from './routes/schema.js'
 import {checksRoutes} from './routes/checks.js'
 import {notifiersRoutes} from './routes/notifiers.js'
@@ -69,6 +71,8 @@ async function main() {
   await app.register(incidentsRoutes)
   await app.register(streamRoutes)
   await app.register(wsRoutes)
+  await app.register(agentRoutes)
+  await app.register(agentSettingsRoutes)
   await app.register(schemaRoutes)
   await app.register(checksRoutes)
   await app.register(notifiersRoutes)

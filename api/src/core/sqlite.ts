@@ -21,6 +21,12 @@ import type {
   User,
 } from '../plugins/types.js'
 import {buildIncidents, type IncidentSourceRow} from '../incidents.js'
+import {
+  defaultStoredAgentSettings,
+  mergeAgentSettingsUpdate,
+  parseStoredAgentSettings,
+  writeStoredAgentSettings,
+} from '../agent/settings-store.js'
 import {healthToDb} from '../plugins/types.js'
 import {CORE_TABLES} from './schema.js'
 import type {CoreStore} from './types.js'
@@ -656,6 +662,10 @@ export const core: CoreStore = {
           ...row,
           token_hash: '[redacted]',
         }))
+      } else if (table.name === 'settings') {
+        out[table.name] = rows.map(row =>
+          row.key === 'agent_api_key' ? {...row, value: '[redacted]'} : row,
+        )
       } else {
         out[table.name] = rows
       }
@@ -709,6 +719,23 @@ export const core: CoreStore = {
       'allow_readonly_without_auth',
       next.allow_readonly_without_auth ? '1' : '0',
     )
+    return next
+  },
+
+  getStoredAgentSettings() {
+    const rows = getStmts().selectSettings.all() as Array<{
+      key: string
+      value: string
+    }>
+    const map = Object.fromEntries(rows.map(r => [r.key, r.value]))
+    return parseStoredAgentSettings(map)
+  },
+
+  updateStoredAgentSettings(partial) {
+    const current =
+      core.getStoredAgentSettings() ?? defaultStoredAgentSettings()
+    const next = mergeAgentSettingsUpdate(current, partial)
+    writeStoredAgentSettings(getStmts().upsertSetting, next)
     return next
   },
 
@@ -1209,8 +1236,7 @@ export const core: CoreStore = {
     core.pruneExpiredSessions()
     const tokenHash = hashSessionToken(rawToken)
     const row = getStmts().selectSessionByHash.get(tokenHash) as
-      | {user_id: number}
-      | undefined
+      {user_id: number} | undefined
     if (!row) return null
     return core.principalForUser(row.user_id)
   },
@@ -1259,8 +1285,7 @@ export const core: CoreStore = {
     core.pruneExpiredApiTokens()
     const tokenHash = hashApiToken(rawToken)
     const row = getStmts().selectApiTokenByHash.get(tokenHash) as
-      | {id: number; user_id: number}
-      | undefined
+      {id: number; user_id: number} | undefined
     if (!row) return null
     getStmts().touchApiTokenLastUsed.run(row.id)
     return core.principalForUser(row.user_id)

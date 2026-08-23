@@ -153,6 +153,25 @@ The [`mcp/`](../mcp/) package is an MCP server (stdio) that exposes UMPIRE HTTP 
 
 See [`mcp/README.md`](../mcp/README.md).
 
+### Agent CLI and web chat
+
+The [`agent/`](../agent/) package runs an LLM tool-calling loop against the UMPIRE API:
+
+- **CLI:** `umpire-agent chat` — terminal chat (needs `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` + `UMPIRE_*` on the machine running the CLI)
+- **Web UI:** `/agent` in the shell — WebSocket at `GET /api/agent/ws` (same LLM env vars on the **API server**)
+
+Server env (OpenAI-compatible default):
+
+```bash
+OPENAI_API_KEY=sk-…
+OPENAI_MODEL=gpt-4o-mini
+# or AGENT_LLM_PROVIDER=anthropic + ANTHROPIC_API_KEY
+```
+
+WebSocket frames: client sends `{ type: "chat", id, message, history? }`; server streams `tool_start`, `tool_end`, `assistant`, `done`, or `error`. Tool calls use the authenticated user's cookie/Bearer and respect RBAC via `app.inject()`.
+
+See [`agent/README.md`](../agent/README.md).
+
 Source: [`api/src/auth/`](../api/src/auth/), routes in `api/src/routes/auth.ts`, `tokens.ts`, `users.ts`, `roles.ts`. UI: Settings + `/login`.
 
 ---
@@ -359,6 +378,7 @@ Minimum checks for the area you touched:
 | Boot | [`api/src/index.ts`](../api/src/index.ts) |
 | Auth gate / sessions / API tokens | [`api/src/auth/`](../api/src/auth/) |
 | MCP server (agents) | [`mcp/`](../mcp/) |
+| Agent CLI + web chat | [`agent/`](../agent/) |
 | Pipeline | [`api/src/pipeline.ts`](../api/src/pipeline.ts) |
 | Check ↔ target compatibility | [`api/src/checkCompatibility.ts`](../api/src/checkCompatibility.ts) |
 | Target address parse | [`api/src/targetAddress.ts`](../api/src/targetAddress.ts) |

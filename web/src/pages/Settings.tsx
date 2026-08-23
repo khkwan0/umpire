@@ -3,6 +3,8 @@ import {
   api,
   isTransientApiError,
   type AlertPolicy,
+  type AgentLlmProvider,
+  type AgentSettings,
   type PluginManagerState,
   type Role,
   type RolePluginRef,
@@ -17,6 +19,56 @@ import {useOnboarding} from '../onboarding'
 
 const MISSING_PLUGIN_DESCRIPTION =
   "No description offered by the plugin's author"
+
+const AGENT_PROVIDER_OPTIONS: Array<{
+  id: AgentLlmProvider
+  label: string
+  defaultBaseUrl: string | null
+  defaultModel: string
+  apiKeyRequired: boolean
+  baseUrlHint: string
+}> = [
+  {
+    id: 'openai',
+    label: 'OpenAI',
+    defaultBaseUrl: 'https://api.openai.com/v1',
+    defaultModel: 'gpt-4o-mini',
+    apiKeyRequired: true,
+    baseUrlHint: 'OpenAI or compatible API base URL',
+  },
+  {
+    id: 'anthropic',
+    label: 'Anthropic',
+    defaultBaseUrl: null,
+    defaultModel: 'claude-sonnet-4-20250514',
+    apiKeyRequired: true,
+    baseUrlHint: 'Anthropic uses a fixed API endpoint',
+  },
+  {
+    id: 'ollama',
+    label: 'Ollama',
+    defaultBaseUrl: 'http://127.0.0.1:11434/v1',
+    defaultModel: 'llama3.2',
+    apiKeyRequired: false,
+    baseUrlHint:
+      'Ollama OpenAI-compatible URL (from Docker use http://host.docker.internal:11434/v1)',
+  },
+  {
+    id: 'vllm',
+    label: 'vLLM',
+    defaultBaseUrl: 'http://127.0.0.1:8000/v1',
+    defaultModel: '',
+    apiKeyRequired: false,
+    baseUrlHint: 'vLLM OpenAI-compatible server base URL',
+  },
+]
+
+function agentProviderMeta(provider: AgentLlmProvider) {
+  return (
+    AGENT_PROVIDER_OPTIONS.find(option => option.id === provider) ??
+    AGENT_PROVIDER_OPTIONS[0]!
+  )
+}
 
 function displayedPluginDescription(
   description: string | null | undefined,
@@ -96,6 +148,21 @@ export default function SettingsPage() {
   const [rolePlugins, setRolePlugins] = useState<RolePluginRef[]>([])
   const [editRoleId, setEditRoleId] = useState<number | null>(null)
 
+  const [agentSettings, setAgentSettings] = useState<AgentSettings | null>(null)
+  const [agentEnabled, setAgentEnabled] = useState(false)
+  const [agentProvider, setAgentProvider] = useState<AgentLlmProvider>('openai')
+  const [agentModel, setAgentModel] = useState('gpt-4o-mini')
+  const [agentBaseUrl, setAgentBaseUrl] = useState('')
+  const [agentApiKey, setAgentApiKey] = useState('')
+  const [agentMaxToolRounds, setAgentMaxToolRounds] = useState(12)
+  const [agentHasApiKey, setAgentHasApiKey] = useState(false)
+  const [agentBusy, setAgentBusy] = useState(false)
+
+  const agentMeta = useMemo(
+    () => agentProviderMeta(agentProvider),
+    [agentProvider],
+  )
+
   const availablePlugins = useMemo(() => {
     if (!plugins) return [] as RolePluginRef[]
     const list: RolePluginRef[] = [
@@ -121,6 +188,26 @@ export default function SettingsPage() {
     }
   }
 
+  function applyAgentSettings(next: AgentSettings) {
+    setAgentSettings(next)
+    setAgentEnabled(next.enabled)
+    setAgentProvider(next.provider)
+    setAgentModel(next.model)
+    setAgentBaseUrl(next.base_url ?? '')
+    setAgentHasApiKey(next.has_api_key)
+    setAgentMaxToolRounds(next.max_tool_rounds)
+    setAgentApiKey('')
+  }
+
+  async function loadAgentSettings() {
+    if (!isAdmin) {
+      setAgentSettings(null)
+      return
+    }
+    const next = await api.agent.settings.get()
+    applyAgentSettings(next)
+  }
+
   useEffect(() => {
     void Promise.all([api.settings.get(), api.pluginManager.get()])
       .then(async ([s, p]) => {
@@ -138,6 +225,7 @@ export default function SettingsPage() {
           setRoles(r)
           const admin = r.find(role => role.slug === 'admin')
           setNewUserRoleId(admin?.id ?? r[0]?.id ?? '')
+          await loadAgentSettings()
         }
       })
       .catch(err => {
@@ -210,6 +298,47 @@ export default function SettingsPage() {
     } finally {
       setBusy(false)
     }
+  }
+
+  async function onSaveAgent(e: FormEvent) {
+    e.preventDefault()
+    setAgentBusy(true)
+    setError(null)
+    setMessage(null)
+    try {
+      const patch: {
+        enabled: boolean
+        provider: AgentLlmProvider
+        model: string
+        base_url: string | null
+        max_tool_rounds: number
+        api_key?: string
+      } = {
+        enabled: agentEnabled,
+        provider: agentProvider,
+        model: agentModel.trim(),
+        base_url:
+          agentProvider === 'anthropic' ? null : agentBaseUrl.trim() || null,
+        max_tool_rounds: agentMaxToolRounds,
+      }
+      if (agentApiKey.trim()) {
+        patch.api_key = agentApiKey.trim()
+      }
+      const next = await api.agent.settings.put(patch)
+      applyAgentSettings(next)
+      setMessage('AI agent settings saved')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setAgentBusy(false)
+    }
+  }
+
+  function onAgentProviderChange(provider: AgentLlmProvider) {
+    const meta = agentProviderMeta(provider)
+    setAgentProvider(provider)
+    setAgentModel(meta.defaultModel)
+    setAgentBaseUrl(meta.defaultBaseUrl ?? '')
   }
 
   async function createUser(e: FormEvent) {
@@ -446,6 +575,108 @@ export default function SettingsPage() {
           </p>
         )}
       </section>
+
+      {isAdmin && (
+        <section className="panel">
+          <h2>AI Agent</h2>
+          <p className="muted small">
+            Configure the monitoring assistant used by the Agent chat page.
+            Supports OpenAI, Anthropic, Ollama, and vLLM (OpenAI-compatible).
+            {agentSettings?.config_source === 'environment' && (
+              <>
+                {' '}
+                Currently using environment variables until you save settings
+                here.
+              </>
+            )}
+          </p>
+          <form className="form-col" onSubmit={onSaveAgent}>
+            <label className="check-ids-item">
+              <input
+                type="checkbox"
+                checked={agentEnabled}
+                onChange={e => setAgentEnabled(e.target.checked)}
+              />
+              Enable AI agent
+            </label>
+            <label>
+              Provider
+              <select
+                value={agentProvider}
+                onChange={e =>
+                  onAgentProviderChange(e.target.value as AgentLlmProvider)
+                }
+              >
+                {AGENT_PROVIDER_OPTIONS.map(option => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Model
+              <input
+                value={agentModel}
+                onChange={e => setAgentModel(e.target.value)}
+                placeholder={agentMeta.defaultModel || 'Model name'}
+                required={agentEnabled}
+              />
+            </label>
+            {agentProvider !== 'anthropic' && (
+              <label>
+                Base URL
+                <input
+                  value={agentBaseUrl}
+                  onChange={e => setAgentBaseUrl(e.target.value)}
+                  placeholder={agentMeta.defaultBaseUrl ?? ''}
+                />
+                <span className="muted small">{agentMeta.baseUrlHint}</span>
+              </label>
+            )}
+            <label>
+              API key
+              <input
+                type="password"
+                value={agentApiKey}
+                onChange={e => setAgentApiKey(e.target.value)}
+                placeholder={
+                  agentHasApiKey
+                    ? 'Saved — enter a new key to replace'
+                    : agentMeta.apiKeyRequired
+                      ? 'Required for this provider'
+                      : 'Optional'
+                }
+                autoComplete="off"
+              />
+            </label>
+            <label>
+              Max tool rounds
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={agentMaxToolRounds}
+                onChange={e => setAgentMaxToolRounds(Number(e.target.value))}
+              />
+            </label>
+            {agentSettings && (
+              <p className="muted small">
+                Status:{' '}
+                {agentSettings.configured
+                  ? 'ready'
+                  : agentEnabled
+                    ? 'incomplete configuration'
+                    : 'disabled'}
+                {agentSettings.has_api_key ? ' · API key saved' : ''}
+              </p>
+            )}
+            <button type="submit" disabled={agentBusy}>
+              Save agent settings
+            </button>
+          </form>
+        </section>
+      )}
 
       {isAdmin && (
         <section className="panel">

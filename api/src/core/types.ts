@@ -1,4 +1,5 @@
 import type {Incident} from '../incidents.js'
+import type {AgentSettingsUpdate} from '../agent/settings-store.js'
 import type {
   ApiToken,
   AuthPrincipal,
@@ -13,12 +14,15 @@ import type {
   TargetState,
   User,
 } from '../plugins/types.js'
+import type {StoredAgentSettings} from 'umpire-agent'
 import type {CoreTableDef} from './schema.js'
 
 /** Core persistence API — SQLite only; not a plugin. */
 export interface CoreStore {
   getSettings(): Settings
   updateSettings(partial: Partial<Settings>): Settings
+  getStoredAgentSettings(): StoredAgentSettings | null
+  updateStoredAgentSettings(partial: AgentSettingsUpdate): StoredAgentSettings
   listGroups(): Group[]
   listGroupTree(): GroupTreeNode[]
   getGroup(id: number): Group | undefined

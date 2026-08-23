@@ -1,0 +1,30 @@
+{
+  "name": "umpire-agent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "UMPIRE AI agent — LLM tool-calling CLI and library",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "umpire-agent": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "dev": "tsx src/cli.ts chat",
+    "build": "tsc",
+    "start": "node dist/cli.js chat",
+    "compile": "tsc --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

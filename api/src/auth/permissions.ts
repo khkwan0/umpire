@@ -18,6 +18,7 @@ export function isAdminOnlyPath(method: string, path: string): boolean {
     return true
   }
   if (path === '/api/settings' && !isReadMethod(method)) return true
+  if (path === '/api/agent/settings') return true
   return false
 }
 

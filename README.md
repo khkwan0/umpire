@@ -195,6 +195,20 @@ Asset URLs, React Router’s basename, API/SSE fetches, and the web container’
 
 Your reverse proxy can either forward `/umpire/...` as-is or strip the prefix before proxying; the web container accepts both when built with that `BASE_PATH`. Local health checks stay on the published port without the prefix: `http://127.0.0.1:8089/api/health`.
 
+**WebSockets (Agent chat, `/api/ws`):** the web image proxies `/umpire/api/agent/ws` directly when built with `BASE_PATH=/umpire`. Your front reverse proxy must also forward `Upgrade` and `Connection` headers for that path, for example:
+
+```nginx
+location /umpire/ {
+  proxy_pass http://127.0.0.1:8089;
+  proxy_http_version 1.1;
+  proxy_set_header Upgrade $http_upgrade;
+  proxy_set_header Connection "upgrade";
+  proxy_set_header Host $host;
+  proxy_set_header X-Forwarded-Proto $scheme;
+  proxy_read_timeout 1d;
+}
+```
+
 ### Docker Compose
 
 Same images and volumes, without the format step or health wait:
@@ -342,5 +356,6 @@ SQLite file: `./data/monitor.sqlite` (bind-mounted in Compose at `/data/monitor.
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Browser extensions (Chrome + Firefox): [extensions/README.md](extensions/README.md)
 - MCP server for AI agents: [mcp/README.md](mcp/README.md)
+- Agent CLI + web chat: [agent/README.md](agent/README.md)
 - Plugin authoring (API + UI + dashboard widgets): [docs/plugins.md](docs/plugins.md) — implementations live in [`plugins/`](plugins/)
 - Core host (pipeline, schema, plugin host, UI shell): [docs/core.md](docs/core.md)

@@ -68,6 +68,21 @@ export interface Settings {
   allow_readonly_without_auth: boolean
 }
 
+export type AgentLlmProvider = 'openai' | 'anthropic' | 'ollama' | 'vllm'
+
+export type AgentConfigSource = 'database' | 'environment' | 'none'
+
+export interface AgentSettings {
+  enabled: boolean
+  provider: AgentLlmProvider
+  model: string
+  base_url: string | null
+  has_api_key: boolean
+  max_tool_rounds: number
+  configured: boolean
+  config_source: AgentConfigSource
+}
+
 export type AuthPluginKind = 'check' | 'notify' | 'scheduler'
 
 export interface RolePluginRef {

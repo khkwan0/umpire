@@ -311,7 +311,8 @@ const apiTokenCreatedSchema = {
   properties: {
     token: {
       type: 'string',
-      description: 'Full secret token — shown only once; use Authorization: Bearer',
+      description:
+        'Full secret token — shown only once; use Authorization: Bearer',
     },
     api_token: {$ref: 'ApiToken#'},
   },
@@ -527,7 +528,11 @@ export async function registerOpenApi(app: FastifyInstance): Promise<void> {
       tags: [
         {name: 'health', description: 'Liveness'},
         {name: 'auth', description: 'Session, API tokens, and auth policy'},
-        {name: 'api-tokens', description: 'Bearer tokens for agents and automation'},
+        {
+          name: 'api-tokens',
+          description: 'Bearer tokens for agents and automation',
+        },
+        {name: 'agent', description: 'AI agent WebSocket chat'},
         {name: 'users', description: 'User accounts (admin)'},
         {name: 'roles', description: 'Roles and plugin allowlists (admin)'},
         {name: 'groups', description: 'Group trees and tags'},

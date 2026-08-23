@@ -21,3 +21,10 @@ export function withBase(path: string): string {
 export function assetUrl(file: string): string {
   return `${viteBase}${file.replace(/^\//, '')}`
 }
+
+/** Absolute ws/wss URL for an app-absolute API path. */
+export function websocketUrl(path: string): string {
+  const url = new URL(withBase(path), window.location.origin)
+  url.protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return url.toString()
+}

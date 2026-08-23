@@ -19,7 +19,7 @@ const ALLOWED_METHODS = new Set([
 type InjectMethod =
   'GET' | 'HEAD' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIONS'
 
-const BLOCKED_PATHS = new Set(['/api/ws', '/api/stream'])
+const BLOCKED_PATHS = new Set(['/api/ws', '/api/stream', '/api/agent/ws'])
 
 type WsRequestFrame = {
   id?: unknown

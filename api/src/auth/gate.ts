@@ -21,6 +21,12 @@ const PUBLIC_PATHS = new Set([
   '/api/auth/logout',
 ])
 
+const WS_DEFER_AUTH_PATHS = new Set(['/api/agent/ws', '/api/ws'])
+
+function isWebSocketUpgrade(req: FastifyRequest): boolean {
+  return req.headers.upgrade?.toLowerCase() === 'websocket'
+}
+
 function requestPath(url: string): string {
   const q = url.indexOf('?')
   return q >= 0 ? url.slice(0, q) : url
@@ -79,6 +85,14 @@ export async function registerAuthGate(app: FastifyInstance): Promise<void> {
     const path = requestPath(req.url)
     if (!path.startsWith('/api/')) return
     if (PUBLIC_PATHS.has(path)) return
+
+    if (WS_DEFER_AUTH_PATHS.has(path) && isWebSocketUpgrade(req)) {
+      const principal = resolvePrincipal(req)
+      if (principal) {
+        ;(req as AuthRequest).auth = principal
+      }
+      return
+    }
 
     const settings = getCore().getSettings()
     if (!settings.auth_enabled) {

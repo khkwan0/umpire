@@ -29,6 +29,7 @@ import Dashboard from './pages/Dashboard'
 import Groups from './pages/Groups'
 import Targets from './pages/Targets'
 import SettingsPage from './pages/Settings'
+import AgentPage from './pages/Agent'
 import LoginPage from './pages/Login'
 import HttpCheckTargetOverride from './pages/HttpCheckTargetOverride'
 import NotifierTargetOverride from './pages/NotifierTargetOverride'
@@ -286,6 +287,7 @@ export default function App() {
           <NavLink to="/targets" data-onboarding="targets-nav">
             Targets
           </NavLink>
+          <NavLink to="/agent">Agent</NavLink>
           {nonDropdownUi.map(ui => (
             <NavLink key={`${ui.kind}:${ui.id}`} to={ui.path}>
               {ui.label}
@@ -363,6 +365,7 @@ export default function App() {
             />
           ))}
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/agent" element={<AgentPage />} />
           <Route path="/login" element={<LoginPage />} />
         </Routes>
       </main>

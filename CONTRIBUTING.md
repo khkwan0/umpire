@@ -52,6 +52,15 @@ cd mcp && npm install && npm run build
 
 See [`mcp/README.md`](mcp/README.md). Requires an API token when auth is enabled.
 
+### Agent CLI and web chat
+
+```bash
+cd agent && npm install && npm run build
+OPENAI_API_KEY=sk-… UMPIRE_API_TOKEN=umpire_… npm start   # terminal chat
+```
+
+Web UI: **Agent** tab at `/agent` (WebSocket `/api/agent/ws`). The API server needs `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`. See [`agent/README.md`](agent/README.md).
+
 ## Testing and CI expectations
 
 Before opening a pull request, run the same checks as CI:

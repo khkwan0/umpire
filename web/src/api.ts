@@ -107,6 +107,28 @@ export interface AuthMe {
   principal: AuthPrincipal
 }
 
+export interface AgentStatus {
+  enabled: boolean
+  configured: boolean
+  provider: string | null
+  model: string | null
+}
+
+export type AgentLlmProvider = 'openai' | 'anthropic' | 'ollama' | 'vllm'
+
+export type AgentConfigSource = 'database' | 'environment' | 'none'
+
+export interface AgentSettings {
+  enabled: boolean
+  provider: AgentLlmProvider
+  model: string
+  base_url: string | null
+  has_api_key: boolean
+  max_tool_rounds: number
+  configured: boolean
+  config_source: AgentConfigSource
+}
+
 export interface StatusTarget {
   id: number
   url: string
@@ -547,6 +569,24 @@ export const api = {
         body: JSON.stringify({username, password}),
       }),
     logout: () => request<{ok: boolean}>('/api/auth/logout', {method: 'POST'}),
+  },
+  agent: {
+    status: () => request<AgentStatus>('/api/agent/status'),
+    settings: {
+      get: () => request<AgentSettings>('/api/agent/settings'),
+      put: (data: {
+        enabled?: boolean
+        provider?: AgentLlmProvider
+        model?: string
+        base_url?: string | null
+        api_key?: string
+        max_tool_rounds?: number
+      }) =>
+        request<AgentSettings>('/api/agent/settings', {
+          method: 'PUT',
+          body: JSON.stringify(data),
+        }),
+    },
   },
   users: {
     list: () => request<User[]>('/api/users'),
