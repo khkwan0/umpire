@@ -9,6 +9,7 @@ interface ChatEntry {
   id: string
   role: ChatRole
   content: string
+  reasoning?: string
   tools?: Array<{name: string; summary?: string; running?: boolean}>
 }
 
@@ -25,8 +26,10 @@ export default function AgentPage() {
   const wsRef = useRef<WebSocket | null>(null)
   const pendingIdRef = useRef<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const unmountedRef = useRef(false)
+  const wasBusyRef = useRef(false)
 
   useEffect(() => {
     void api.agent
@@ -83,6 +86,17 @@ export default function AgentPage() {
           )
           return [...prev.slice(0, -1), {...last, tools}]
         })
+      } else if (type === 'reasoning_delta') {
+        const delta = String(msg.delta ?? '')
+        if (!delta) return
+        setEntries(prev => {
+          const last = prev[prev.length - 1]
+          if (!last || last.role !== 'assistant') return prev
+          return [
+            ...prev.slice(0, -1),
+            {...last, reasoning: (last.reasoning ?? '') + delta},
+          ]
+        })
       } else if (type === 'assistant_delta') {
         const delta = String(msg.delta ?? '')
         if (!delta) return
@@ -96,17 +110,28 @@ export default function AgentPage() {
         })
       } else if (type === 'assistant' || type === 'done') {
         const message = String(msg.message ?? '')
+        const reasoning =
+          typeof msg.reasoning === 'string' ? msg.reasoning : undefined
         setEntries(prev => {
           const last = prev[prev.length - 1]
           if (!last || last.role !== 'assistant') {
             return [
               ...prev,
-              {id: `a-${Date.now()}`, role: 'assistant', content: message},
+              {
+                id: `a-${Date.now()}`,
+                role: 'assistant',
+                content: message,
+                reasoning,
+              },
             ]
           }
           return [
             ...prev.slice(0, -1),
-            {...last, content: message || last.content},
+            {
+              ...last,
+              content: message || last.content,
+              reasoning: reasoning || last.reasoning,
+            },
           ]
         })
         if (type === 'done') {
@@ -209,6 +234,7 @@ export default function AgentPage() {
         id: `a-${id}`,
         role: 'assistant',
         content: '',
+        reasoning: '',
         tools: [],
       },
     ])
@@ -228,6 +254,13 @@ export default function AgentPage() {
   }
 
   const chatAvailable = Boolean(status?.enabled && status?.configured)
+
+  useEffect(() => {
+    if (wasBusyRef.current && !busy && chatAvailable) {
+      inputRef.current?.focus()
+    }
+    wasBusyRef.current = busy
+  }, [busy, chatAvailable])
 
   const statusLine = !status
     ? 'Loading…'
@@ -296,6 +329,20 @@ export default function AgentPage() {
                 ))}
               </ul>
             )}
+            {entry.reasoning ? (
+              <details className="agent-reasoning" open>
+                <summary>Reasoning</summary>
+                <p>
+                  {entry.reasoning}
+                  {busy &&
+                    entry.role === 'assistant' &&
+                    !entry.content &&
+                    entry.id === `a-${pendingIdRef.current}` && (
+                      <span className="agent-cursor">▋</span>
+                    )}
+                </p>
+              </details>
+            ) : null}
             {entry.content ? (
               <p>
                 {entry.content}
@@ -305,7 +352,7 @@ export default function AgentPage() {
                     <span className="agent-cursor">▋</span>
                   )}
               </p>
-            ) : busy && entry.role === 'assistant' ? (
+            ) : busy && entry.role === 'assistant' && !entry.reasoning ? (
               <p className="muted">Thinking…</p>
             ) : null}
           </div>
@@ -315,6 +362,7 @@ export default function AgentPage() {
 
       <div className="agent-input-row">
         <textarea
+          ref={inputRef}
           className="agent-input"
           rows={2}
           value={input}

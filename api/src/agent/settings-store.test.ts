@@ -22,6 +22,12 @@ describe('agent settings store', () => {
       base_url: 'http://127.0.0.1:11434/v1',
       api_key: '',
       max_tool_rounds: 8,
+      request_extras: {
+        openai: {},
+        anthropic: {},
+        ollama: {},
+        vllm: {},
+      },
     })
   })
 
@@ -54,6 +60,38 @@ describe('agent settings store', () => {
       base_url: 'http://127.0.0.1:11434/v1',
       api_key: '',
       max_tool_rounds: 12,
+      request_extras: {
+        openai: {},
+        anthropic: {},
+        ollama: {},
+        vllm: {},
+      },
     })
+  })
+
+  it('merges per-provider request extras', () => {
+    const current = defaultStoredAgentSettings()
+    expect(
+      mergeAgentSettingsUpdate(current, {
+        request_extras: {ollama: {think: true}},
+      }),
+    ).toEqual({
+      ...current,
+      request_extras: {
+        openai: {},
+        anthropic: {},
+        ollama: {think: true},
+        vllm: {},
+      },
+    })
+  })
+
+  it('rejects non-object request extras for a provider', () => {
+    const current = defaultStoredAgentSettings()
+    expect(() =>
+      mergeAgentSettingsUpdate(current, {
+        request_extras: {ollama: true as unknown as Record<string, unknown>},
+      }),
+    ).toThrow('request_extras.ollama must be a JSON object')
   })
 })

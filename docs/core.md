@@ -163,7 +163,7 @@ UMPIRE supports MCP (external LLM host) and a built-in web agent (LLM on the API
 **Agent WebSocket protocol** (summary):
 
 - Client: `{ type: "chat", id, message, history? }`
-- Server: `ready`, `started`, `tool_start`, `tool_end`, `assistant_delta` (streaming tokens), `assistant` (non-streaming fallback), `done`, `error`
+- Server: `ready`, `started`, `tool_start`, `tool_end`, `reasoning_delta` (thinking tokens), `assistant_delta` (streaming tokens), `assistant` (non-streaming fallback), `done`, `error`
 
 Tool calls use `app.inject()` with the WS session cookie. Streaming is implemented in [`agent/src/llm.ts`](../agent/src/llm.ts) (OpenAI-compatible + Anthropic SSE).
 

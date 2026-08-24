@@ -119,6 +119,7 @@ Package: [`agent/`](../agent/). Embedded in the API as `umpire-agent`.
 | Base URL | Optional; for OpenAI-compatible proxies, Ollama, vLLM |
 | API key | Stored server-side; UI shows `has_api_key` only after save |
 | Max tool rounds | LLM ↔ tool loop limit (1–20, default 12) |
+| Request JSON extras | Per-provider JSON merged into the chat request (OpenAI, Anthropic, Ollama, vLLM). Reserved fields (`messages`, `tools`, `stream`, `model`, `system`) cannot be overridden. Example for Ollama thinking: `{"think": true}` |
 
 **Settings → API tokens** is separate — used for MCP/CLI/API automation, not for the web chat session.
 
@@ -197,12 +198,13 @@ UMPIRE exposes **three** realtime mechanisms. Do not confuse them:
 | `started` | Chat accepted | `{ "type": "started", "id" }` |
 | `tool_start` | Before a tool runs | `{ "type": "tool_start", "id", "tool", "args" }` |
 | `tool_end` | After a tool runs | `{ "type": "tool_end", "id", "tool", "summary" }` |
+| `reasoning_delta` | Streaming reasoning/thinking chunk | `{ "type": "reasoning_delta", "id", "delta" }` |
 | `assistant_delta` | Streaming token chunk | `{ "type": "assistant_delta", "id", "delta" }` |
 | `assistant` | Full message (non-streaming fallback, e.g. CLI) | `{ "type": "assistant", "id", "message" }` |
-| `done` | Turn complete | `{ "type": "done", "id", "message" }` |
+| `done` | Turn complete | `{ "type": "done", "id", "message", "reasoning?" }` |
 | `error` | Failure | `{ "type": "error", "id", "error" }` |
 
-During the final answer turn, the UI appends `assistant_delta` chunks in real time, then `done` carries the complete message. Tool-call rounds emit `tool_start` / `tool_end` only (no text until the model produces a final answer).
+During the final answer turn, the UI appends `assistant_delta` chunks in real time, then `done` carries the complete message. If the model emits reasoning/thinking tokens, `reasoning_delta` is streamed into a collapsible Reasoning block. Tool-call rounds emit `tool_start` / `tool_end` only (no answer text until the model produces a final answer).
 
 Implementation: [`api/src/routes/agent-ws.ts`](../api/src/routes/agent-ws.ts), [`web/src/pages/Agent.tsx`](../web/src/pages/Agent.tsx), streaming in [`agent/src/llm.ts`](../agent/src/llm.ts).
 
@@ -259,6 +261,8 @@ Web agent LLM config resolves in this order:
 | `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `OLLAMA_API_KEY` | Ollama (OpenAI-compatible API) |
 | `VLLM_BASE_URL`, `VLLM_MODEL`, `VLLM_API_KEY` | vLLM |
 | `AGENT_MAX_TOOL_ROUNDS` | Default 12, max 20 |
+| `OPENAI_REQUEST_EXTRAS`, `ANTHROPIC_REQUEST_EXTRAS`, `OLLAMA_REQUEST_EXTRAS`, `VLLM_REQUEST_EXTRAS` | Optional JSON object merged into that provider's chat request |
+| `AGENT_REQUEST_EXTRAS` | Fallback extras JSON for the active provider when the provider-specific var is empty |
 | `UMPIRE_BASE_URL`, `UMPIRE_API_TOKEN` / `UMPIRE_TOKEN` | Agent CLI API access |
 
 For Ollama from Docker, point `OLLAMA_BASE_URL` at the host (e.g. `http://host.docker.internal:11434/v1`).

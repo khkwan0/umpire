@@ -1,5 +1,9 @@
 import {
+  emptyAgentRequestExtras,
+  mergeAgentRequestExtras,
+  parseAgentRequestExtras,
   parseLlmProvider,
+  type AgentRequestExtras,
   type LlmProvider,
   type StoredAgentSettings,
 } from 'umpire-agent'
@@ -12,6 +16,7 @@ export type AgentSettingsUpdate = {
   /** Omit to keep existing; empty string clears. */
   api_key?: string
   max_tool_rounds?: number
+  request_extras?: Partial<AgentRequestExtras> | AgentRequestExtras
 }
 
 const AGENT_KEYS = [
@@ -21,6 +26,7 @@ const AGENT_KEYS = [
   'agent_base_url',
   'agent_api_key',
   'agent_max_tool_rounds',
+  'agent_request_extras',
 ] as const
 
 export function hasStoredAgentSettings(map: Record<string, string>): boolean {
@@ -41,6 +47,7 @@ export function parseStoredAgentSettings(
       20,
       Math.max(1, Number(map.agent_max_tool_rounds) || 12),
     ),
+    request_extras: parseAgentRequestExtras(map.agent_request_extras),
   }
 }
 
@@ -52,6 +59,7 @@ export function defaultStoredAgentSettings(): StoredAgentSettings {
     base_url: null,
     api_key: '',
     max_tool_rounds: 12,
+    request_extras: emptyAgentRequestExtras(),
   }
 }
 
@@ -70,6 +78,13 @@ export function mergeAgentSettingsUpdate(
     api_key:
       partial.api_key !== undefined ? partial.api_key.trim() : current.api_key,
     max_tool_rounds: partial.max_tool_rounds ?? current.max_tool_rounds,
+    request_extras:
+      partial.request_extras !== undefined
+        ? mergeAgentRequestExtras(
+            current.request_extras,
+            partial.request_extras,
+          )
+        : current.request_extras,
   }
 
   if (!Number.isFinite(next.max_tool_rounds) || next.max_tool_rounds < 1) {
@@ -108,6 +123,7 @@ export function writeStoredAgentSettings(
   upsert.run('agent_base_url', stored.base_url ?? '')
   upsert.run('agent_api_key', stored.api_key)
   upsert.run('agent_max_tool_rounds', String(stored.max_tool_rounds))
+  upsert.run('agent_request_extras', JSON.stringify(stored.request_extras))
 }
 
 export {AGENT_KEYS}

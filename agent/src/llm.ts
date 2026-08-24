@@ -21,11 +21,57 @@ type OpenAiMessage =
 
 export interface LlmTurnResult {
   message: string | null
+  reasoning?: string | null
   toolCalls: AgentToolCall[]
 }
 
 export type LlmTurnOptions = {
   onDelta?: (delta: string) => void
+  onReasoningDelta?: (delta: string) => void
+}
+
+const REQUEST_EXTRAS_RESERVED = new Set([
+  'messages',
+  'tools',
+  'tool_choice',
+  'stream',
+  'system',
+  'model',
+])
+
+function applyRequestExtras(
+  base: Record<string, unknown>,
+  extras: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+  if (!extras) return base
+  const extra: Record<string, unknown> = {}
+  const assign = (src: Record<string, unknown>) => {
+    for (const [key, value] of Object.entries(src)) {
+      if (
+        key === 'extra_body' &&
+        value &&
+        typeof value === 'object' &&
+        !Array.isArray(value)
+      ) {
+        assign(value as Record<string, unknown>)
+        continue
+      }
+      if (REQUEST_EXTRAS_RESERVED.has(key)) continue
+      extra[key] = value
+    }
+  }
+  assign(extras)
+  return {...base, ...extra}
+}
+
+function reasoningTextFrom(obj: unknown): string {
+  if (!obj || typeof obj !== 'object') return ''
+  const rec = obj as Record<string, unknown>
+  for (const key of ['reasoning_content', 'reasoning', 'thinking']) {
+    const value = rec[key]
+    if (typeof value === 'string' && value) return value
+  }
+  return ''
 }
 
 function parseToolCallArgs(raw: string): Record<string, unknown> {
@@ -83,12 +129,17 @@ export async function runOpenAiTurn(
   const res = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({
-      model: config.model,
-      messages: toOpenAiMessages(messages),
-      tools: toOpenAiTools(tools),
-      tool_choice: 'auto',
-    }),
+    body: JSON.stringify(
+      applyRequestExtras(
+        {
+          model: config.model,
+          messages: toOpenAiMessages(messages),
+          tools: toOpenAiTools(tools),
+          tool_choice: 'auto',
+        },
+        config.requestExtras,
+      ),
+    ),
   })
 
   const text = await res.text()
@@ -147,6 +198,7 @@ export async function runOpenAiTurn(
 
   return {
     message: choice.content?.trim() || null,
+    reasoning: reasoningTextFrom(choice).trim() || null,
     toolCalls,
   }
 }
@@ -207,17 +259,22 @@ export async function runAnthropicTurn(
       'anthropic-version': '2023-06-01',
       'content-type': 'application/json',
     },
-    body: JSON.stringify({
-      model: config.model,
-      max_tokens: 4096,
-      system: system || undefined,
-      messages: anthropicMessages,
-      tools: tools.map(t => ({
-        name: t.name,
-        description: t.description,
-        input_schema: t.parameters,
-      })),
-    }),
+    body: JSON.stringify(
+      applyRequestExtras(
+        {
+          model: config.model,
+          max_tokens: 4096,
+          system: system || undefined,
+          messages: anthropicMessages,
+          tools: tools.map(t => ({
+            name: t.name,
+            description: t.description,
+            input_schema: t.parameters,
+          })),
+        },
+        config.requestExtras,
+      ),
+    ),
   })
 
   const text = await res.text()
@@ -246,6 +303,7 @@ export async function runAnthropicTurn(
         content?: Array<{
           type: string
           text?: string
+          thinking?: string
           id?: string
           name?: string
           input?: unknown
@@ -254,9 +312,13 @@ export async function runAnthropicTurn(
     ).content ?? []
 
   let message: string | null = null
+  let reasoning = ''
   const toolCalls: AgentToolCall[] = []
 
   for (const block of content) {
+    if (block.type === 'thinking' && block.thinking) {
+      reasoning += block.thinking
+    }
     if (block.type === 'text' && block.text) {
       message = (message ? `${message}\n` : '') + block.text
     }
@@ -269,14 +331,20 @@ export async function runAnthropicTurn(
     }
   }
 
-  return {message: message?.trim() || null, toolCalls}
+  return {
+    message: message?.trim() || null,
+    reasoning: reasoning.trim() || null,
+    toolCalls,
+  }
 }
 
 async function parseOpenAiStream(
   body: ReadableStream<Uint8Array>,
   onDelta: (delta: string) => void,
+  onReasoningDelta?: (delta: string) => void,
 ): Promise<LlmTurnResult> {
   let message = ''
+  let reasoning = ''
   const toolCalls = new Map<
     number,
     {id: string; name: string; args: string}
@@ -290,11 +358,19 @@ async function parseOpenAiStream(
       choices?: Array<{
         delta?: {
           content?: string
+          reasoning_content?: string
+          reasoning?: string
+          thinking?: string
           tool_calls?: Array<{
             index?: number
             id?: string
             function?: {name?: string; arguments?: string}
           }>
+        }
+        message?: {
+          reasoning_content?: string
+          reasoning?: string
+          thinking?: string
         }
       }>
     }
@@ -304,24 +380,38 @@ async function parseOpenAiStream(
       continue
     }
 
-    const delta = json.choices?.[0]?.delta
-    if (!delta) continue
+    const choice = json.choices?.[0]
+    const delta = choice?.delta
+    if (delta) {
+      if (delta.content) {
+        message += delta.content
+        onDelta(delta.content)
+      }
+      const reasoningChunk = reasoningTextFrom(delta)
+      if (reasoningChunk) {
+        reasoning += reasoningChunk
+        onReasoningDelta?.(reasoningChunk)
+      }
 
-    if (delta.content) {
-      message += delta.content
-      onDelta(delta.content)
+      for (const tc of delta.tool_calls ?? []) {
+        const idx = tc.index ?? 0
+        let entry = toolCalls.get(idx)
+        if (!entry) {
+          entry = {id: tc.id ?? '', name: tc.function?.name ?? '', args: ''}
+          toolCalls.set(idx, entry)
+        }
+        if (tc.id) entry.id = tc.id
+        if (tc.function?.name) entry.name = tc.function.name
+        if (tc.function?.arguments) entry.args += tc.function.arguments
+      }
+      continue
     }
 
-    for (const tc of delta.tool_calls ?? []) {
-      const idx = tc.index ?? 0
-      let entry = toolCalls.get(idx)
-      if (!entry) {
-        entry = {id: tc.id ?? '', name: tc.function?.name ?? '', args: ''}
-        toolCalls.set(idx, entry)
-      }
-      if (tc.id) entry.id = tc.id
-      if (tc.function?.name) entry.name = tc.function.name
-      if (tc.function?.arguments) entry.args += tc.function.arguments
+    const fromMessage = reasoningTextFrom(choice?.message)
+    if (fromMessage && fromMessage.length > reasoning.length) {
+      const extra = fromMessage.slice(reasoning.length)
+      reasoning = fromMessage
+      if (extra) onReasoningDelta?.(extra)
     }
   }
 
@@ -334,7 +424,11 @@ async function parseOpenAiStream(
       arguments: parseToolCallArgs(tc.args),
     }))
 
-  return {message: message.trim() || null, toolCalls: calls}
+  return {
+    message: message.trim() || null,
+    reasoning: reasoning.trim() || null,
+    toolCalls: calls,
+  }
 }
 
 export async function runOpenAiTurnStream(
@@ -342,6 +436,7 @@ export async function runOpenAiTurnStream(
   messages: ChatMessage[],
   tools: LlmToolDef[],
   onDelta: (delta: string) => void,
+  onReasoningDelta?: (delta: string) => void,
 ): Promise<LlmTurnResult> {
   const baseUrl = config.baseUrl ?? 'https://api.openai.com/v1'
   const headers: Record<string, string> = {'content-type': 'application/json'}
@@ -351,13 +446,18 @@ export async function runOpenAiTurnStream(
   const res = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({
-      model: config.model,
-      messages: toOpenAiMessages(messages),
-      tools: toOpenAiTools(tools),
-      tool_choice: 'auto',
-      stream: true,
-    }),
+    body: JSON.stringify(
+      applyRequestExtras(
+        {
+          model: config.model,
+          messages: toOpenAiMessages(messages),
+          tools: toOpenAiTools(tools),
+          tool_choice: 'auto',
+          stream: true,
+        },
+        config.requestExtras,
+      ),
+    ),
   })
 
   if (!res.ok || !res.body) {
@@ -379,14 +479,16 @@ export async function runOpenAiTurnStream(
     throw new Error(err)
   }
 
-  return parseOpenAiStream(res.body, onDelta)
+  return parseOpenAiStream(res.body, onDelta, onReasoningDelta)
 }
 
 async function parseAnthropicStream(
   body: ReadableStream<Uint8Array>,
   onDelta: (delta: string) => void,
+  onReasoningDelta?: (delta: string) => void,
 ): Promise<LlmTurnResult> {
   let message = ''
+  let reasoning = ''
   const toolBlocks = new Map<
     number,
     {id: string; name: string; args: string}
@@ -405,8 +507,18 @@ async function parseAnthropicStream(
     let data: {
       type?: string
       index?: number
-      content_block?: {type?: string; id?: string; name?: string}
-      delta?: {type?: string; text?: string; partial_json?: string}
+      content_block?: {
+        type?: string
+        id?: string
+        name?: string
+        thinking?: string
+      }
+      delta?: {
+        type?: string
+        text?: string
+        partial_json?: string
+        thinking?: string
+      }
     }
     try {
       data = JSON.parse(dataStr) as typeof data
@@ -424,6 +536,13 @@ async function parseAnthropicStream(
           args: '',
         })
       }
+      if (
+        data.content_block.type === 'thinking' &&
+        data.content_block.thinking
+      ) {
+        reasoning += data.content_block.thinking
+        onReasoningDelta?.(data.content_block.thinking)
+      }
       continue
     }
 
@@ -431,6 +550,10 @@ async function parseAnthropicStream(
       if (data.delta.type === 'text_delta' && data.delta.text) {
         message += data.delta.text
         onDelta(data.delta.text)
+      }
+      if (data.delta.type === 'thinking_delta' && data.delta.thinking) {
+        reasoning += data.delta.thinking
+        onReasoningDelta?.(data.delta.thinking)
       }
       if (data.delta.type === 'input_json_delta' && data.delta.partial_json) {
         const block = toolBlocks.get(data.index ?? 0)
@@ -447,7 +570,11 @@ async function parseAnthropicStream(
       arguments: parseToolCallArgs(block.args),
     }))
 
-  return {message: message.trim() || null, toolCalls}
+  return {
+    message: message.trim() || null,
+    reasoning: reasoning.trim() || null,
+    toolCalls,
+  }
 }
 
 export async function runAnthropicTurnStream(
@@ -455,6 +582,7 @@ export async function runAnthropicTurnStream(
   messages: ChatMessage[],
   tools: LlmToolDef[],
   onDelta: (delta: string) => void,
+  onReasoningDelta?: (delta: string) => void,
 ): Promise<LlmTurnResult> {
   const {system, messages: anthropicMessages} = toAnthropicMessages(messages)
 
@@ -465,18 +593,23 @@ export async function runAnthropicTurnStream(
       'anthropic-version': '2023-06-01',
       'content-type': 'application/json',
     },
-    body: JSON.stringify({
-      model: config.model,
-      max_tokens: 4096,
-      system: system || undefined,
-      messages: anthropicMessages,
-      tools: tools.map(t => ({
-        name: t.name,
-        description: t.description,
-        input_schema: t.parameters,
-      })),
-      stream: true,
-    }),
+    body: JSON.stringify(
+      applyRequestExtras(
+        {
+          model: config.model,
+          max_tokens: 4096,
+          system: system || undefined,
+          messages: anthropicMessages,
+          tools: tools.map(t => ({
+            name: t.name,
+            description: t.description,
+            input_schema: t.parameters,
+          })),
+          stream: true,
+        },
+        config.requestExtras,
+      ),
+    ),
   })
 
   if (!res.ok || !res.body) {
@@ -498,7 +631,7 @@ export async function runAnthropicTurnStream(
     throw new Error(err)
   }
 
-  return parseAnthropicStream(res.body, onDelta)
+  return parseAnthropicStream(res.body, onDelta, onReasoningDelta)
 }
 
 export async function runLlmTurn(
@@ -509,9 +642,21 @@ export async function runLlmTurn(
 ): Promise<LlmTurnResult> {
   if (opts?.onDelta) {
     if (config.provider === 'anthropic') {
-      return runAnthropicTurnStream(config, messages, tools, opts.onDelta)
+      return runAnthropicTurnStream(
+        config,
+        messages,
+        tools,
+        opts.onDelta,
+        opts.onReasoningDelta,
+      )
     }
-    return runOpenAiTurnStream(config, messages, tools, opts.onDelta)
+    return runOpenAiTurnStream(
+      config,
+      messages,
+      tools,
+      opts.onDelta,
+      opts.onReasoningDelta,
+    )
   }
   if (config.provider === 'anthropic') {
     return runAnthropicTurn(config, messages, tools)

@@ -23,6 +23,7 @@ export interface LlmToolDef {
 export type AgentEvent =
   | {type: 'tool_start'; tool: string; args: Record<string, unknown>}
   | {type: 'tool_end'; tool: string; summary: string}
+  | {type: 'reasoning_delta'; delta: string}
   | {type: 'assistant_delta'; delta: string}
   | {type: 'assistant'; message: string}
   | {type: 'error'; error: string}
@@ -40,6 +41,8 @@ export interface LlmConfig {
   model: string
   baseUrl?: string
   maxToolRounds: number
+  /** Extra JSON fields merged into the provider chat request body. */
+  requestExtras?: Record<string, unknown>
 }
 
 export interface AgentConfig {
@@ -48,15 +51,22 @@ export interface AgentConfig {
 }
 
 export type {
+  AgentRequestExtras,
   LlmProvider,
   StoredAgentSettings,
   AgentSettingsView,
 } from './config.js'
 export {
   LLM_PROVIDER_META,
+  LLM_PROVIDERS,
   agentConfigured,
+  emptyAgentRequestExtras,
+  extrasFromEnv,
+  extrasMapFromEnv,
   loadLlmConfig,
   loadLlmConfigFromEnv,
+  mergeAgentRequestExtras,
+  parseAgentRequestExtras,
   parseLlmProvider,
   resolveLlmConfig,
   toAgentSettingsView,

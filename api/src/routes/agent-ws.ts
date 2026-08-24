@@ -225,6 +225,7 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
           sendJson(socket, {type: 'started', id})
 
           try {
+            let reasoning = ''
             const reply = await runAgentChat({
               llm: llmConfig,
               umpire: caller,
@@ -245,6 +246,13 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
                     tool: event.tool,
                     summary: event.summary.slice(0, 8000),
                   })
+                } else if (event.type === 'reasoning_delta') {
+                  reasoning += event.delta
+                  sendJson(socket, {
+                    type: 'reasoning_delta',
+                    id,
+                    delta: event.delta,
+                  })
                 } else if (event.type === 'assistant_delta') {
                   sendJson(socket, {
                     type: 'assistant_delta',
@@ -260,7 +268,12 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
                 }
               },
             })
-            sendJson(socket, {type: 'done', id, message: reply})
+            sendJson(socket, {
+              type: 'done',
+              id,
+              message: reply,
+              reasoning: reasoning || undefined,
+            })
           } catch (err) {
             sendJson(socket, {
               type: 'error',

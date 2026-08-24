@@ -125,6 +125,7 @@ export interface AgentSettings {
   base_url: string | null
   has_api_key: boolean
   max_tool_rounds: number
+  request_extras: Record<AgentLlmProvider, Record<string, unknown>>
   configured: boolean
   config_source: AgentConfigSource
 }
@@ -597,6 +598,7 @@ export const api = {
         base_url?: string | null
         api_key?: string
         max_tool_rounds?: number
+        request_extras?: Record<AgentLlmProvider, Record<string, unknown>>
       }) =>
         request<AgentSettings>('/api/agent/settings', {
           method: 'PUT',

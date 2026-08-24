@@ -35,6 +35,7 @@ export async function runAgentChat(input: {
 
   for (let round = 0; round < llm.maxToolRounds; round += 1) {
     let streamed = false
+    let streamedReasoning = false
     const turn = await runLlmTurn(llm, messages, AGENT_TOOLS, {
       onDelta: onEvent
         ? delta => {
@@ -42,7 +43,17 @@ export async function runAgentChat(input: {
             onEvent({type: 'assistant_delta', delta})
           }
         : undefined,
+      onReasoningDelta: onEvent
+        ? delta => {
+            streamedReasoning = true
+            onEvent({type: 'reasoning_delta', delta})
+          }
+        : undefined,
     })
+
+    if (turn.reasoning && !streamedReasoning) {
+      onEvent?.({type: 'reasoning_delta', delta: turn.reasoning})
+    }
 
     if (turn.toolCalls.length === 0) {
       const reply =

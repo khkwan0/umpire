@@ -64,6 +64,47 @@ const AGENT_PROVIDER_OPTIONS: Array<{
   },
 ]
 
+function extrasToText(
+  extras: Record<AgentLlmProvider, Record<string, unknown>> | undefined,
+): Record<AgentLlmProvider, string> {
+  const providers: AgentLlmProvider[] = [
+    'openai',
+    'anthropic',
+    'ollama',
+    'vllm',
+  ]
+  const out = {} as Record<AgentLlmProvider, string>
+  for (const provider of providers) {
+    out[provider] = JSON.stringify(extras?.[provider] ?? {}, null, 2)
+  }
+  return out
+}
+
+function parseExtrasText(
+  raw: string,
+  provider: AgentLlmProvider,
+): Record<string, unknown> {
+  const trimmed = raw.trim()
+  if (!trimmed) return {}
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(trimmed)
+  } catch {
+    throw new Error(`Request JSON extras for ${provider} is not valid JSON`)
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(`Request JSON extras for ${provider} must be a JSON object`)
+  }
+  return parsed as Record<string, unknown>
+}
+
+const AGENT_EXTRAS_PLACEHOLDERS: Record<AgentLlmProvider, string> = {
+  openai: '{"temperature": 0.2}',
+  anthropic: '{"thinking": {"type": "enabled", "budget_tokens": 8000}}',
+  ollama: '{"think": true}',
+  vllm: '{"chat_template_kwargs": {"enable_thinking": true}}',
+}
+
 function agentProviderMeta(provider: AgentLlmProvider) {
   return (
     AGENT_PROVIDER_OPTIONS.find(option => option.id === provider) ??
@@ -158,6 +199,9 @@ export default function SettingsPage() {
   const [agentApiKey, setAgentApiKey] = useState('')
   const [agentMaxToolRounds, setAgentMaxToolRounds] = useState(12)
   const [agentHasApiKey, setAgentHasApiKey] = useState(false)
+  const [agentRequestExtras, setAgentRequestExtras] = useState<
+    Record<AgentLlmProvider, string>
+  >(extrasToText(undefined))
   const [agentBusy, setAgentBusy] = useState(false)
 
   const agentMeta = useMemo(
@@ -198,6 +242,7 @@ export default function SettingsPage() {
     setAgentBaseUrl(next.base_url ?? '')
     setAgentHasApiKey(next.has_api_key)
     setAgentMaxToolRounds(next.max_tool_rounds)
+    setAgentRequestExtras(extrasToText(next.request_extras))
     setAgentApiKey('')
   }
 
@@ -315,6 +360,7 @@ export default function SettingsPage() {
         base_url: string | null
         max_tool_rounds: number
         api_key?: string
+        request_extras: Record<AgentLlmProvider, Record<string, unknown>>
       } = {
         enabled: agentEnabled,
         provider: agentProvider,
@@ -322,6 +368,12 @@ export default function SettingsPage() {
         base_url:
           agentProvider === 'anthropic' ? null : agentBaseUrl.trim() || null,
         max_tool_rounds: agentMaxToolRounds,
+        request_extras: {
+          openai: parseExtrasText(agentRequestExtras.openai, 'openai'),
+          anthropic: parseExtrasText(agentRequestExtras.anthropic, 'anthropic'),
+          ollama: parseExtrasText(agentRequestExtras.ollama, 'ollama'),
+          vllm: parseExtrasText(agentRequestExtras.vllm, 'vllm'),
+        },
       }
       if (agentApiKey.trim()) {
         patch.api_key = agentApiKey.trim()
@@ -663,6 +715,27 @@ export default function SettingsPage() {
                 value={agentMaxToolRounds}
                 onChange={e => setAgentMaxToolRounds(Number(e.target.value))}
               />
+            </label>
+            <label>
+              Request JSON extras ({agentMeta.label})
+              <textarea
+                className="agent-extras-json"
+                value={agentRequestExtras[agentProvider]}
+                onChange={e =>
+                  setAgentRequestExtras(prev => ({
+                    ...prev,
+                    [agentProvider]: e.target.value,
+                  }))
+                }
+                placeholder={AGENT_EXTRAS_PLACEHOLDERS[agentProvider]}
+                spellCheck={false}
+                rows={8}
+              />
+              <span className="muted small">
+                Merged into the {agentMeta.label} chat request. Cannot override
+                messages, tools, stream, model, or system. For Ollama thinking
+                (e.g. qwen3.5:4b) use <code>{'{"think": true}'}</code>.
+              </span>
             </label>
             {agentSettings && (
               <p className="muted small">

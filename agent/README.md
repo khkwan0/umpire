@@ -16,7 +16,7 @@ npm run build
 
 ### LLM
 
-**Web UI (recommended):** **Settings → AI Agent** — enable, pick provider/model, API key, max tool rounds. Stored in the database on the API server.
+**Web UI (recommended):** **Settings → AI Agent** — enable, pick provider/model, API key, max tool rounds, optional per-provider request JSON extras. Stored in the database on the API server.
 
 **CLI and API fallback:** environment variables on the machine running the CLI (or API server when no DB settings exist).
 
@@ -98,7 +98,7 @@ The **Agent** tab (`/agent`) uses the same agent loop over WebSocket (`GET /api/
 
 **Client → server:** `{ "type": "chat", "id", "message", "history?" }`
 
-**Server → client:** `ready`, `started`, `tool_start`, `tool_end`, `assistant_delta`, `done`, `error`
+**Server → client:** `ready`, `started`, `tool_start`, `tool_end`, `reasoning_delta`, `assistant_delta`, `done`, `error`
 
 Full reference: [docs/agents.md](../docs/agents.md#agent-chat-websocket-apagentws).
 

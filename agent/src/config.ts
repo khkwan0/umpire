@@ -2,6 +2,15 @@ import type {LlmConfig} from './types.js'
 
 export type LlmProvider = 'openai' | 'anthropic' | 'ollama' | 'vllm'
 
+export const LLM_PROVIDERS: LlmProvider[] = [
+  'openai',
+  'anthropic',
+  'ollama',
+  'vllm',
+]
+
+export type AgentRequestExtras = Record<LlmProvider, Record<string, unknown>>
+
 export interface StoredAgentSettings {
   enabled: boolean
   provider: LlmProvider
@@ -9,6 +18,7 @@ export interface StoredAgentSettings {
   base_url: string | null
   api_key: string
   max_tool_rounds: number
+  request_extras: AgentRequestExtras
 }
 
 export interface AgentSettingsView {
@@ -18,8 +28,118 @@ export interface AgentSettingsView {
   base_url: string | null
   has_api_key: boolean
   max_tool_rounds: number
+  request_extras: AgentRequestExtras
   configured: boolean
   config_source: 'database' | 'environment' | 'none'
+}
+
+const EXTRAS_MAX_CHARS = 16_384
+
+const ENV_EXTRAS_KEYS: Record<LlmProvider, string> = {
+  openai: 'OPENAI_REQUEST_EXTRAS',
+  anthropic: 'ANTHROPIC_REQUEST_EXTRAS',
+  ollama: 'OLLAMA_REQUEST_EXTRAS',
+  vllm: 'VLLM_REQUEST_EXTRAS',
+}
+
+export function emptyAgentRequestExtras(): AgentRequestExtras {
+  return {
+    openai: {},
+    anthropic: {},
+    ollama: {},
+    vllm: {},
+  }
+}
+
+function parseJsonObject(raw: string | undefined | null): Record<string, unknown> {
+  const trimmed = raw?.trim()
+  if (!trimmed) return {}
+  try {
+    const parsed = JSON.parse(trimmed) as unknown
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>
+    }
+  } catch {
+    return {}
+  }
+  return {}
+}
+
+/** Lenient parse of the stored extras map (invalid JSON becomes empty). */
+export function parseAgentRequestExtras(
+  raw: string | undefined | null,
+): AgentRequestExtras {
+  const out = emptyAgentRequestExtras()
+  if (!raw?.trim()) return out
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return out
+    }
+    const obj = parsed as Record<string, unknown>
+    for (const key of LLM_PROVIDERS) {
+      const value = obj[key]
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        out[key] = value as Record<string, unknown>
+      }
+    }
+  } catch {
+    return out
+  }
+  return out
+}
+
+/** Merge a partial extras map; provided provider keys replace that provider's object. */
+export function mergeAgentRequestExtras(
+  current: AgentRequestExtras,
+  partial: unknown,
+): AgentRequestExtras {
+  if (partial === undefined) return current
+  if (!partial || typeof partial !== 'object' || Array.isArray(partial)) {
+    throw new Error('request_extras must be a JSON object')
+  }
+  const obj = partial as Record<string, unknown>
+  const next: AgentRequestExtras = {
+    openai: {...current.openai},
+    anthropic: {...current.anthropic},
+    ollama: {...current.ollama},
+    vllm: {...current.vllm},
+  }
+  for (const key of LLM_PROVIDERS) {
+    if (!Object.prototype.hasOwnProperty.call(obj, key)) continue
+    const value = obj[key]
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new Error(`request_extras.${key} must be a JSON object`)
+    }
+    next[key] = value as Record<string, unknown>
+  }
+  if (JSON.stringify(next).length > EXTRAS_MAX_CHARS) {
+    throw new Error('request_extras is too large')
+  }
+  return next
+}
+
+export function extrasFromEnv(
+  env: NodeJS.ProcessEnv,
+  provider: LlmProvider,
+): Record<string, unknown> {
+  const specific = parseJsonObject(env[ENV_EXTRAS_KEYS[provider]])
+  if (Object.keys(specific).length > 0) return specific
+  return parseJsonObject(env.AGENT_REQUEST_EXTRAS)
+}
+
+export function extrasMapFromEnv(
+  env: NodeJS.ProcessEnv,
+  activeProvider: LlmProvider,
+): AgentRequestExtras {
+  const map = emptyAgentRequestExtras()
+  for (const provider of LLM_PROVIDERS) {
+    map[provider] = parseJsonObject(env[ENV_EXTRAS_KEYS[provider]])
+  }
+  if (Object.keys(map[activeProvider]).length === 0) {
+    map[activeProvider] = parseJsonObject(env.AGENT_REQUEST_EXTRAS)
+  }
+  return map
 }
 
 export const LLM_PROVIDER_META: Record<
@@ -104,6 +224,7 @@ function llmConfigFromStored(stored: StoredAgentSettings): LlmConfig | null {
     model,
     baseUrl,
     maxToolRounds: clampToolRounds(stored.max_tool_rounds),
+    requestExtras: stored.request_extras[stored.provider] ?? {},
   }
 }
 
@@ -121,6 +242,7 @@ export function loadLlmConfigFromEnv(
       apiKey,
       model: env.ANTHROPIC_MODEL?.trim() || 'claude-sonnet-4-20250514',
       maxToolRounds,
+      requestExtras: extrasFromEnv(env, provider),
     }
   }
 
@@ -137,6 +259,7 @@ export function loadLlmConfigFromEnv(
       model,
       baseUrl,
       maxToolRounds,
+      requestExtras: extrasFromEnv(env, provider),
     }
   }
 
@@ -153,6 +276,7 @@ export function loadLlmConfigFromEnv(
       model,
       baseUrl,
       maxToolRounds,
+      requestExtras: extrasFromEnv(env, provider),
     }
   }
 
@@ -165,6 +289,7 @@ export function loadLlmConfigFromEnv(
     baseUrl:
       normalizeBaseUrl(env.OPENAI_BASE_URL) ?? 'https://api.openai.com/v1',
     maxToolRounds,
+    requestExtras: extrasFromEnv(env, provider),
   }
 }
 
@@ -195,6 +320,8 @@ export function toAgentSettingsView(input: {
     base_url: stored?.base_url ?? input.llm?.baseUrl ?? meta.defaultBaseUrl,
     has_api_key: Boolean(stored?.api_key.trim() || input.llm?.apiKey),
     max_tool_rounds: stored?.max_tool_rounds ?? input.llm?.maxToolRounds ?? 12,
+    request_extras:
+      stored?.request_extras ?? extrasMapFromEnv(process.env, provider),
     configured: input.llm !== null,
     config_source: input.configSource,
   }

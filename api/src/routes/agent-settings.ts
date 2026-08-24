@@ -18,6 +18,7 @@ const agentSettingsSchema = {
     'base_url',
     'has_api_key',
     'max_tool_rounds',
+    'request_extras',
     'configured',
     'config_source',
   ],
@@ -31,6 +32,13 @@ const agentSettingsSchema = {
     base_url: {type: ['string', 'null']},
     has_api_key: {type: 'boolean'},
     max_tool_rounds: {type: 'integer', minimum: 1, maximum: 20},
+    request_extras: {
+      type: 'object',
+      additionalProperties: {
+        type: 'object',
+        additionalProperties: true,
+      },
+    },
     configured: {type: 'boolean'},
     config_source: {
       type: 'string',
@@ -62,6 +70,7 @@ export async function agentSettingsRoutes(app: FastifyInstance): Promise<void> {
       base_url?: string | null
       api_key?: string
       max_tool_rounds?: number
+      request_extras?: Record<string, Record<string, unknown>>
     }
   }>(
     '/api/agent/settings',
@@ -81,6 +90,13 @@ export async function agentSettingsRoutes(app: FastifyInstance): Promise<void> {
             base_url: {type: ['string', 'null']},
             api_key: {type: 'string'},
             max_tool_rounds: {type: 'integer', minimum: 1, maximum: 20},
+            request_extras: {
+              type: 'object',
+              additionalProperties: {
+                type: 'object',
+                additionalProperties: true,
+              },
+            },
           },
         },
         response: {
