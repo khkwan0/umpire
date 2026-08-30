@@ -2,6 +2,7 @@ import './options.css'
 import {browser} from 'wxt/browser'
 import {canonicalizeBaseUrl} from '../../utils/api'
 import {ensureHostPermission} from '../../utils/permissions'
+import {sendTestNotification} from '../../utils/notifications'
 import {getSettings, setSettings} from '../../utils/storage'
 
 const app = document.getElementById('app')!
@@ -64,6 +65,33 @@ async function render(): Promise<void> {
   save.type = 'button'
   save.textContent = 'Save'
 
+  const testNotify = document.createElement('button')
+  testNotify.type = 'button'
+  testNotify.className = 'secondary'
+  testNotify.textContent = 'Test notification'
+
+  testNotify.addEventListener('click', () => {
+    void (async () => {
+      status.hidden = false
+      status.className = 'status'
+      status.textContent = 'Sending test notification…'
+      testNotify.disabled = true
+      try {
+        await sendTestNotification()
+        status.className = 'status ok'
+        status.textContent = 'Test notification sent.'
+      } catch (err) {
+        status.className = 'status error'
+        status.textContent =
+          err instanceof Error
+            ? err.message
+            : 'Could not show a notification. Check OS/browser notification settings.'
+      } finally {
+        testNotify.disabled = false
+      }
+    })()
+  })
+
   save.addEventListener('click', () => {
     void (async () => {
       status.hidden = false
@@ -111,6 +139,10 @@ async function render(): Promise<void> {
   recoveryLabel.className = 'check'
   recoveryLabel.append(recovery, document.createTextNode(' Notify on recovery'))
 
+  const actions = document.createElement('div')
+  actions.className = 'actions'
+  actions.append(save, testNotify)
+
   app.append(
     heading,
     intro,
@@ -126,7 +158,7 @@ async function render(): Promise<void> {
     ),
     outageLabel,
     recoveryLabel,
-    save,
+    actions,
     status,
   )
 }

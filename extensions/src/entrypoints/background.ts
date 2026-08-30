@@ -3,6 +3,7 @@ import {defineBackground} from 'wxt/utils/define-background'
 import {ApiError, api, streamUrl, type StatusTarget} from '../utils/api'
 import {shortHost, summarizeTargets, targetHealth} from '../utils/health'
 import {hasHostPermission} from '../utils/permissions'
+import {showDesktopNotification} from '../utils/notifications'
 import {
   getCache,
   getSettings,
@@ -45,13 +46,7 @@ async function notify(
   message: string,
 ): Promise<void> {
   try {
-    await browser.notifications.create(id, {
-      type: 'basic',
-      iconUrl: browser.runtime.getURL('/icon/128.png'),
-      title,
-      message,
-      priority: 1,
-    })
+    await showDesktopNotification(title, message, id)
   } catch {
     // Notifications may be denied by the user/OS.
   }
