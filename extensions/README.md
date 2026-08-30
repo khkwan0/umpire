@@ -69,5 +69,10 @@ extensions/
       options.html    # base URL + notification prefs
     utils/            # API client, storage, health helpers
   public/icon/
+    icon.svg          # source artwork (brand #225a80 + umpire mark)
+    16.png … 128.png  # generated via npm run icons
+  scripts/build-icons.mjs
   wxt.config.ts
 ```
+
+Icons use the same umpire mark as the web UI (`web/public/umpire_logo.svg`). Edit `public/icon/icon.svg`, then run `npm run icons` before building.
