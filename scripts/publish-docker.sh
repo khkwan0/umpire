@@ -7,6 +7,8 @@ set -euo pipefail
 #   DOCKER_HUB_USERNAME=nitroxstudios
 #   PERSONAL_ACCESS_TOKEN=dckr_pat_…
 #
+# File: .env.dockerhub or .env.docker (first found wins)
+#
 # Usage:
 #   ./scripts/publish-docker.sh
 #   VERSION=1.0.0 ./scripts/publish-docker.sh

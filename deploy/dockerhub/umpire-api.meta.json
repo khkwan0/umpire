@@ -1,5 +1,5 @@
 {
-  "description": "UMPIRE monitoring API — HTTP checks, scheduling, SQLite, alerts. Pair with nitroxstudios/umpire-web.",
+  "description": "UMPIRE monitoring API. HTTP checks, scheduling, SQLite storage, and alerts.",
   "categories": [
     "monitoring-and-observability",
     "developer-tools",

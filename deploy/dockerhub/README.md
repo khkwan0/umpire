@@ -6,7 +6,7 @@ Paste these into each image repo on [hub.docker.com](https://hub.docker.com), **
 ./scripts/publish-dockerhub-metadata.sh
 ```
 
-Uses `.env.dockerhub` (same credentials as `publish-docker.sh`).
+Uses `.env.dockerhub` or `.env.docker` (same credentials as `publish-docker.sh`).
 
 ## Files
 
@@ -26,7 +26,7 @@ Uses `.env.dockerhub` (same credentials as `publish-docker.sh`).
 | `umpire-api` | Monitoring & observability, Developer tools, Integration & delivery |
 | `umpire-web` | Web servers, Monitoring & observability, Developer tools |
 
-Slugs are in each `*.meta.json` file (`monitoring-and-observability`, etc.).
+Slugs are in each `*.meta.json` file (`monitoring-and-observability`, etc.). Docker Hub short descriptions are limited to **100 bytes** UTF-8.
 
 ## Manual paste
 
