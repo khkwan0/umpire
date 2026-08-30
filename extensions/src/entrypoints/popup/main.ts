@@ -3,7 +3,7 @@ import {browser} from 'wxt/browser'
 import {api, ApiError, type Incident, type StatusTarget} from '../../utils/api'
 import {shortHost, summarizeTargets, targetHealth} from '../../utils/health'
 import {ensureHostPermission} from '../../utils/permissions'
-import {formatCheckedAgo, formatTimestampTooltip} from '../../utils/time'
+import {formatCompactAgo, formatTimestampTooltip} from '../../utils/time'
 import {getCache, getSettings} from '../../utils/storage'
 
 const root = document.getElementById('app')!
@@ -220,9 +220,9 @@ function renderDashboard(opts: {
   })
 
   for (const target of sorted) {
-    const checkedAgo = formatCheckedAgo(target.last_checked_at)
+    const checkedAgo = formatCompactAgo(target.last_checked_at)
     const checkedTip = formatTimestampTooltip(target.last_checked_at)
-    const age = el('span', {className: 'muted target-age', text: checkedAgo})
+    const age = el('span', {className: 'target-age', text: checkedAgo})
     if (checkedTip) age.title = checkedTip
 
     const item = el('li', {className: 'target'}, [
@@ -232,9 +232,11 @@ function renderDashboard(opts: {
           className: 'muted',
           text: target.group_tag || target.url,
         }),
+      ]),
+      el('div', {className: 'target-status'}, [
+        el('span', {className: healthClass(target), text: healthText(target)}),
         age,
       ]),
-      el('span', {className: healthClass(target), text: healthText(target)}),
     ])
     list.append(item)
   }

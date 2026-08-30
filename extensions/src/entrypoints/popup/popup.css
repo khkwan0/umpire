@@ -196,8 +196,19 @@ button.linkish {
   white-space: nowrap;
 }
 
+.target-status {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
 .target-age {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .pill {

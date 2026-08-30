@@ -8,33 +8,21 @@ export function parseApiTimestamp(value: string): Date | null {
   return new Date(ms)
 }
 
-export function formatTimeAgo(
+export function formatCompactAgo(
   value: string | null | undefined,
-  fallback = 'Never checked',
+  fallback = '—',
 ): string {
   if (value == null || value === '') return fallback
   const date = parseApiTimestamp(value)
   if (!date) return fallback
 
-  const seconds = Math.round((date.getTime() - Date.now()) / 1000)
-  const abs = Math.abs(seconds)
-  const rtf = new Intl.RelativeTimeFormat(undefined, {numeric: 'auto'})
-
-  if (abs < 60) return rtf.format(seconds, 'second')
+  const seconds = Math.max(0, Math.round((Date.now() - date.getTime()) / 1000))
+  if (seconds < 60) return `${seconds}s`
   const minutes = Math.round(seconds / 60)
-  if (Math.abs(minutes) < 60) return rtf.format(minutes, 'minute')
+  if (minutes < 60) return `${minutes}m`
   const hours = Math.round(seconds / 3600)
-  if (Math.abs(hours) < 24) return rtf.format(hours, 'hour')
-  const days = Math.round(seconds / 86400)
-  if (Math.abs(days) < 30) return rtf.format(days, 'day')
-  const months = Math.round(seconds / (86400 * 30))
-  if (Math.abs(months) < 12) return rtf.format(months, 'month')
-  return rtf.format(Math.round(seconds / (86400 * 365)), 'year')
-}
-
-export function formatCheckedAgo(value: string | null | undefined): string {
-  const ago = formatTimeAgo(value)
-  return ago === 'Never checked' ? ago : `Checked ${ago}`
+  if (hours < 24) return `${hours}h`
+  return `${Math.round(seconds / 86400)}d`
 }
 
 export function formatTimestampTooltip(
