@@ -329,7 +329,10 @@ export const CORE_TABLES: CoreTableDef[] = [
       },
     ],
     indexes: [
-      {name: 'idx_agent_chats_user_updated', columns: ['user_id', 'updated_at']},
+      {
+        name: 'idx_agent_chats_user_updated',
+        columns: ['user_id', 'updated_at'],
+      },
       {
         name: 'idx_agent_chats_owner_updated',
         columns: ['owner_key', 'updated_at'],

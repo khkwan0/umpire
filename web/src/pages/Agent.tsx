@@ -31,7 +31,8 @@ function messageToEntry(msg: AgentChatMessage): ChatEntry {
     role: msg.role,
     content: msg.content,
     reasoning: msg.reasoning ?? undefined,
-    tools: msg.tools?.map(t => ({name: t.name, summary: t.summary})) ?? undefined,
+    tools:
+      msg.tools?.map(t => ({name: t.name, summary: t.summary})) ?? undefined,
   }
 }
 

@@ -313,7 +313,9 @@ function buildStatements(database: Database.Database) {
     touchAgentChat: database.prepare(
       `UPDATE agent_chats SET updated_at = datetime('now') WHERE id = ?`,
     ),
-    deleteAgentChatById: database.prepare(`DELETE FROM agent_chats WHERE id = ?`),
+    deleteAgentChatById: database.prepare(
+      `DELETE FROM agent_chats WHERE id = ?`,
+    ),
     selectAgentChatMessages: database.prepare(
       `SELECT id, chat_id, role, content, reasoning, tools_json, created_at
        FROM agent_chat_messages
@@ -700,9 +702,7 @@ function mapAgentChat(row: AgentChatRow): AgentChat {
   }
 }
 
-function parseAgentChatTools(
-  raw: string | null,
-): AgentChatToolRef[] | null {
+function parseAgentChatTools(raw: string | null): AgentChatToolRef[] | null {
   if (!raw) return null
   try {
     const parsed = JSON.parse(raw) as unknown
@@ -1467,8 +1467,7 @@ export const core: CoreStore = {
 
   getAgentChat(id, userId, ownerKey) {
     const row = getStmts().selectAgentChatById.get(id) as
-      | AgentChatRow
-      | undefined
+      AgentChatRow | undefined
     if (!row || !agentChatOwnedBy(row, userId, ownerKey)) return undefined
     const messages = (
       getStmts().selectAgentChatMessages.all(id) as AgentChatMessageRow[]
@@ -1485,29 +1484,23 @@ export const core: CoreStore = {
       userId == null ? ownerKey : null,
       chatTitle,
     )
-    return mapAgentChat(
-      getStmts().selectAgentChatById.get(id) as AgentChatRow,
-    )
+    return mapAgentChat(getStmts().selectAgentChatById.get(id) as AgentChatRow)
   },
 
   updateAgentChat(id, userId, ownerKey, patch) {
     const row = getStmts().selectAgentChatById.get(id) as
-      | AgentChatRow
-      | undefined
+      AgentChatRow | undefined
     if (!row || !agentChatOwnedBy(row, userId, ownerKey)) return undefined
     if (patch.title !== undefined) {
       const title = patch.title.trim() || 'New chat'
       getStmts().updateAgentChatTitle.run(title, id)
     }
-    return mapAgentChat(
-      getStmts().selectAgentChatById.get(id) as AgentChatRow,
-    )
+    return mapAgentChat(getStmts().selectAgentChatById.get(id) as AgentChatRow)
   },
 
   deleteAgentChat(id, userId, ownerKey) {
     const row = getStmts().selectAgentChatById.get(id) as
-      | AgentChatRow
-      | undefined
+      AgentChatRow | undefined
     if (!row || !agentChatOwnedBy(row, userId, ownerKey)) return false
     const result = getStmts().deleteAgentChatById.run(id)
     return result.changes > 0
@@ -1515,8 +1508,7 @@ export const core: CoreStore = {
 
   appendAgentChatMessages(id, userId, ownerKey, messages) {
     const row = getStmts().selectAgentChatById.get(id) as
-      | AgentChatRow
-      | undefined
+      AgentChatRow | undefined
     if (!row || !agentChatOwnedBy(row, userId, ownerKey)) {
       throw new Error('Chat not found')
     }
@@ -1541,7 +1533,9 @@ export const core: CoreStore = {
     }
     getStmts().touchAgentChat.run(id)
     if (row.title === 'New chat') {
-      const firstUser = messages.find(m => m.role === 'user' && m.content.trim())
+      const firstUser = messages.find(
+        m => m.role === 'user' && m.content.trim(),
+      )
       if (firstUser) {
         getStmts().updateAgentChatTitle.run(
           titleFromFirstMessage(firstUser.content),

@@ -20,7 +20,15 @@ const agentChatSchema = {
 
 const agentChatMessageSchema = {
   type: 'object',
-  required: ['id', 'chat_id', 'role', 'content', 'reasoning', 'tools', 'created_at'],
+  required: [
+    'id',
+    'chat_id',
+    'role',
+    'content',
+    'reasoning',
+    'tools',
+    'created_at',
+  ],
   properties: {
     id: {type: 'string'},
     chat_id: {type: 'string'},

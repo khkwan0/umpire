@@ -1,5 +1,9 @@
 import type {FastifyReply, FastifyRequest} from 'fastify'
-import {getAuthContext, resolvePrincipal, type AuthRequest} from '../auth/index.js'
+import {
+  getAuthContext,
+  resolvePrincipal,
+  type AuthRequest,
+} from '../auth/index.js'
 import type {AuthPrincipal} from '../plugins/types.js'
 
 export const CHAT_OWNER_HEADER = 'x-umpire-chat-owner'

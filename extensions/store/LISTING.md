@@ -74,6 +74,90 @@ GETTING STARTED
 Learn more about UMPIRE: https://github.com/khkwan0/umpire
 ```
 
+## Chrome detailed description (max 16000 characters)
+
+```text
+REQUIRES YOUR OWN UMPIRE SERVER
+
+UMPIRE is a self-hosted monitoring platform you deploy on infrastructure you control. This extension is a companion client — not a standalone monitoring product. It does not monitor websites, run checks, or send alerts on its own.
+
+You must already run UMPIRE (API + web UI) on your own server, Docker host, or local machine. The extension connects to your server's HTTP API using the same base URL you use for the web dashboard.
+
+If you do not run UMPIRE yet, start here: https://github.com/khkwan0/umpire
+
+WHAT THIS EXTENSION DOES
+
+UMPIRE (Universal Monitoring Plugin & Incident Reporter) is open-source uptime and incident monitoring for operators who want full control over their data and infrastructure. This browser extension keeps you informed without keeping a dashboard tab open.
+
+After you point it at your UMPIRE base URL (for example https://monitor.example.com or https://host/umpire), the extension:
+
+• Shows a toolbar badge with the live count of unhealthy targets (down + partial)
+• Opens a popup dashboard listing targets, status, last-check age, and open incidents
+• Sends desktop notifications when targets go down, become partial, or recover (optional)
+• Stays up to date via the UMPIRE live event stream, with automatic polling fallback
+
+Click Open UI in the popup to jump straight to the full UMPIRE web dashboard for deeper management — targets, groups, checks, notifiers, settings, and the monitoring assistant.
+
+FEATURES
+
+Toolbar badge
+See at a glance how many targets need attention. The badge updates as your server reports changes.
+
+Popup health view
+• Summary counts: up, down, partial
+• Per-target status with last-check age
+• Open incidents when outages are active
+• Refresh on demand
+• Quick link to extension settings and test notifications
+
+Desktop notifications
+Optional OS-level alerts when a target transitions between healthy and unhealthy states. Configure outage and recovery notifications separately. Send a test notification anytime to verify your browser and OS settings.
+
+Live updates
+The extension listens to your server's event stream (SSE) for near-real-time updates. If the stream is unavailable, a background poll keeps the badge and popup current.
+
+Authentication
+If your UMPIRE server requires login, sign in from the popup with the same username and password as the web UI. The extension uses the standard UMPIRE session cookie. Log out from the popup when done. If your server allows read-only access without signing in, the extension works without a login. API tokens are not used in the extension — session login only.
+
+SELF-HOSTED BY DESIGN
+
+This extension does not connect to a vendor cloud, analytics service, or third-party telemetry endpoint. It only communicates with the UMPIRE server URL you configure. No account with the extension author is required. No data is sold or shared.
+
+Privacy policy: https://github.com/khkwan0/umpire/blob/master/extensions/store/PRIVACY.md
+
+PERMISSIONS EXPLAINED
+
+• Storage — Saves your server URL, notification preferences, and a small health cache locally on your device
+• Alarms — Schedules periodic refresh when the live event stream is unavailable
+• Notifications — Shows local desktop alerts for outages and recovery (when enabled)
+• Site access (optional) — Requested only for the UMPIRE origin you enter in extension settings, so the extension can call your server's API. It does not read or modify content on other websites.
+
+GETTING STARTED
+
+1. Deploy UMPIRE (API + web UI) on a server you control
+2. Install this extension
+3. Open Extension settings from the popup footer (or right-click the toolbar icon → Options)
+4. Set your UMPIRE base URL — use https:// if your server redirects HTTP
+5. Allow site access when prompted
+6. Sign in from the popup if your server requires authentication
+7. Pin the extension to your toolbar and optionally send a test notification
+
+WHO IT'S FOR
+
+• Homelab and self-hosted operators running UMPIRE
+• Small teams monitoring their own infrastructure
+• Developers who want outage alerts without a dashboard tab always open
+• Anyone who prefers open-source, self-hosted monitoring over SaaS uptime tools
+
+SUPPORT & SOURCE
+
+Homepage: https://github.com/khkwan0/umpire
+Support / issues: https://github.com/khkwan0/umpire/issues
+Extension source: https://github.com/khkwan0/umpire/tree/master/extensions
+```
+
+Paste manually into the Chrome Web Store listing — this file is not synced automatically.
+
 ## Category
 
 Productivity (Chrome) / Developer Tools (alternative)

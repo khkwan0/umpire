@@ -150,10 +150,7 @@ export interface CoreStore {
   anonymousReadOnlyPrincipal(): AuthPrincipal
   principalForUser(userId: number): AuthPrincipal | null
 
-  listAgentChats(
-    userId: number | null,
-    ownerKey: string | null,
-  ): AgentChat[]
+  listAgentChats(userId: number | null, ownerKey: string | null): AgentChat[]
   getAgentChat(
     id: string,
     userId: number | null,
