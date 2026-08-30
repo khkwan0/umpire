@@ -1,0 +1,44 @@
+# Pull pre-built images from Docker Hub (no local build).
+#
+# Quick start:
+#   cp deploy/env.example .env    # optional — defaults work for local try-out
+#   docker compose -f docker-compose.hub.yml pull
+#   docker compose -f docker-compose.hub.yml up -d
+#
+# See docs/deployment.md for BASE_PATH, reverse proxies, and API-only setups.
+
+services:
+  api:
+    image: ${UMPIRE_IMAGE_REGISTRY:-nitroxstudios}/umpire-api:${UMPIRE_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://127.0.0.1:3000/api/health']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 120s
+    volumes:
+      - ${UMPIRE_DATA_DIR:-./data}:/data
+    environment:
+      PORT: "3000"
+      DATABASE_PATH: /data/monitor.sqlite
+      BASE_PATH: ${BASE_PATH:-/}
+      CHECK_TIMEOUT_MS: ${CHECK_TIMEOUT_MS:-10000}
+      FCM_ANDROID_CHANNEL_ID: ${FCM_ANDROID_CHANNEL_ID:-}
+    networks:
+      - monitor
+
+  web:
+    image: ${UMPIRE_IMAGE_REGISTRY:-nitroxstudios}/umpire-web:${UMPIRE_WEB_IMAGE_TAG:-${UMPIRE_IMAGE_TAG:-latest}}
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-8089}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - monitor
+
+networks:
+  monitor:
+    driver: bridge

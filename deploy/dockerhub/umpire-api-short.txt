@@ -1,0 +1,1 @@
+UMPIRE monitoring API — HTTP checks, scheduling, SQLite, alerts. Pair with nitroxstudios/umpire-web.

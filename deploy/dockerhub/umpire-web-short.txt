@@ -1,0 +1,1 @@
+UMPIRE dashboard UI (nginx + React). Proxies to nitroxstudios/umpire-api. Optional but recommended.

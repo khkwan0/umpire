@@ -12,7 +12,9 @@ Default process-wide set in [`api/plugins.json`](api/plugins.json) + [`data/plug
 
 ## Getting started
 
-To run locally (deploy script or Docker Compose), see **[Run locally](#run-locally)**. The default path starts **API + web**; open the dashboard and add a target. For headless deployments, only the **API** is required — see **[API only](#api-only-headless)**.
+**Deploy from Docker Hub** (no build): see **[docs/deployment.md](docs/deployment.md)** — pull `nitroxstudios/umpire-api` + `nitroxstudios/umpire-web` with [`docker-compose.hub.yml`](docker-compose.hub.yml).
+
+**Run from source** (deploy script or Docker Compose): see **[Run locally](#run-locally)**. The default path starts **API + web**; open the dashboard and add a target. For headless deployments, only the **API** is required — see **[API only](#api-only-headless)**.
 
 ## Plugin architecture
 
@@ -156,7 +158,24 @@ docs/             plugin guide, core guide, agents, Jenkins
 
 Do not confuse filesystem `plugins/` with HTTP `/api/plugins/<kind>/<id>/…` (the host namespace).
 
-## Run locally
+## Deploy from Docker Hub
+
+Pre-built images:
+
+| Image | Purpose |
+|-------|---------|
+| `nitroxstudios/umpire-api` | API — **required** for monitoring |
+| `nitroxstudios/umpire-web` | Dashboard — optional but recommended |
+
+```bash
+cp deploy/env.example .env
+docker compose -f docker-compose.hub.yml pull
+docker compose -f docker-compose.hub.yml up -d
+```
+
+Full guide (tags, `BASE_PATH`, reverse proxy, API-only, upgrades): **[docs/deployment.md](docs/deployment.md)**.
+
+## Run locally (from source)
 
 Images build from the **repo root** so Docker can copy [`plugins/`](plugins/). The paths below start **API + web** unless noted.
 
@@ -287,7 +306,8 @@ Vite serves the UI on [http://localhost:8089](http://localhost:8089) (same host 
 - `./scripts/deploy.sh` — build and start API + web with Docker Compose, then wait for `/api/health`
 - `WEB_PORT=8090 ./scripts/deploy.sh` — deploy and health-check with a custom web port
 - `BASE_PATH=/umpire ./scripts/deploy.sh` — bake a subdirectory public path into the web image
-- `./scripts/publish-docker.sh` — build and push images to Docker Hub (reads `.env.dockerhub`; use `--api-only` or `--web-only` to publish one image)
+- `./scripts/publish-docker.sh` — build and push `umpire-api` / `umpire-web` to Docker Hub (reads `.env.dockerhub`)
+- `docker compose -f docker-compose.hub.yml pull` — pull published images (see [docs/deployment.md](docs/deployment.md))
 
 ### API (`api/package.json`)
 
@@ -372,6 +392,7 @@ SQLite file: `./data/monitor.sqlite` (bind-mounted in Compose at `/data/monitor.
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Browser extensions (Chrome + Firefox): [extensions/README.md](extensions/README.md)
 - HTTP API operator guide: [docs/api.md](docs/api.md)
+- **Deployment** (Docker Hub, Compose, reverse proxy): [docs/deployment.md](docs/deployment.md)
 - AI agents (MCP, web chat, tokens, WebSockets): [docs/agents.md](docs/agents.md)
 - MCP server: [mcp/README.md](mcp/README.md)
 - Agent CLI + web chat: [agent/README.md](agent/README.md)
