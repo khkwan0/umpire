@@ -119,7 +119,16 @@ Chrome and Firefox accept **1280×800** or **640×400** screenshots. Include at 
 
 1. Popup with target list (`01-popup-dashboard.png`)
 2. Options / configuration (`02-options.png`)
-3. Notification example (`03-notification.png`)
+3. Notification example (`03-notifications.png`)
+
+Optional extras (web UI opened from the popup): `04-web-dashboard.png`, `05-web-agent.png`, `06-web-settings.png`.
+
+To prep from raw captures placed in `store/screenshots/source/`:
+
+```bash
+cd extensions
+npm run store:screenshots:prep:all
+```
 
 ## Release checklist
 

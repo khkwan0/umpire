@@ -242,3 +242,21 @@ button.linkish {
 .footer {
   text-align: center;
 }
+
+.footer-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: -4px;
+}
+
+.footer-sep {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.footer-actions button.linkish {
+  font-size: 0.78rem;
+}

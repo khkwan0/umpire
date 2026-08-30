@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>UMPIRE store screenshot — dashboard</title>
+    <style>
+      @import url('./_shared.css');
+      html, body {
+        background:
+          radial-gradient(circle at 12% 8%, rgba(56, 189, 248, 0.18) 0%, transparent 38%),
+          linear-gradient(165deg, #0b1220 0%, #111827 55%, #0f172a 100%);
+        color: #f8fafc;
+      }
+      .frame { grid-template-columns: 1fr 760px; align-items: center; }
+      .copy p, .copy ul { color: #cbd5e1; }
+      .copy ul { color: #e2e8f0; }
+      .shot-wrap { width: 760px; }
+      .shot.web-shot { width: 100%; border-radius: 14px; }
+    </style>
+  </head>
+  <body>
+    <div class="frame">
+      <div class="copy">
+        <h1>Full dashboard</h1>
+        <p>Open the UMPIRE web UI from the popup to manage targets, incidents, and checks.</p>
+        <ul>
+          <li>Live status cards and outage history</li>
+          <li>Target latency and last-check details</li>
+          <li>Realtime updates over SSE</li>
+        </ul>
+      </div>
+      <div class="shot-wrap">
+        <img class="shot web-shot" src="../source/web-dashboard-cropped.png" alt="" />
+      </div>
+    </div>
+  </body>
+</html>

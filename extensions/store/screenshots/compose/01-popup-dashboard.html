@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>UMPIRE store screenshot — popup</title>
+    <style>
+      @import url('./_shared.css');
+      html, body {
+        background:
+          radial-gradient(circle at 15% 10%, #d9f3ee 0%, transparent 35%),
+          linear-gradient(160deg, #f7f3ea 0%, #eef2ef 55%, #e8f2ef 100%);
+      }
+      .frame { grid-template-columns: 1fr 420px; }
+      .shot-wrap.popup { width: 360px; }
+      .shot.popup-shot { width: 100%; }
+    </style>
+  </head>
+  <body>
+    <div class="frame">
+      <div class="copy">
+        <h1>UMPIRE</h1>
+        <p>Monitor your self-hosted UMPIRE server from the browser toolbar.</p>
+        <ul>
+          <li>Live badge count of unhealthy targets</li>
+          <li>Popup list with status and last-check age</li>
+          <li>One click to open the full dashboard</li>
+        </ul>
+      </div>
+      <div class="shot-wrap popup">
+        <div class="toolbar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+        <img class="shot popup-shot" src="../source/popup-cropped.png" alt="" />
+      </div>
+    </div>
+  </body>
+</html>

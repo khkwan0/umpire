@@ -15,6 +15,8 @@
     "playwright:install": "playwright install chromium",
     "store:screenshots": "node scripts/capture-screenshots.mjs",
     "store:screenshots:all": "playwright install chromium && node scripts/capture-screenshots.mjs",
+    "store:screenshots:prep": "node scripts/prep-store-screenshots.mjs",
+    "store:screenshots:prep:all": "playwright install chromium && node scripts/prep-store-screenshots.mjs",
     "postinstall": "wxt prepare",
     "compile": "tsc --noEmit"
   },

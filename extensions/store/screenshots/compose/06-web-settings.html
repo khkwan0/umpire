@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>UMPIRE store screenshot — settings</title>
+    <style>
+      @import url('./_shared.css');
+      html, body {
+        background:
+          radial-gradient(circle at 12% 8%, rgba(56, 189, 248, 0.18) 0%, transparent 38%),
+          linear-gradient(165deg, #0b1220 0%, #111827 55%, #0f172a 100%);
+        color: #f8fafc;
+      }
+      .frame { grid-template-columns: 1fr 760px; align-items: center; }
+      .copy p, .copy ul { color: #cbd5e1; }
+      .copy ul { color: #e2e8f0; }
+      .shot-wrap { width: 760px; }
+      .shot.web-shot { width: 100%; border-radius: 14px; }
+    </style>
+  </head>
+  <body>
+    <div class="frame">
+      <div class="copy">
+        <h1>Server settings</h1>
+        <p>Configure alert policy, authentication, and API tokens on the same UMPIRE server.</p>
+        <ul>
+          <li>Theme and timezone preferences</li>
+          <li>Alert throttling and auth controls</li>
+          <li>API tokens for MCP and automation</li>
+        </ul>
+      </div>
+      <div class="shot-wrap">
+        <img class="shot web-shot" src="../source/web-settings-cropped.png" alt="" />
+      </div>
+    </div>
+  </body>
+</html>

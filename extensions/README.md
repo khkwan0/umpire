@@ -68,6 +68,7 @@ Store listing copy, privacy policy, permission justifications, and screenshots l
 npm run zip          # Chrome upload zip
 npm run zip:firefox  # Firefox upload zip
 npm run store:screenshots  # regenerate 1280×800 PNGs from mockups
+npm run store:screenshots:prep  # composite raw captures in store/screenshots/source/
 ```
 
 See [`store/LISTING.md`](store/LISTING.md) for short/long descriptions, support URLs, and the release checklist.

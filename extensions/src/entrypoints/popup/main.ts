@@ -3,6 +3,7 @@ import {browser} from 'wxt/browser'
 import {api, ApiError, type Incident, type StatusTarget} from '../../utils/api'
 import {shortHost, summarizeTargets, targetHealth} from '../../utils/health'
 import {ensureHostPermission} from '../../utils/permissions'
+import {sendTestNotification} from '../../utils/notifications'
 import {formatCompactAgo, formatTimestampTooltip} from '../../utils/time'
 import {getCache, getSettings} from '../../utils/storage'
 
@@ -268,6 +269,37 @@ function renderDashboard(opts: {
       }),
     )
   }
+
+  const footerActions = el('div', {className: 'footer-actions'})
+  const settingsBtn = el('button', {
+    type: 'button',
+    className: 'linkish',
+    text: 'Extension settings',
+  }) as HTMLButtonElement
+  settingsBtn.addEventListener('click', () => {
+    void browser.runtime.openOptionsPage()
+  })
+  const testBtn = el('button', {
+    type: 'button',
+    className: 'linkish',
+    text: 'Test notification',
+  }) as HTMLButtonElement
+  testBtn.addEventListener('click', () => {
+    testBtn.disabled = true
+    void sendTestNotification()
+      .catch(err => {
+        window.alert(
+          err instanceof Error
+            ? err.message
+            : 'Could not show a notification. Check OS/browser notification settings.',
+        )
+      })
+      .finally(() => {
+        testBtn.disabled = false
+      })
+  })
+  footerActions.append(settingsBtn, el('span', {className: 'footer-sep', text: '·'}), testBtn)
+  root.append(footerActions)
 }
 
 async function render(): Promise<void> {
