@@ -26,12 +26,110 @@ Operator setup (run the app, shipped plugins, core HTTP API) lives in [`README.m
 
 **Id rule (must all match):** folder name, `plugins.json` entry, `plugin.id`, and UI `id`.
 
-1. Create `plugins/<kind>/<id>/index.ts`.
-2. Add the id to [`api/plugins.json`](../../api/plugins.json).
-3. Restart the API. Rebuild **web** if you added UI.
-4. Enable the plugin in **Settings → Plugin manager** (new notifiers default to disabled except `webhook`).
+See **[First plugin: from files to running](#first-plugin-from-files-to-running)** below for the full “I wrote the code, now what?” path.
 
 TypeScript contracts: [`api/src/plugins/types.ts`](../../api/src/plugins/types.ts). UI contract: [`web/src/plugin-ui.ts`](../../web/src/plugin-ui.ts).
+
+## First plugin: from files to running
+
+You wrote `plugins/<kind>/<id>/index.ts`. Here is everything that happens **after** that.
+
+### 1. Register the plugin (required)
+
+Edit [`api/plugins.json`](../../api/plugins.json) and add your id:
+
+```json
+{
+  "checks": ["http", "my-check"],
+  "scheduler": "interval",
+  "notifiers": ["webhook", "my-notify"]
+}
+```
+
+If you added npm dependencies: `cd api && npm install <pkg>`.
+
+Nothing runs until the id is in this file **and** the API process restarts (or reloads — see below).
+
+### 2. Start the app (pick one path)
+
+**Plugin development — use this.** Faster iteration; API reloads on save.
+
+```bash
+# Terminal 1 — API (loads plugins/ on startup; tsx watch reloads when you edit)
+cd api && npm install && \
+  DATABASE_PATH=../data/monitor.sqlite \
+  npm run dev
+
+# Terminal 2 — UI (only if you added ui/index.tsx, or you want the dashboard)
+cd web && npm install && npm run dev
+```
+
+Open [http://localhost:8089](http://localhost:8089). Vite proxies `/api` to the API on port 3000.
+
+**Do not** run `npm run dev` and `docker compose` at the same time — both bind host port **8089**.
+
+**Packaged / production-like stack — Docker.** Use when you are not actively editing code, or to test the built images.
+
+```bash
+cp .env.example .env   # first time only
+docker compose up -d --build
+# or: ./scripts/deploy.sh
+```
+
+Docker copies `plugins/` into the images at **build** time. After changing plugin code or UI you must rebuild:
+
+```bash
+docker compose up -d --build
+```
+
+Rebuild **both** `api` and `web` if you changed `ui/index.tsx` (Vite globs plugin UI at build time).
+
+| What you changed | `npm run dev` | Docker |
+|------------------|---------------|--------|
+| `index.ts` / routes / config | Save file — API restarts automatically | `docker compose up -d --build` |
+| `ui/index.tsx` | Save — refresh browser (Vite HMR) | Rebuild web image |
+| `plugins.json` only | Restart API (`tsx watch` may not reload manifest) | Rebuild + restart containers |
+
+### 3. Enable in plugin manager (notifiers especially)
+
+**Load** (`plugins.json`) ≠ **enabled** (`data/plugin-manager.json`).
+
+| Kind | Default after first load |
+|------|--------------------------|
+| Check | **Enabled** — runs without extra steps |
+| Notifier | **Disabled** (except `webhook`) — turn on in **Settings → Plugin manager** |
+| Scheduler | **Enabled** — only one id in `plugins.json` |
+
+Or via API: `PUT /api/plugin-manager/notify/my-notify` with body `{ "enabled": true }`.
+
+### 4. Confirm it loaded
+
+Check API stdout for lines like `[plugins] check=…` / `notifier=… ready=…`.
+
+Quick checks:
+
+```bash
+curl -s http://localhost:3000/api/plugins | jq '.[] | select(.id=="my-check")'
+curl -s http://localhost:3000/api/plugin-manager
+```
+
+In the UI: **Settings → Plugin manager** should list your plugin.
+
+### 5. Exercise it
+
+| Kind | How to see it work |
+|------|-------------------|
+| **Check** | Add a target (URL + interval). Leave checks unchecked (= all enabled) or tick yours. Wait for the scheduler tick or shorten `interval_seconds`. |
+| **Notifier** | Configure it (sidecar/UI if needed), enable in plugin manager, attach to a target, trigger an alert (`every_fail` policy is easiest while testing). |
+| **Scheduler** | Replaces `interval` process-wide — only for advanced use; confirm targets still run on your schedule. |
+
+Full verify checklist: [Chapter 7 — Registration & testing](07-registration-and-testing.md#verify-checklist).
+
+### What you do *not* need
+
+- A separate “plugin start” command — core loads plugins during API startup (`initPlugins()`).
+- Editing `data/plugin-manager.json` by hand — the UI/API is enough (file is written for you).
+- Docker for day-to-day plugin authoring — `npm run dev` is the intended path ([CONTRIBUTING.md](../../CONTRIBUTING.md)).
 
 ## Shipped references
 
