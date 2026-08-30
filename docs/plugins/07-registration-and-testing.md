@@ -11,8 +11,20 @@
    - **Notifier:** append to `"notifiers"` array
    - **Scheduler:** set `"scheduler"` to your id (**replaces** the current scheduler)
 4. Optional: `routes.ts`, `config.ts`, `ui/index.tsx`.
-5. Restart API. Rebuild **web** if you added UI.
+5. Start or restart the API (see [First plugin: from files to running](README.md#first-plugin-from-files-to-running)).
 6. **Enable** in **Settings → Plugin manager** (required for new notifiers).
+
+There is no separate plugin daemon. The API loads your module once at startup, mounts optional HTTP routes, and calls your hooks when the pipeline or scheduler needs them.
+
+## Dev vs Docker
+
+| Goal | Command |
+|------|---------|
+| **Writing / iterating on a plugin** | `cd api && DATABASE_PATH=../data/monitor.sqlite npm run dev` (+ `cd web && npm run dev` if you have UI). Edit and save — API reloads via `tsx watch`. |
+| **Running the packaged stack** | `docker compose up -d --build` or `./scripts/deploy.sh` |
+| **After plugin changes in Docker** | Rebuild: `docker compose up -d --build` (both images if UI changed) |
+
+Do not run Compose and `npm run dev` together (port 8089 conflict). Details: [Guide index — First plugin](README.md#first-plugin-from-files-to-running), [CONTRIBUTING.md](../../CONTRIBUTING.md).
 
 ### Environment overrides
 
