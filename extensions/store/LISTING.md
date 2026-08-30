@@ -8,8 +8,8 @@ Use this file when submitting to the **Chrome Web Store**, **Firefox Add-ons (AM
 |-------|-----|
 | Homepage | https://github.com/khkwan0/umpire |
 | Support | https://github.com/khkwan0/umpire/issues |
-| Privacy policy | https://github.com/khkwan0/umpire/blob/main/extensions/store/PRIVACY.md |
-| Source | https://github.com/khkwan0/umpire/tree/main/extensions |
+| Privacy policy | https://github.com/khkwan0/umpire/blob/master/extensions/store/PRIVACY.md |
+| Source | https://github.com/khkwan0/umpire/tree/master/extensions |
 
 ## Short description
 
