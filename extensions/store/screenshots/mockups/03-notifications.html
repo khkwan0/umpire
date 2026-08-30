@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>UMPIRE extension screenshot — notification</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        width: 1280px;
+        height: 800px;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        background:
+          radial-gradient(circle at 80% 20%, #d9f3ee 0%, transparent 35%),
+          linear-gradient(160deg, #f7f3ea 0%, #eef2ef 55%, #e8f2ef 100%);
+        color: #1c1917;
+      }
+      .frame {
+        width: 1280px;
+        height: 800px;
+        padding: 48px 56px;
+        display: grid;
+        grid-template-columns: 1fr 440px;
+        gap: 48px;
+        align-items: center;
+      }
+      .copy h1 { margin: 0 0 12px; font-size: 2.4rem; }
+      .copy p { margin: 0; color: #57534e; font-size: 1.15rem; line-height: 1.5; max-width: 520px; }
+      .toast {
+        background: rgba(255, 253, 248, 0.96);
+        border: 1px solid #e7e0d4;
+        border-radius: 12px;
+        box-shadow: 0 20px 50px rgba(28, 25, 23, 0.16);
+        padding: 14px 16px;
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+      }
+      .icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 10px;
+        background: #225a80;
+        flex-shrink: 0;
+        display: grid;
+        place-items: center;
+      }
+      .icon svg { width: 30px; height: 30px; fill: #fff; }
+      .toast h3 { margin: 0 0 4px; font-size: 0.95rem; }
+      .toast p { margin: 0; color: #57534e; font-size: 0.85rem; line-height: 1.4; }
+      .meta { margin-top: 8px; color: #78716c; font-size: 0.75rem; }
+    </style>
+  </head>
+  <body>
+    <div class="frame">
+      <div class="copy">
+        <h1>Desktop alerts</h1>
+        <p>Get notified when targets go down or recover — even when the dashboard tab is closed. Test notifications from Options anytime.</p>
+      </div>
+      <div>
+        <div class="toast">
+          <div class="icon" aria-hidden="true">
+            <svg viewBox="0 0 128 128"><rect width="128" height="128" rx="24" fill="#225a80"/><circle cx="64" cy="52" r="18" fill="#fff" opacity=".9"/></svg>
+          </div>
+          <div>
+            <h3>Outage detected</h3>
+            <p>api.example.com: HTTP 503 Service Unavailable</p>
+            <div class="meta">Google Chrome · UMPIRE · now</div>
+          </div>
+        </div>
+        <div class="toast" style="margin-top: 14px;">
+          <div class="icon" aria-hidden="true">
+            <svg viewBox="0 0 128 128"><rect width="128" height="128" rx="24" fill="#225a80"/></svg>
+          </div>
+          <div>
+            <h3>Target recovered</h3>
+            <p>api.example.com</p>
+            <div class="meta">Google Chrome · UMPIRE · 2m ago</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

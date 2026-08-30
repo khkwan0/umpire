@@ -1,25 +1,9 @@
 import {browser} from 'wxt/browser'
 import {hostPermissionPattern} from './storage'
 
-/** HTTP and HTTPS are different extension origins; request both when one is configured. */
 export function hostPermissionPatterns(baseUrl: string): string[] {
-  const primary = hostPermissionPattern(baseUrl)
-  if (!primary) return []
-
-  const patterns = [primary]
-  try {
-    const u = new URL(baseUrl)
-    const alt =
-      u.protocol === 'http:'
-        ? `https://${u.host}/*`
-        : u.protocol === 'https:'
-          ? `http://${u.host}/*`
-          : null
-    if (alt && !patterns.includes(alt)) patterns.push(alt)
-  } catch {
-    // ignore invalid URL
-  }
-  return patterns
+  const pattern = hostPermissionPattern(baseUrl)
+  return pattern ? [pattern] : []
 }
 
 async function hasAllPatterns(patterns: string[]): Promise<boolean> {

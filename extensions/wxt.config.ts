@@ -8,10 +8,16 @@ export default defineConfig({
   manifest: {
     name: 'UMPIRE',
     description:
-      'Monitor UMPIRE target health and get notified when outages happen.',
+      'Companion for self-hosted UMPIRE. Requires your UMPIRE API server. Toolbar health badge and outage notifications.',
     version: '1.0.0',
     permissions: ['storage', 'alarms', 'notifications'],
-    optional_host_permissions: ['http://*/*', 'https://*/*'],
+    // Runtime request only the user's configured origin (see permissions.ts).
+    // https for production servers; localhost patterns for local dev.
+    optional_host_permissions: [
+      'http://localhost/*',
+      'http://127.0.0.1/*',
+      'https://*/*',
+    ],
     action: {
       default_title: 'UMPIRE',
       default_icon: {
@@ -35,7 +41,7 @@ export default defineConfig({
     },
     browser_specific_settings: {
       gecko: {
-        id: 'umpire@local.umpire',
+        id: 'umpire@nitroxstudios.com',
         strict_min_version: '115.0',
         data_collection_permissions: {
           required: ['none'],

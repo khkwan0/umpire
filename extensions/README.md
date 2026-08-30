@@ -1,8 +1,10 @@
 # UMPIRE browser extensions
 
-Chrome (MV3) and Firefox (MV3) extensions that connect to your UMPIRE deployment to:
+Chrome (MV3) and Firefox (MV3) **companion** extensions that connect to a **UMPIRE server you host** (API + web UI). This extension does not monitor anything by itself — you must run UMPIRE separately.
 
-- Sign in when the server requires authentication
+Once connected, the extension can:
+
+- Sign in when the server requires authentication (session cookie, same as the web UI)
 - Show target health in a popup and on the toolbar badge
 - Fire desktop notifications when a target goes down/partial or recovers
 
@@ -56,7 +58,19 @@ The extension does **not** use the `/api/ws` HTTP bridge (that is RPC, not a pus
 ## Permissions
 
 - `storage`, `alarms`, `notifications`
-- Optional host access to the configured UMPIRE origin only (requested when you save Options)
+- Optional host access to the UMPIRE origin you configure (requested when you save Options). Production servers use HTTPS; localhost is supported for development.
+
+## Publishing
+
+Store listing copy, privacy policy, permission justifications, and screenshots live in [`store/`](store/).
+
+```bash
+npm run zip          # Chrome upload zip
+npm run zip:firefox  # Firefox upload zip
+npm run store:screenshots  # regenerate 1280×800 PNGs from mockups
+```
+
+See [`store/LISTING.md`](store/LISTING.md) for short/long descriptions, support URLs, and the release checklist.
 
 ## Layout
 

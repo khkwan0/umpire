@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>UMPIRE extension screenshot — popup</title>
+    <style>
+      :root {
+        --bg: #eef2ef;
+        --card: #fffdf8;
+        --ink: #1c1917;
+        --muted: #78716c;
+        --line: #e7e0d4;
+        --accent: #0f766e;
+        --up: #15803d;
+        --down: #b91c1c;
+        --partial: #c2410c;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        width: 1280px;
+        height: 800px;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        background:
+          radial-gradient(circle at 15% 10%, #d9f3ee 0%, transparent 35%),
+          linear-gradient(160deg, #f7f3ea 0%, var(--bg) 55%, #e8f2ef 100%);
+        color: var(--ink);
+      }
+      .frame {
+        width: 1280px;
+        height: 800px;
+        padding: 48px 56px;
+        display: grid;
+        grid-template-columns: 1fr 420px;
+        gap: 48px;
+        align-items: start;
+      }
+      .copy h1 {
+        margin: 0 0 12px;
+        font-size: 2.4rem;
+        letter-spacing: 0.04em;
+      }
+      .copy p {
+        margin: 0 0 16px;
+        color: #57534e;
+        font-size: 1.15rem;
+        line-height: 1.5;
+        max-width: 520px;
+      }
+      .copy ul {
+        margin: 0;
+        padding-left: 1.2rem;
+        color: #44403c;
+        line-height: 1.7;
+        font-size: 1rem;
+      }
+      .popup-wrap {
+        position: relative;
+        padding-top: 36px;
+      }
+      .toolbar {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 36px;
+        background: #3c3c3c;
+        border-radius: 10px 10px 0 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 12px;
+      }
+      .dot { width: 10px; height: 10px; border-radius: 50%; background: #666; }
+      .popup {
+        background: linear-gradient(180deg, #efe8da 0%, #f3efe6 40%, #e8f2ef 100%);
+        border: 1px solid #cfc7ba;
+        border-top: 0;
+        border-radius: 0 0 14px 14px;
+        box-shadow: 0 24px 60px rgba(28, 25, 23, 0.18);
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .header, .target, .stat-box {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+      }
+      .header {
+        padding: 12px;
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .header h2 { margin: 0; font-size: 1.15rem; letter-spacing: 0.04em; }
+      .muted { color: var(--muted); font-size: 0.78rem; margin-top: 2px; }
+      .ghost {
+        border: 1px solid var(--line);
+        background: transparent;
+        color: var(--accent);
+        border-radius: 8px;
+        padding: 5px 8px;
+        font-size: 0.75rem;
+        font-weight: 600;
+      }
+      .summary { display: flex; gap: 6px; }
+      .stat-box {
+        flex: 1;
+        text-align: center;
+        padding: 8px 4px;
+        font-size: 0.78rem;
+        font-weight: 700;
+      }
+      .stat-box.up { color: var(--up); }
+      .stat-box.down { color: var(--down); }
+      .stat-box.partial { color: var(--partial); }
+      .target {
+        padding: 8px 10px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+      }
+      .target strong { font-size: 0.86rem; display: block; }
+      .target-status { text-align: right; }
+      .pill {
+        display: inline-block;
+        font-size: 0.7rem;
+        font-weight: 700;
+        padding: 3px 8px;
+        border-radius: 999px;
+        text-transform: uppercase;
+      }
+      .pill-up { background: #dcfce7; color: var(--up); }
+      .pill-down { background: #fee2e2; color: var(--down); }
+      .pill-partial { background: #ffedd5; color: var(--partial); }
+      .age { font-size: 0.68rem; font-weight: 600; color: var(--muted); margin-top: 2px; }
+      .badge-demo {
+        position: absolute;
+        top: 8px;
+        right: 18px;
+        width: 28px;
+        height: 28px;
+        background: #225a80;
+        border-radius: 6px;
+        box-shadow: 0 2px 8px rgba(0,0,0,.25);
+      }
+      .badge-demo::after {
+        content: '2';
+        position: absolute;
+        top: -6px;
+        right: -6px;
+        min-width: 16px;
+        height: 16px;
+        padding: 0 4px;
+        border-radius: 999px;
+        background: #b91c1c;
+        color: #fff;
+        font-size: 10px;
+        font-weight: 700;
+        display: grid;
+        place-items: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="frame">
+      <div class="copy">
+        <h1>UMPIRE</h1>
+        <p>Monitor your self-hosted UMPIRE server from the browser toolbar.</p>
+        <ul>
+          <li>Live badge count of unhealthy targets</li>
+          <li>Popup list with status and last-check age</li>
+          <li>Open incidents at a glance</li>
+        </ul>
+      </div>
+      <div class="popup-wrap">
+        <div class="badge-demo" aria-hidden="true"></div>
+        <div class="toolbar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+        <div class="popup">
+          <div class="header">
+            <div>
+              <h2>UMPIRE</h2>
+              <div class="muted">monitor.example.com</div>
+            </div>
+            <div>
+              <span class="ghost">Refresh</span>
+              <span class="ghost">Open UI</span>
+            </div>
+          </div>
+          <div class="summary">
+            <div class="stat-box up">5 up</div>
+            <div class="stat-box down">1 down</div>
+            <div class="stat-box partial">1 partial</div>
+          </div>
+          <div class="target">
+            <div><strong>api.example.com</strong><div class="muted">production</div></div>
+            <div class="target-status"><span class="pill pill-down">Down</span><div class="age">2m</div></div>
+          </div>
+          <div class="target">
+            <div><strong>cdn.example.com</strong><div class="muted">production</div></div>
+            <div class="target-status"><span class="pill pill-partial">Partial</span><div class="age">45s</div></div>
+          </div>
+          <div class="target">
+            <div><strong>www.example.com</strong><div class="muted">production</div></div>
+            <div class="target-status"><span class="pill pill-up">Up</span><div class="age">15s</div></div>
+          </div>
+          <div class="target">
+            <div><strong>auth.example.com</strong><div class="muted">production</div></div>
+            <div class="target-status"><span class="pill pill-up">Up</span><div class="age">15s</div></div>
+          </div>
+          <p class="muted" style="text-align:center;margin:0;">Updated 12:04:15 PM</p>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
