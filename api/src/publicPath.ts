@@ -5,14 +5,14 @@ export function publicUrlPrefix(): string {
   const withLead = raw.startsWith('/') ? raw : `/${raw}`
   const trimmed = withLead.replace(/\/+$/, '')
   if (!/^\/[A-Za-z0-9/_-]+$/.test(trimmed)) {
-    throw new Error(`Invalid BASE_PATH "${raw}". Use a simple path like /umpire.`)
+    throw new Error(
+      `Invalid BASE_PATH "${raw}". Use a simple path like /umpire.`,
+    )
   }
   return trimmed
 }
 
-function headerValue(
-  value: string | string[] | undefined,
-): string | undefined {
+function headerValue(value: string | string[] | undefined): string | undefined {
   if (value == null) return undefined
   const raw = Array.isArray(value) ? value[0] : value
   const trimmed = raw.trim()

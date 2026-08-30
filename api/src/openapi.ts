@@ -591,7 +591,11 @@ export async function registerOpenApi(app: FastifyInstance): Promise<void> {
       },
       tags: [
         {name: 'health', description: 'Liveness'},
-        {name: 'auth', description: 'Session login/logout, auth policy, and current principal'},
+        {
+          name: 'auth',
+          description:
+            'Session login/logout, auth policy, and current principal',
+        },
         {
           name: 'api-tokens',
           description: 'Bearer tokens for agents and automation',
@@ -618,7 +622,8 @@ export async function registerOpenApi(app: FastifyInstance): Promise<void> {
         },
         {
           name: 'http-check',
-          description: 'HTTP check plugin — global defaults and per-target overrides',
+          description:
+            'HTTP check plugin — global defaults and per-target overrides',
         },
         {
           name: 'keyword-body-check',
@@ -626,7 +631,8 @@ export async function registerOpenApi(app: FastifyInstance): Promise<void> {
         },
         {
           name: 'tokens',
-          description: 'FCM device destinations at /api/plugins/notify/fcm/tokens',
+          description:
+            'FCM device destinations at /api/plugins/notify/fcm/tokens',
         },
         {
           name: 'fcm',
