@@ -1,0 +1,8 @@
+{
+  "description": "UMPIRE dashboard UI (nginx + React). Proxies to nitroxstudios/umpire-api. Optional but recommended.",
+  "categories": [
+    "web-servers",
+    "monitoring-and-observability",
+    "developer-tools"
+  ]
+}

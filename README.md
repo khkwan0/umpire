@@ -307,6 +307,7 @@ Vite serves the UI on [http://localhost:8089](http://localhost:8089) (same host 
 - `WEB_PORT=8090 ./scripts/deploy.sh` — deploy and health-check with a custom web port
 - `BASE_PATH=/umpire ./scripts/deploy.sh` — bake a subdirectory public path into the web image
 - `./scripts/publish-docker.sh` — build and push `umpire-api` / `umpire-web` to Docker Hub (reads `.env.dockerhub`)
+- `./scripts/publish-dockerhub-metadata.sh` — push descriptions, overviews, and categories to Docker Hub repos
 - `docker compose -f docker-compose.hub.yml pull` — pull published images (see [docs/deployment.md](docs/deployment.md))
 
 ### API (`api/package.json`)

@@ -170,7 +170,10 @@ From a repo clone with Docker Hub credentials in `.env.dockerhub`:
 ./scripts/publish-docker.sh                  # both images → :latest
 VERSION=1.0.0 ./scripts/publish-docker.sh    # versioned + :latest
 BASE_PATH=/umpire VERSION=umpire ./scripts/publish-docker.sh --web-only
+./scripts/publish-dockerhub-metadata.sh      # descriptions, overviews, categories on Hub
 ```
+
+Hub copy lives in [`deploy/dockerhub/`](../deploy/dockerhub/).
 
 ## See also
 
