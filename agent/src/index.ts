@@ -27,3 +27,4 @@ export {
   type UmpireCaller,
 } from './types.js'
 export {AGENT_TOOLS, DEFAULT_SYSTEM_PROMPT} from './tools.js'
+export {CORE_ROUTES, mergeListedRoutes} from './routes.js'

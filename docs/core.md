@@ -308,7 +308,7 @@ This is **not** LLM token streaming. For agent chat streaming, see [Agent chat W
 
 ### Agent chat WebSocket
 
-[`routes/agent-ws.ts`](../api/src/routes/agent-ws.ts) — dedicated WebSocket at `GET /api/agent/ws` for the built-in LLM agent. Deferred auth on upgrade (same pattern as `/api/ws`); each `chat` frame requires a session cookie.
+[`routes/agent-ws.ts`](../api/src/routes/agent-ws.ts) — dedicated WebSocket at `GET /api/agent/ws` for the built-in LLM agent. Deferred auth on upgrade (same pattern as `/api/ws`); each `chat` frame requires a session. Tool calls re-inject the session cookie (and `Authorization` if present) so writes such as pausing a target use the same principal as the chat.
 
 UI: [`web/src/pages/Agent.tsx`](../web/src/pages/Agent.tsx). Full frame reference: [docs/agents.md](agents.md#agent-chat-websocket-apagentws).
 

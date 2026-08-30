@@ -78,13 +78,15 @@ The CLI waits for the full LLM response (no terminal streaming). The web UI stre
 
 ## Built-in tools
 
-| Tool | Purpose |
-|------|---------|
-| `get_monitoring_status` | Dashboard health (`GET /api/status`) |
-| `list_incidents` | Outage/recovery log |
-| `list_targets` | All targets |
-| `list_groups` | Groups (optional `tree=1`) |
-| `umpire_api_request` | Any `/api/…` route (blocks `/api/agent/*`) |
+| Tool                    | Purpose                                    |
+| ----------------------- | ------------------------------------------ |
+| `get_monitoring_status` | Dashboard health (`GET /api/status`)       |
+| `list_incidents`        | Outage/recovery log                        |
+| `list_targets`          | All targets                                |
+| `update_target`         | Pause/resume or patch a target             |
+| `list_groups`           | Groups (optional `tree=1`)                 |
+| `list_api_routes`       | Compact core + plugin HTTP route catalog   |
+| `umpire_api_request`    | Any `/api/…` route (blocks `/api/agent/*`) |
 
 ## Web UI
 
@@ -111,6 +113,7 @@ agent/
     llm.ts      # OpenAI-compatible + Anthropic (streaming)
     stream.ts   # SSE line parser
     tools.ts    # built-in tool definitions
+    routes.ts   # compact HTTP catalog for list_api_routes
     config.ts   # provider resolution
     cli.ts      # terminal entry
 ```

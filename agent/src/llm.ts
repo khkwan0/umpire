@@ -345,10 +345,7 @@ async function parseOpenAiStream(
 ): Promise<LlmTurnResult> {
   let message = ''
   let reasoning = ''
-  const toolCalls = new Map<
-    number,
-    {id: string; name: string; args: string}
-  >()
+  const toolCalls = new Map<number, {id: string; name: string; args: string}>()
 
   for await (const line of readSseLines(body)) {
     const dataStr = parseSseDataLine(line)
@@ -489,10 +486,7 @@ async function parseAnthropicStream(
 ): Promise<LlmTurnResult> {
   let message = ''
   let reasoning = ''
-  const toolBlocks = new Map<
-    number,
-    {id: string; name: string; args: string}
-  >()
+  const toolBlocks = new Map<number, {id: string; name: string; args: string}>()
   let currentEvent = ''
 
   for await (const line of readSseLines(body)) {

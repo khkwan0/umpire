@@ -56,10 +56,39 @@ export class ApiError extends Error {
   }
 }
 
-function joinUrl(baseUrl: string, path: string): string {
+export function joinUrl(baseUrl: string, path: string): string {
   const base = baseUrl.replace(/\/+$/, '')
   const p = path.startsWith('/') ? path : `/${path}`
   return `${base}${p}`
+}
+
+/** Follow redirects (e.g. http→https) and return the canonical base URL. */
+export async function canonicalizeBaseUrl(baseUrl: string): Promise<string> {
+  const candidates = [baseUrl]
+  try {
+    const u = new URL(baseUrl)
+    if (u.protocol === 'http:') {
+      candidates.push(baseUrl.replace(/^http:/i, 'https:'))
+    }
+  } catch {
+    return baseUrl
+  }
+
+  for (const candidate of candidates) {
+    try {
+      const res = await fetch(joinUrl(candidate, '/api/health'), {
+        credentials: 'include',
+        redirect: 'follow',
+      })
+      if (!res.ok) continue
+      const final = new URL(res.url)
+      const basePath = final.pathname.replace(/\/api\/health\/?$/, '') || ''
+      return `${final.origin}${basePath}`.replace(/\/+$/, '')
+    } catch {
+      continue
+    }
+  }
+  return baseUrl
 }
 
 export async function apiRequest<T>(

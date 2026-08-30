@@ -110,7 +110,7 @@ Auth and RBAC match the HTTP API: the token inherits the creating user's role (`
 | LLM runs in | Cursor, Claude Desktop, … | UMPIRE API server |
 | Auth | Bearer token | Browser session cookie |
 | Setup | `UMPIRE_*` + host config | **Settings → AI Agent** + **Agent** tab |
-| Tool surface | Full route catalog (~90 tools) | Five curated tools + `umpire_api_request` |
+| Tool surface | Full route catalog (~90 tools) | Curated tools + `list_api_routes` + `umpire_api_request` |
 
 See [docs/agents.md](../docs/agents.md) for the full comparison and WebSocket details.
 

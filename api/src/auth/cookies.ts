@@ -13,11 +13,12 @@ export function newSessionToken(): string {
 }
 
 export function parseCookies(
-  header: string | undefined,
+  header: string | string[] | undefined,
 ): Record<string, string> {
   if (!header) return {}
+  const raw = Array.isArray(header) ? header.join('; ') : header
   const out: Record<string, string> = {}
-  for (const part of header.split(';')) {
+  for (const part of raw.split(';')) {
     const idx = part.indexOf('=')
     if (idx <= 0) continue
     const key = part.slice(0, idx).trim()

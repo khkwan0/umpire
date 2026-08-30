@@ -276,6 +276,8 @@ export default function AgentPage() {
       ? 'Configure the agent in Settings first'
       : 'Ask the monitoring assistant…'
 
+  const streamingEntryId = busy ? entries[entries.length - 1]?.id : undefined
+
   return (
     <div className="agent-page">
       <div className="agent-header">
@@ -337,7 +339,7 @@ export default function AgentPage() {
                   {busy &&
                     entry.role === 'assistant' &&
                     !entry.content &&
-                    entry.id === `a-${pendingIdRef.current}` && (
+                    entry.id === streamingEntryId && (
                       <span className="agent-cursor">▋</span>
                     )}
                 </p>
@@ -348,7 +350,7 @@ export default function AgentPage() {
                 {entry.content}
                 {busy &&
                   entry.role === 'assistant' &&
-                  entry.id === `a-${pendingIdRef.current}` && (
+                  entry.id === streamingEntryId && (
                     <span className="agent-cursor">▋</span>
                   )}
               </p>

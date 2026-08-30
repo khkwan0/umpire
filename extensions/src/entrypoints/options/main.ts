@@ -1,5 +1,6 @@
 import './options.css'
 import {browser} from 'wxt/browser'
+import {canonicalizeBaseUrl} from '../../utils/api'
 import {ensureHostPermission} from '../../utils/permissions'
 import {getSettings, setSettings} from '../../utils/storage'
 
@@ -38,7 +39,7 @@ async function render(): Promise<void> {
   const base = document.createElement('input')
   base.type = 'url'
   base.value = settings.baseUrl
-  base.placeholder = 'http://localhost:8089'
+  base.placeholder = 'https://monitor.example.com/umpire'
   base.required = true
 
   const poll = document.createElement('input')
@@ -69,22 +70,31 @@ async function render(): Promise<void> {
       status.className = 'status'
       status.textContent = 'Saving…'
       try {
-        const next = await setSettings({
+        const draft = await setSettings({
           baseUrl: base.value.trim(),
           pollIntervalSeconds: Number(poll.value),
           notifyOnOutage: outage.checked,
           notifyOnRecovery: recovery.checked,
         })
-        const allowed = await ensureHostPermission(next.baseUrl)
+        const allowed = await ensureHostPermission(draft.baseUrl)
         if (!allowed) {
           status.className = 'status error'
           status.textContent =
             'Saved settings, but site access was not granted. Allow access when prompted, then save again.'
           return
         }
+        const canonical = await canonicalizeBaseUrl(draft.baseUrl)
+        const next = await setSettings({baseUrl: canonical})
+        base.value = next.baseUrl
+        if (canonical !== draft.baseUrl) {
+          await ensureHostPermission(canonical)
+        }
         await browser.runtime.sendMessage({type: 'settings-changed'})
         status.className = 'status ok'
-        status.textContent = 'Saved. The badge will refresh shortly.'
+        status.textContent =
+          canonical !== draft.baseUrl
+            ? `Saved. Redirected to ${canonical}. The badge will refresh shortly.`
+            : 'Saved. The badge will refresh shortly.'
       } catch (err) {
         status.className = 'status error'
         status.textContent =
@@ -107,7 +117,7 @@ async function render(): Promise<void> {
     field(
       'UMPIRE base URL',
       base,
-      'Example: http://localhost:8089 or https://monitor.example.com (include BASE_PATH if you use one, e.g. https://host/umpire).',
+      'Example: https://monitor.example.com or http://localhost:8089 (include BASE_PATH if you use one, e.g. https://host/umpire). Prefer https when your server redirects HTTP to HTTPS.',
     ),
     field(
       'Poll interval (seconds)',

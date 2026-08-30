@@ -141,10 +141,14 @@ The agent LLM can call:
 | `get_monitoring_status` | `GET /api/status` |
 | `list_incidents` | `GET /api/incidents` |
 | `list_targets` | `GET /api/targets` |
+| `update_target` | `PATCH /api/targets/:id` (pause = `enabled: false`) |
 | `list_groups` | `GET /api/groups` |
+| `list_api_routes` | Compact core + plugin routes (`GET /api/plugins`) |
 | `umpire_api_request` | Any `/api/…` route (blocks `/api/agent/*`) |
 
-Tool execution uses `app.inject()` with the **WebSocket session cookie**, so RBAC matches the logged-in user.
+When no named tool matches, the model should call `list_api_routes` then `umpire_api_request`. That catalog is the web-agent analog of MCP `umpire_list_routes`: compact `{method, path, description}` rows (core list plus plugin paths from `GET /api/plugins`). It does not dump OpenAPI or `GET /api/schema`.
+
+Tool execution uses `app.inject()` with the **WebSocket session cookie** (and `Authorization` if present), so RBAC matches the logged-in user.
 
 ### Agent CLI
 

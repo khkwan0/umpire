@@ -51,7 +51,9 @@ export function emptyAgentRequestExtras(): AgentRequestExtras {
   }
 }
 
-function parseJsonObject(raw: string | undefined | null): Record<string, unknown> {
+function parseJsonObject(
+  raw: string | undefined | null,
+): Record<string, unknown> {
   const trimmed = raw?.trim()
   if (!trimmed) return {}
   try {

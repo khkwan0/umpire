@@ -1,6 +1,10 @@
-import type {FastifyInstance, LightMyRequestResponse} from 'fastify'
+import type {FastifyInstance} from 'fastify'
 import type {WebSocket} from 'ws'
-import {runAgentChat, type ChatMessage, type UmpireCaller} from 'umpire-agent'
+import {runAgentChat, type ChatMessage} from 'umpire-agent'
+import {
+  createInjectCaller,
+  injectAuthFromRequest,
+} from '../agent/inject-caller.js'
 import {getAgentLlmConfig, getAgentSettingsPublic} from '../agent/resolve.js'
 import {getAuthContext, type AuthRequest} from '../auth/index.js'
 
@@ -14,57 +18,6 @@ type ChatFrame = {
 function sendJson(socket: WebSocket, payload: unknown): void {
   if (socket.readyState !== socket.OPEN) return
   socket.send(JSON.stringify(payload))
-}
-
-function buildInjectUrl(
-  path: string,
-  query?: Record<string, string | number | boolean>,
-): string {
-  if (!query || Object.keys(query).length === 0) return path
-  const params = new URLSearchParams()
-  for (const [k, v] of Object.entries(query)) {
-    params.set(k, String(v))
-  }
-  const q = params.toString()
-  return q ? `${path}?${q}` : path
-}
-
-function createInjectCaller(
-  app: FastifyInstance,
-  cookie?: string,
-): UmpireCaller {
-  return async (method, path, opts) => {
-    const url = buildInjectUrl(path, opts?.query)
-    const upper = method.toUpperCase()
-    const hasBody =
-      opts?.body !== undefined && upper !== 'GET' && upper !== 'HEAD'
-    const res = (await app.inject({
-      method: upper as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
-      url,
-      headers: cookie ? {cookie} : {},
-      payload: hasBody ? (opts!.body as object | string) : undefined,
-    })) as LightMyRequestResponse
-    let body: unknown = res.body
-    if (res.headers['content-type']?.includes('application/json') && res.body) {
-      try {
-        body = JSON.parse(res.body)
-      } catch {
-        body = res.body
-      }
-    }
-    if (res.statusCode >= 400) {
-      const errMsg =
-        body &&
-        typeof body === 'object' &&
-        body !== null &&
-        'error' in body &&
-        typeof (body as {error: unknown}).error === 'string'
-          ? (body as {error: string}).error
-          : `HTTP ${res.statusCode}`
-      throw new Error(errMsg)
-    }
-    return body
-  }
 }
 
 function parseHistory(raw: unknown): ChatMessage[] {
@@ -127,9 +80,7 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     (socket, req) => {
-      const cookie =
-        typeof req.headers.cookie === 'string' ? req.headers.cookie : undefined
-      const caller = createInjectCaller(app, cookie)
+      const caller = createInjectCaller(app, injectAuthFromRequest(req))
 
       setImmediate(() => {
         const settings = getAgentSettingsPublic()
