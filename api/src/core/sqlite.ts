@@ -1,10 +1,14 @@
 import Database from 'better-sqlite3'
+import {randomUUID} from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import {hashSessionToken} from '../auth/cookies.js'
 import {hashApiToken} from '../auth/tokens.js'
 import {assertPasswordPolicy, hashPassword} from '../auth/password.js'
 import type {
+  AgentChat,
+  AgentChatMessage,
+  AgentChatToolRef,
   AlertPolicy,
   ApiToken,
   AuthPluginKind,
@@ -282,6 +286,48 @@ function buildStatements(database: Database.Database) {
     deleteApiTokenById: database.prepare(`DELETE FROM api_tokens WHERE id = ?`),
     pruneExpiredApiTokens: database.prepare(
       `DELETE FROM api_tokens WHERE expires_at IS NOT NULL AND expires_at < datetime('now')`,
+    ),
+    selectAgentChatsByUser: database.prepare(
+      `SELECT id, title, created_at, updated_at
+       FROM agent_chats
+       WHERE user_id = ?
+       ORDER BY updated_at DESC`,
+    ),
+    selectAgentChatsByOwner: database.prepare(
+      `SELECT id, title, created_at, updated_at
+       FROM agent_chats
+       WHERE owner_key = ? AND user_id IS NULL
+       ORDER BY updated_at DESC`,
+    ),
+    selectAgentChatById: database.prepare(
+      `SELECT id, title, created_at, updated_at, user_id, owner_key
+       FROM agent_chats WHERE id = ?`,
+    ),
+    insertAgentChat: database.prepare(
+      `INSERT INTO agent_chats (id, user_id, owner_key, title)
+       VALUES (?, ?, ?, ?)`,
+    ),
+    updateAgentChatTitle: database.prepare(
+      `UPDATE agent_chats SET title = ?, updated_at = datetime('now') WHERE id = ?`,
+    ),
+    touchAgentChat: database.prepare(
+      `UPDATE agent_chats SET updated_at = datetime('now') WHERE id = ?`,
+    ),
+    deleteAgentChatById: database.prepare(`DELETE FROM agent_chats WHERE id = ?`),
+    selectAgentChatMessages: database.prepare(
+      `SELECT id, chat_id, role, content, reasoning, tools_json, created_at
+       FROM agent_chat_messages
+       WHERE chat_id = ?
+       ORDER BY sort_order ASC`,
+    ),
+    selectAgentChatMaxSort: database.prepare(
+      `SELECT COALESCE(MAX(sort_order), -1) AS max_sort
+       FROM agent_chat_messages WHERE chat_id = ?`,
+    ),
+    insertAgentChatMessage: database.prepare(
+      `INSERT INTO agent_chat_messages
+       (id, chat_id, role, content, reasoning, tools_json, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
     ),
     dumpSelect: Object.fromEntries(
       CORE_TABLES.map(table => [
@@ -624,6 +670,87 @@ function buildTree(rows: Group[]): GroupTreeNode[] {
     else roots.push(node)
   }
   return roots
+}
+
+type AgentChatRow = {
+  id: string
+  title: string
+  created_at: string
+  updated_at: string
+  user_id: number | null
+  owner_key: string | null
+}
+
+type AgentChatMessageRow = {
+  id: string
+  chat_id: string
+  role: string
+  content: string
+  reasoning: string | null
+  tools_json: string | null
+  created_at: string
+}
+
+function mapAgentChat(row: AgentChatRow): AgentChat {
+  return {
+    id: row.id,
+    title: row.title,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  }
+}
+
+function parseAgentChatTools(
+  raw: string | null,
+): AgentChatToolRef[] | null {
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return null
+    const out: AgentChatToolRef[] = []
+    for (const item of parsed) {
+      if (!item || typeof item !== 'object') continue
+      const name = (item as {name?: unknown}).name
+      if (typeof name !== 'string' || !name) continue
+      const summary = (item as {summary?: unknown}).summary
+      out.push({
+        name,
+        summary: typeof summary === 'string' ? summary : undefined,
+      })
+    }
+    return out.length > 0 ? out : null
+  } catch {
+    return null
+  }
+}
+
+function mapAgentChatMessage(row: AgentChatMessageRow): AgentChatMessage {
+  const role = row.role === 'user' ? 'user' : 'assistant'
+  return {
+    id: row.id,
+    chat_id: row.chat_id,
+    role,
+    content: row.content,
+    reasoning: row.reasoning,
+    tools: parseAgentChatTools(row.tools_json),
+    created_at: row.created_at,
+  }
+}
+
+function agentChatOwnedBy(
+  row: AgentChatRow,
+  userId: number | null,
+  ownerKey: string | null,
+): boolean {
+  if (userId != null) return row.user_id === userId
+  if (!ownerKey) return false
+  return row.user_id == null && row.owner_key === ownerKey
+}
+
+function titleFromFirstMessage(content: string): string {
+  const line = content.trim().split(/\r?\n/, 1)[0] ?? ''
+  if (!line) return 'New chat'
+  return line.length > 60 ? `${line.slice(0, 57)}…` : line
 }
 
 export const core: CoreStore = {
@@ -1327,6 +1454,113 @@ export const core: CoreStore = {
       single_user_mode: false,
     }
   },
+
+  listAgentChats(userId, ownerKey) {
+    const rows =
+      userId != null
+        ? (getStmts().selectAgentChatsByUser.all(userId) as AgentChatRow[])
+        : ownerKey
+          ? (getStmts().selectAgentChatsByOwner.all(ownerKey) as AgentChatRow[])
+          : []
+    return rows.map(mapAgentChat)
+  },
+
+  getAgentChat(id, userId, ownerKey) {
+    const row = getStmts().selectAgentChatById.get(id) as
+      | AgentChatRow
+      | undefined
+    if (!row || !agentChatOwnedBy(row, userId, ownerKey)) return undefined
+    const messages = (
+      getStmts().selectAgentChatMessages.all(id) as AgentChatMessageRow[]
+    ).map(mapAgentChatMessage)
+    return {...mapAgentChat(row), messages}
+  },
+
+  createAgentChat(userId, ownerKey, title) {
+    const id = randomUUID()
+    const chatTitle = (title ?? 'New chat').trim() || 'New chat'
+    getStmts().insertAgentChat.run(
+      id,
+      userId,
+      userId == null ? ownerKey : null,
+      chatTitle,
+    )
+    return mapAgentChat(
+      getStmts().selectAgentChatById.get(id) as AgentChatRow,
+    )
+  },
+
+  updateAgentChat(id, userId, ownerKey, patch) {
+    const row = getStmts().selectAgentChatById.get(id) as
+      | AgentChatRow
+      | undefined
+    if (!row || !agentChatOwnedBy(row, userId, ownerKey)) return undefined
+    if (patch.title !== undefined) {
+      const title = patch.title.trim() || 'New chat'
+      getStmts().updateAgentChatTitle.run(title, id)
+    }
+    return mapAgentChat(
+      getStmts().selectAgentChatById.get(id) as AgentChatRow,
+    )
+  },
+
+  deleteAgentChat(id, userId, ownerKey) {
+    const row = getStmts().selectAgentChatById.get(id) as
+      | AgentChatRow
+      | undefined
+    if (!row || !agentChatOwnedBy(row, userId, ownerKey)) return false
+    const result = getStmts().deleteAgentChatById.run(id)
+    return result.changes > 0
+  },
+
+  appendAgentChatMessages(id, userId, ownerKey, messages) {
+    const row = getStmts().selectAgentChatById.get(id) as
+      | AgentChatRow
+      | undefined
+    if (!row || !agentChatOwnedBy(row, userId, ownerKey)) {
+      throw new Error('Chat not found')
+    }
+    const maxRow = getStmts().selectAgentChatMaxSort.get(id) as {
+      max_sort: number
+    }
+    let sort = Number(maxRow.max_sort) + 1
+    const insert = getStmts().insertAgentChatMessage
+    for (const msg of messages) {
+      const toolsJson =
+        msg.tools && msg.tools.length > 0 ? JSON.stringify(msg.tools) : null
+      insert.run(
+        msg.id,
+        id,
+        msg.role,
+        msg.content,
+        msg.reasoning ?? null,
+        toolsJson,
+        sort,
+      )
+      sort += 1
+    }
+    getStmts().touchAgentChat.run(id)
+    if (row.title === 'New chat') {
+      const firstUser = messages.find(m => m.role === 'user' && m.content.trim())
+      if (firstUser) {
+        getStmts().updateAgentChatTitle.run(
+          titleFromFirstMessage(firstUser.content),
+          id,
+        )
+      }
+    }
+  },
+
+  getAgentChatLlmHistory(id, userId, ownerKey, limit = 20) {
+    const chat = core.getAgentChat(id, userId, ownerKey)
+    if (!chat) return []
+    const out: Array<{role: 'user' | 'assistant'; content: string}> = []
+    for (const msg of chat.messages) {
+      if (!msg.content.trim()) continue
+      out.push({role: msg.role, content: msg.content})
+    }
+    return out.slice(-limit)
+  },
 }
 
 export function initCore(databasePath: string): void {
@@ -1470,6 +1704,34 @@ export function initCore(databasePath: string): void {
 
     CREATE INDEX IF NOT EXISTS idx_api_tokens_user_id ON api_tokens(user_id);
     CREATE INDEX IF NOT EXISTS idx_api_tokens_expires_at ON api_tokens(expires_at);
+
+    CREATE TABLE IF NOT EXISTS agent_chats (
+      id TEXT PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      owner_key TEXT,
+      title TEXT NOT NULL DEFAULT 'New chat',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_agent_chats_user_updated
+      ON agent_chats(user_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_agent_chats_owner_updated
+      ON agent_chats(owner_key, updated_at DESC);
+
+    CREATE TABLE IF NOT EXISTS agent_chat_messages (
+      id TEXT PRIMARY KEY,
+      chat_id TEXT NOT NULL REFERENCES agent_chats(id) ON DELETE CASCADE,
+      role TEXT NOT NULL,
+      content TEXT NOT NULL DEFAULT '',
+      reasoning TEXT,
+      tools_json TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      sort_order INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_agent_chat_messages_chat_sort
+      ON agent_chat_messages(chat_id, sort_order);
   `)
 
   ensureColumn(

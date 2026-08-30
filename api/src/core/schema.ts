@@ -304,4 +304,65 @@ export const CORE_TABLES: CoreTableDef[] = [
       {name: 'idx_api_tokens_expires_at', columns: ['expires_at']},
     ],
   },
+  {
+    name: 'agent_chats',
+    columns: [
+      {name: 'id', type: 'text', primaryKey: true},
+      {
+        name: 'user_id',
+        type: 'integer',
+        references: {table: 'users', column: 'id', onDelete: 'CASCADE'},
+      },
+      {name: 'owner_key', type: 'text'},
+      {name: 'title', type: 'text', notNull: true, default: 'New chat'},
+      {
+        name: 'created_at',
+        type: 'text',
+        notNull: true,
+        default: {type: 'now'},
+      },
+      {
+        name: 'updated_at',
+        type: 'text',
+        notNull: true,
+        default: {type: 'now'},
+      },
+    ],
+    indexes: [
+      {name: 'idx_agent_chats_user_updated', columns: ['user_id', 'updated_at']},
+      {
+        name: 'idx_agent_chats_owner_updated',
+        columns: ['owner_key', 'updated_at'],
+      },
+    ],
+  },
+  {
+    name: 'agent_chat_messages',
+    columns: [
+      {name: 'id', type: 'text', primaryKey: true},
+      {
+        name: 'chat_id',
+        type: 'text',
+        notNull: true,
+        references: {table: 'agent_chats', column: 'id', onDelete: 'CASCADE'},
+      },
+      {name: 'role', type: 'text', notNull: true},
+      {name: 'content', type: 'text', notNull: true, default: ''},
+      {name: 'reasoning', type: 'text'},
+      {name: 'tools_json', type: 'text'},
+      {
+        name: 'created_at',
+        type: 'text',
+        notNull: true,
+        default: {type: 'now'},
+      },
+      {name: 'sort_order', type: 'integer', notNull: true},
+    ],
+    indexes: [
+      {
+        name: 'idx_agent_chat_messages_chat_sort',
+        columns: ['chat_id', 'sort_order'],
+      },
+    ],
+  },
 ]

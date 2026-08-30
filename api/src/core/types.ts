@@ -1,6 +1,10 @@
 import type {Incident} from '../incidents.js'
 import type {AgentSettingsUpdate} from '../agent/settings-store.js'
 import type {
+  AgentChat,
+  AgentChatMessage,
+  AgentChatToolRef,
+  AgentChatWithMessages,
   ApiToken,
   AuthPrincipal,
   CheckResult,
@@ -145,4 +149,48 @@ export interface CoreStore {
   resolveApiTokenPrincipal(rawToken: string): AuthPrincipal | null
   anonymousReadOnlyPrincipal(): AuthPrincipal
   principalForUser(userId: number): AuthPrincipal | null
+
+  listAgentChats(
+    userId: number | null,
+    ownerKey: string | null,
+  ): AgentChat[]
+  getAgentChat(
+    id: string,
+    userId: number | null,
+    ownerKey: string | null,
+  ): AgentChatWithMessages | undefined
+  createAgentChat(
+    userId: number | null,
+    ownerKey: string | null,
+    title?: string,
+  ): AgentChat
+  updateAgentChat(
+    id: string,
+    userId: number | null,
+    ownerKey: string | null,
+    patch: Partial<{title: string}>,
+  ): AgentChat | undefined
+  deleteAgentChat(
+    id: string,
+    userId: number | null,
+    ownerKey: string | null,
+  ): boolean
+  appendAgentChatMessages(
+    id: string,
+    userId: number | null,
+    ownerKey: string | null,
+    messages: Array<{
+      id: string
+      role: 'user' | 'assistant'
+      content: string
+      reasoning?: string | null
+      tools?: AgentChatToolRef[] | null
+    }>,
+  ): void
+  getAgentChatLlmHistory(
+    id: string,
+    userId: number | null,
+    ownerKey: string | null,
+    limit?: number,
+  ): Array<{role: 'user' | 'assistant'; content: string}>
 }

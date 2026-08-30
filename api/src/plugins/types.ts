@@ -84,6 +84,32 @@ export interface AgentSettings {
   config_source: AgentConfigSource
 }
 
+export interface AgentChat {
+  id: string
+  title: string
+  created_at: string
+  updated_at: string
+}
+
+export interface AgentChatToolRef {
+  name: string
+  summary?: string
+}
+
+export interface AgentChatMessage {
+  id: string
+  chat_id: string
+  role: 'user' | 'assistant'
+  content: string
+  reasoning: string | null
+  tools: AgentChatToolRef[] | null
+  created_at: string
+}
+
+export interface AgentChatWithMessages extends AgentChat {
+  messages: AgentChatMessage[]
+}
+
 export type AuthPluginKind = 'check' | 'notify' | 'scheduler'
 
 export interface RolePluginRef {

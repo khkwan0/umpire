@@ -130,6 +130,69 @@ export interface AgentSettings {
   config_source: AgentConfigSource
 }
 
+export interface AgentChat {
+  id: string
+  title: string
+  created_at: string
+  updated_at: string
+}
+
+export interface AgentChatToolRef {
+  name: string
+  summary?: string
+}
+
+export interface AgentChatMessage {
+  id: string
+  chat_id: string
+  role: 'user' | 'assistant'
+  content: string
+  reasoning: string | null
+  tools: AgentChatToolRef[] | null
+  created_at: string
+}
+
+export interface AgentChatWithMessages extends AgentChat {
+  messages: AgentChatMessage[]
+}
+
+const CHAT_OWNER_STORAGE_KEY = 'umpire-agent-chat-owner'
+const ACTIVE_CHAT_STORAGE_KEY = 'umpire-agent-active-chat'
+const CHAT_OWNER_HEADER = 'x-umpire-chat-owner'
+
+export function getAgentChatOwnerKey(): string {
+  try {
+    const existing = localStorage.getItem(CHAT_OWNER_STORAGE_KEY)
+    if (existing && existing.length >= 8) return existing
+    const created = crypto.randomUUID()
+    localStorage.setItem(CHAT_OWNER_STORAGE_KEY, created)
+    return created
+  } catch {
+    return crypto.randomUUID()
+  }
+}
+
+export function getStoredActiveChatId(): string | null {
+  try {
+    return localStorage.getItem(ACTIVE_CHAT_STORAGE_KEY)
+  } catch {
+    return null
+  }
+}
+
+export function setStoredActiveChatId(id: string | null): void {
+  try {
+    if (id) localStorage.setItem(ACTIVE_CHAT_STORAGE_KEY, id)
+    else localStorage.removeItem(ACTIVE_CHAT_STORAGE_KEY)
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function agentChatHeaders(): HeadersInit {
+  return {[CHAT_OWNER_HEADER]: getAgentChatOwnerKey()}
+}
+
 /** Bearer token for MCP, agents, and automation (not FCM). */
 export interface ApiToken {
   id: number
@@ -589,6 +652,31 @@ export const api = {
   },
   agent: {
     status: () => request<AgentStatus>('/api/agent/status'),
+    chats: {
+      list: () =>
+        request<AgentChat[]>('/api/agent/chats', {headers: agentChatHeaders()}),
+      create: (title?: string) =>
+        request<AgentChat>('/api/agent/chats', {
+          method: 'POST',
+          headers: agentChatHeaders(),
+          body: JSON.stringify(title ? {title} : {}),
+        }),
+      get: (id: string) =>
+        request<AgentChatWithMessages>(`/api/agent/chats/${id}`, {
+          headers: agentChatHeaders(),
+        }),
+      rename: (id: string, title: string) =>
+        request<AgentChat>(`/api/agent/chats/${id}`, {
+          method: 'PATCH',
+          headers: agentChatHeaders(),
+          body: JSON.stringify({title}),
+        }),
+      remove: (id: string) =>
+        request<{ok: boolean}>(`/api/agent/chats/${id}`, {
+          method: 'DELETE',
+          headers: agentChatHeaders(),
+        }),
+    },
     settings: {
       get: () => request<AgentSettings>('/api/agent/settings'),
       put: (data: {

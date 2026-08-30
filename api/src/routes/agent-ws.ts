@@ -2,10 +2,15 @@ import type {FastifyInstance} from 'fastify'
 import type {WebSocket} from 'ws'
 import {runAgentChat, type ChatMessage} from 'umpire-agent'
 import {
+  agentChatOwnerFromPrincipal,
+  ownerKeyFromFrame,
+} from '../agent/chat-owner.js'
+import {
   createInjectCaller,
   injectAuthFromRequest,
 } from '../agent/inject-caller.js'
 import {getAgentLlmConfig, getAgentSettingsPublic} from '../agent/resolve.js'
+import {getCore} from '../core/index.js'
 import {getAuthContext, type AuthRequest} from '../auth/index.js'
 
 type ChatFrame = {
@@ -13,6 +18,8 @@ type ChatFrame = {
   id?: unknown
   message?: unknown
   history?: unknown
+  chat_id?: unknown
+  owner_key?: unknown
 }
 
 function sendJson(socket: WebSocket, payload: unknown): void {
@@ -158,6 +165,24 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
             return
           }
 
+          const chatId =
+            typeof frame.chat_id === 'string' ? frame.chat_id.trim() : ''
+          const owner = agentChatOwnerFromPrincipal(
+            auth,
+            ownerKeyFromFrame(frame.owner_key),
+          )
+          let history = parseHistory(frame.history)
+          if (chatId && owner) {
+            const stored = getCore().getAgentChatLlmHistory(
+              chatId,
+              owner.userId,
+              owner.ownerKey,
+            )
+            if (stored.length > 0) {
+              history = stored
+            }
+          }
+
           const settings = getAgentSettingsPublic()
           if (!settings.enabled) {
             sendJson(socket, {
@@ -187,7 +212,7 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
               llm: llmConfig,
               umpire: caller,
               userMessage: message,
-              history: parseHistory(frame.history),
+              history,
               onEvent: event => {
                 if (event.type === 'tool_start') {
                   sendJson(socket, {
@@ -225,6 +250,26 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
                 }
               },
             })
+            if (chatId && owner) {
+              try {
+                getCore().appendAgentChatMessages(
+                  chatId,
+                  owner.userId,
+                  owner.ownerKey,
+                  [
+                    {id: `u-${id}`, role: 'user', content: message},
+                    {
+                      id: `a-${id}`,
+                      role: 'assistant',
+                      content: reply,
+                      reasoning: reasoning || null,
+                    },
+                  ],
+                )
+              } catch {
+                // ignore persistence errors; chat reply still delivered
+              }
+            }
             sendJson(socket, {
               type: 'done',
               id,

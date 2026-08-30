@@ -130,6 +130,11 @@ Package: [`agent/`](../agent/). Embedded in the API as `umpire-agent`.
 | `GET /api/agent/status` | Public: `{ enabled, configured, provider, model }` |
 | `GET /api/agent/settings` | Admin: full settings + `config_source` |
 | `PUT /api/agent/settings` | Admin: update settings |
+| `GET /api/agent/chats` | List chat sessions (see [Chat history](#chat-history)) |
+| `POST /api/agent/chats` | Create a chat session |
+| `GET /api/agent/chats/:id` | Get a chat with full message history |
+| `PATCH /api/agent/chats/:id` | Rename a chat (`{ "title": "…" }`) |
+| `DELETE /api/agent/chats/:id` | Delete a chat and its messages |
 | `GET /api/agent/ws` | WebSocket chat (see below) |
 
 ### Built-in tools
@@ -166,6 +171,70 @@ Details: [agent/README.md](../agent/README.md).
 
 ---
 
+## Chat history
+
+Chat sessions are stored in SQLite (`agent_chats`, `agent_chat_messages`). The web UI is one client; any HTTP or WebSocket client can use the same API.
+
+### Auth and ownership
+
+| Principal | REST (`/api/agent/chats`) | WebSocket (`chat` frame) |
+|-----------|---------------------------|---------------------------|
+| Logged-in user (session cookie or `Authorization: Bearer umpire_…`) | Chats scoped to `user_id` | Pass `chat_id`; messages persist automatically |
+| Anonymous when `auth_enabled` is false | Send `X-Umpire-Chat-Owner: <uuid>` on every request | Pass `chat_id` and `owner_key` (same uuid) on each `chat` frame |
+
+Write access is required (`can_write`). Read-only anonymous principals cannot create or use chats.
+
+### REST examples
+
+```bash
+# Create a chat (Bearer token)
+CHAT=$(curl -s -X POST http://localhost:8089/api/agent/chats \
+  -H "Authorization: Bearer $UMPIRE_API_TOKEN" \
+  -H 'content-type: application/json' \
+  -d '{}')
+CHAT_ID=$(echo "$CHAT" | jq -r .id)
+
+# List chats
+curl -s http://localhost:8089/api/agent/chats \
+  -H "Authorization: Bearer $UMPIRE_API_TOKEN"
+
+# Load history
+curl -s "http://localhost:8089/api/agent/chats/$CHAT_ID" \
+  -H "Authorization: Bearer $UMPIRE_API_TOKEN"
+
+# Rename
+curl -s -X PATCH "http://localhost:8089/api/agent/chats/$CHAT_ID" \
+  -H "Authorization: Bearer $UMPIRE_API_TOKEN" \
+  -H 'content-type: application/json' \
+  -d '{"title":"Incident triage"}'
+
+# Delete
+curl -s -X DELETE "http://localhost:8089/api/agent/chats/$CHAT_ID" \
+  -H "Authorization: Bearer $UMPIRE_API_TOKEN"
+```
+
+When auth is disabled and no user is logged in, add `-H "X-Umpire-Chat-Owner: $(uuidgen)"` (reuse the same value for all requests in that session).
+
+### WebSocket with persisted history
+
+Send a `chat` frame with `chat_id` so the server loads prior turns from the database and appends the new exchange when the turn completes:
+
+```json
+{
+  "type": "chat",
+  "id": "turn-uuid",
+  "message": "What targets are down?",
+  "chat_id": "chat-uuid",
+  "owner_key": "only-when-anonymous"
+}
+```
+
+`history` in the frame is optional. When `chat_id` is set and the chat exists, server history takes precedence (last 20 user/assistant turns). You can also manage chats purely via REST and send messages through `/api/agent/ws`, or use MCP `umpire_request` to call the REST endpoints.
+
+The **agent CLI** (`umpire-agent chat`) runs the LLM locally and does not use server-side chat storage today; use the REST + WebSocket API or MCP for persisted sessions.
+
+---
+
 ## WebSockets
 
 UMPIRE exposes **three** realtime mechanisms. Do not confuse them:
@@ -178,7 +247,7 @@ UMPIRE exposes **three** realtime mechanisms. Do not confuse them:
 
 ### Agent chat WebSocket (`/api/agent/ws`)
 
-**Auth:** WebSocket upgrade is allowed without auth; each `chat` frame requires a logged-in session (browser `umpire_session` cookie). Bearer tokens are **not** used on this endpoint — use MCP or `/api/ws` for token-based automation.
+**Auth:** WebSocket upgrade is allowed without auth; each `chat` frame requires a principal with write access. Use a browser `umpire_session` cookie **or** `Authorization: Bearer umpire_…` on the upgrade request (same as HTTP). When auth is disabled and no user exists, pass `owner_key` on each `chat` frame (see [Chat history](#chat-history)).
 
 **On connect**, server sends:
 
@@ -191,9 +260,9 @@ UMPIRE exposes **three** realtime mechanisms. Do not confuse them:
 | Frame | Fields | Response |
 |-------|--------|----------|
 | Ping | `{ "type": "ping", "id": "…" }` | `{ "type": "pong", "id": "…" }` |
-| Chat | `{ "type": "chat", "id": "…", "message": "…", "history?": [{ "role": "user"|"assistant", "content": "…" }] }` | See below |
+| Chat | `{ "type": "chat", "id": "…", "message": "…", "history?": [...], "chat_id?": "…", "owner_key?": "…" }` | See below |
 
-`history` is optional; server keeps the last 20 user/assistant turns.
+`history` is optional; server keeps the last 20 user/assistant turns. When `chat_id` is set, stored chat history is used instead (see [Chat history](#chat-history)).
 
 **Server → client (chat flow)**
 
