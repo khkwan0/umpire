@@ -9,7 +9,7 @@ export default defineConfig({
     name: 'UMPIRE',
     description:
       'Companion for self-hosted UMPIRE. Requires your UMPIRE API server. Toolbar health badge and outage notifications.',
-    version: '1.0.0',
+    version: '1.0.1',
     permissions: ['storage', 'alarms', 'notifications'],
     // Runtime request only the user's configured origin (see permissions.ts).
     // https for production servers; localhost patterns for local dev.

@@ -1,6 +1,6 @@
 {
   "name": "umpire-extensions",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "UMPIRE browser extensions (Chrome + Firefox) for target health and outage notifications",
   "type": "module",
