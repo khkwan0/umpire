@@ -12,7 +12,7 @@ Default process-wide set in [`api/plugins.json`](api/plugins.json) + [`data/plug
 
 ## Getting started
 
-To run the stack locally (deploy script or Docker Compose), see **[Run locally](#run-locally)**. One script builds and starts API + UI; open the dashboard and add a target.
+To run locally (deploy script or Docker Compose), see **[Run locally](#run-locally)**. The default path starts **API + web**; open the dashboard and add a target. For headless deployments, only the **API** is required — see **[API only](#api-only-headless)**.
 
 ## Plugin architecture
 
@@ -132,12 +132,16 @@ Also guaranteed:
 
 ## Services
 
-| Service | Role |
-|---------|------|
-| `api` | Fastify API + core SQLite + plugin host (check / scheduler / notifiers) |
-| `web` | Vite/React UI behind nginx (`/api` proxied to `api`) |
+UMPIRE ships as two Docker images. **Only the API is required** for monitoring — checks, scheduling, SQLite storage, and alert delivery all run there. The web image is **optional but recommended** for day-to-day use.
 
-UI default: [http://localhost:8089](http://localhost:8089)
+| Service | Required? | Role |
+|---------|-----------|------|
+| `api` | **Yes** | HTTP API, SQLite, plugin host (checks / scheduler / notifiers) |
+| `web` | No (suggested) | React UI behind nginx (`/api` proxied to `api`) |
+
+Without `web`, configure targets and notifiers via the REST API ([API](#api) below), [MCP](mcp/README.md), or curl. You lose the dashboard, in-browser plugin settings pages, and the built-in agent chat UI (the API endpoints for agents still work).
+
+When both services run (default Compose / deploy script), the UI is at [http://localhost:8089](http://localhost:8089).
 
 ## Repo layout
 
@@ -154,9 +158,31 @@ Do not confuse filesystem `plugins/` with HTTP `/api/plugins/<kind>/<id>/…` (t
 
 ## Run locally
 
-Two ways to run the full stack (API + UI). Both build from the **repo root** so Docker can copy [`plugins/`](plugins/).
+Images build from the **repo root** so Docker can copy [`plugins/`](plugins/). The paths below start **API + web** unless noted.
 
-### Deploy script (recommended)
+### API only (headless)
+
+Minimum deployment: the `api` image alone. Checks run on schedule, results are stored, and notifiers fire — no dashboard required.
+
+```bash
+mkdir -p data
+docker run -d \
+  --name umpire-api \
+  -p 3000:3000 \
+  -v "$(pwd)/data:/data" \
+  -e DATABASE_PATH=/data/monitor.sqlite \
+  umpire-api:latest
+```
+
+Use your registry tag if you pulled a published image (e.g. `nitroxstudios/umpire-api:latest`). To build locally first: `docker compose build api`, then tag the resulting image or run `docker compose up api -d` and publish port `3000` on the `api` service (Compose does not expose it by default).
+
+- Health: `http://localhost:3000/api/health`
+- Swagger: `http://localhost:3000/documentation`
+- Add a target: `POST /api/targets` with `url` and `interval_seconds`
+- Set a webhook URL: `PUT /api/plugins/notify/webhook/config`
+- Agents: point [MCP](mcp/README.md) at `http://localhost:3000` (or your public API URL)
+
+### Deploy script (recommended — API + web)
 
 [`scripts/deploy.sh`](scripts/deploy.sh) copies `.env` from [`.env.example`](.env.example) if needed, formats API and web sources, runs `docker compose up -d --build`, then waits for `/api/health`:
 
@@ -211,9 +237,9 @@ location /umpire/ {
 }
 ```
 
-### Docker Compose
+### Docker Compose (API + web)
 
-Same images and volumes, without the format step or health wait:
+Same images and volumes as the deploy script, without the format step or health wait:
 
 ```bash
 cp .env.example .env   # skip if you already have .env
@@ -248,9 +274,10 @@ Vite serves the UI on [http://localhost:8089](http://localhost:8089) (same host 
 
 ### Root
 
-- `./scripts/deploy.sh` — build and start with Docker Compose, then wait for `/api/health`
+- `./scripts/deploy.sh` — build and start API + web with Docker Compose, then wait for `/api/health`
 - `WEB_PORT=8090 ./scripts/deploy.sh` — deploy and health-check with a custom web port
 - `BASE_PATH=/umpire ./scripts/deploy.sh` — bake a subdirectory public path into the web image
+- `./scripts/publish-docker.sh` — build and push images to Docker Hub (reads `.env.dockerhub`; use `--api-only` or `--web-only` to publish one image)
 
 ### API (`api/package.json`)
 
