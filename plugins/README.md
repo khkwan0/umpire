@@ -23,7 +23,7 @@ Do not confuse this folder with HTTP paths like `/api/plugins/<kind>/<id>/…` �
 
 Default **enabled** set: `http` check, `interval` scheduler, `webhook` notifier. Other loaded notifiers (FCM, Slack, Telegram, Discord, email) stay off until **Settings → Plugin manager**. New notifier ids default to disabled except `webhook`.
 
-Write a plugin: **[Plugin developer guide](../docs/plugins.md)**. Change the host: **[Core developer guide](../docs/core.md)**.
+Write a plugin: **[Plugin developer guide](../docs/plugins.md)** (7 chapters — framework, contracts, checks, notifiers, schedulers, HTTP/UI, testing). Change the host: **[Core developer guide](../docs/core.md)**.
 
 ## Plugin documentation
 
