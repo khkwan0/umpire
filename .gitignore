@@ -14,3 +14,4 @@ junit.xml
 coverage/
 fcm-tokens.json
 webhook.json
+.env.*
