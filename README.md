@@ -10,11 +10,32 @@ When you need more — ping, TLS, Slack, FCM, a custom probe — you extend Umpi
 
 Default process-wide set in [`api/plugins.json`](api/plugins.json) + [`data/plugin-manager.json`](data/plugin-manager.json): **`http`** check, **`interval`** scheduler, **`webhook`** notifier. Other shipped notifiers (FCM, Slack, …) load but stay off until you enable them in **Settings → Plugin manager**.
 
-## Getting started
+## Deploy with Docker Hub
 
-**Deploy from Docker Hub** (no build): see **[docs/deployment.md](docs/deployment.md)** — pull `nitroxstudios/umpire-api` + `nitroxstudios/umpire-web` with [`docker-compose.hub.yml`](docker-compose.hub.yml).
+Pre-built images on [Docker Hub](https://hub.docker.com/u/nitroxstudios):
 
-**Run from source** (deploy script or Docker Compose): see **[Run locally](#run-locally)**. The default path starts **API + web**; open the dashboard and add a target. For headless deployments, only the **API** is required — see **[API only](#api-only-headless)**.
+| Image | Purpose |
+|-------|---------|
+| [`nitroxstudios/umpire-api`](https://hub.docker.com/r/nitroxstudios/umpire-api) | API — **required** (checks, storage, alerts) |
+| [`nitroxstudios/umpire-web`](https://hub.docker.com/r/nitroxstudios/umpire-web) | Dashboard — optional but recommended |
+
+```bash
+cp deploy/env.example .env
+docker compose -f docker-compose.hub.yml pull
+docker compose -f docker-compose.hub.yml up -d
+```
+
+Open [http://localhost:8089](http://localhost:8089). Health: `curl http://localhost:8089/api/health`
+
+- **API only** (no UI): pull `umpire-api` only — see [docs/deployment.md](docs/deployment.md#api-only-no-dashboard)
+- **Subpath hosting** (`BASE_PATH=/umpire`): see [deployment guide](docs/deployment.md#hosting-at-a-subpath-base_path)
+- **Configure via API** (headless): [docs/api.md](docs/api.md)
+
+Full deployment guide (tags, reverse proxy, upgrades): **[docs/deployment.md](docs/deployment.md)**
+
+### Run from source
+
+Building locally? Use the deploy script or Compose from a git clone — see **[Run locally](#run-locally)**. Only the **API** is required for headless monitoring — see **[API only](#api-only-headless)**.
 
 ## Plugin architecture
 
@@ -157,23 +178,6 @@ docs/             plugin guide, core guide, agents, Jenkins
 ```
 
 Do not confuse filesystem `plugins/` with HTTP `/api/plugins/<kind>/<id>/…` (the host namespace).
-
-## Deploy from Docker Hub
-
-Pre-built images:
-
-| Image | Purpose |
-|-------|---------|
-| `nitroxstudios/umpire-api` | API — **required** for monitoring |
-| `nitroxstudios/umpire-web` | Dashboard — optional but recommended |
-
-```bash
-cp deploy/env.example .env
-docker compose -f docker-compose.hub.yml pull
-docker compose -f docker-compose.hub.yml up -d
-```
-
-Full guide (tags, `BASE_PATH`, reverse proxy, API-only, upgrades): **[docs/deployment.md](docs/deployment.md)**.
 
 ## Run locally (from source)
 
