@@ -2,7 +2,7 @@
 
 Cookbook for changing UMPIRE **core** — the host that stores data, runs the pipeline, and enforces plugin contracts. Written so a developer or LLM can change core without reverse-engineering the repo.
 
-Writing a check, scheduler, or notifier: **[Plugin developer guide](plugins.md)**. Operator setup (run the app, shipped plugins, HTTP API list): [`README.md`](../README.md). AI agents (MCP, web chat, tokens): **[Agents guide](agents.md)**.
+Writing a check, scheduler, or notifier: **[Plugin developer guide](plugins.md)**. Operator setup (run the app, shipped plugins): [`README.md`](../README.md). **HTTP API** (Swagger, curl, headless): **[API guide](api.md)**. AI agents (MCP, web chat, tokens): **[Agents guide](agents.md)**.
 
 ## Contents
 

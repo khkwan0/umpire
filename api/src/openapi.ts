@@ -1,6 +1,7 @@
 import type {FastifyInstance} from 'fastify'
 import swagger from '@fastify/swagger'
 import swaggerUi from '@fastify/swagger-ui'
+import {publicUrlPrefix, requestPublicPrefix} from './publicPath.js'
 
 const errorSchema = {
   $id: 'Error',
@@ -487,6 +488,49 @@ const pluginCatalogEntrySchema = {
   },
 } as const
 
+const pluginManagerEntrySchema = {
+  $id: 'PluginManagerEntry',
+  type: 'object',
+  required: ['id', 'enabled'],
+  properties: {
+    id: {type: 'string'},
+    enabled: {type: 'boolean'},
+    description: {
+      type: ['string', 'null'],
+      description: 'Plugin description when provided by the implementation',
+    },
+    ready: {
+      type: 'boolean',
+      description: 'Notifier only — true when global config is complete',
+    },
+  },
+} as const
+
+const pluginManagerStateSchema = {
+  $id: 'PluginManagerState',
+  type: 'object',
+  required: ['checks', 'scheduler', 'notifiers'],
+  properties: {
+    checks: {
+      type: 'array',
+      items: {$ref: 'PluginManagerEntry#'},
+    },
+    scheduler: {
+      type: 'object',
+      required: ['id', 'enabled'],
+      properties: {
+        id: {type: 'string'},
+        enabled: {type: 'boolean'},
+        description: {type: ['string', 'null']},
+      },
+    },
+    notifiers: {
+      type: 'array',
+      items: {$ref: 'PluginManagerEntry#'},
+    },
+  },
+} as const
+
 export async function registerOpenApi(app: FastifyInstance): Promise<void> {
   for (const schema of [
     errorSchema,
@@ -512,6 +556,8 @@ export async function registerOpenApi(app: FastifyInstance): Promise<void> {
     coreSchemaResponseSchema,
     pluginRouteRefSchema,
     pluginCatalogEntrySchema,
+    pluginManagerEntrySchema,
+    pluginManagerStateSchema,
   ]) {
     app.addSchema(schema)
   }
@@ -522,44 +568,98 @@ export async function registerOpenApi(app: FastifyInstance): Promise<void> {
       info: {
         title: 'UMPIRE API',
         description:
-          'Universal Monitoring Plugin & Incident Reporter. Manage targets (with per-target check_ids / notifier_ids allowlists), groups, alert settings, auth/users/roles, and plugins. Plugin HTTP APIs are namespaced under /api/plugins/<kind>/<id>. See GET /api/plugins for the route catalog. Notifier plugins receive an AlertEvent (see components); the webhook notifier delivers that JSON with the HTTP method set in its UI.',
+          'Universal Monitoring Plugin & Incident Reporter. Manage targets (with per-target check_ids / notifier_ids allowlists), groups, alert settings, auth/users/roles, and plugins. Plugin HTTP APIs are namespaced under /api/plugins/<kind>/<id>. See GET /api/plugins for the route catalog. Notifier plugins receive an AlertEvent (see components). Operator guide with curl examples: docs/api.md. WebSocket and SSE protocols: docs/agents.md#websockets.',
         version: '1.0.0',
+      },
+      components: {
+        securitySchemes: {
+          bearerAuth: {
+            type: 'http',
+            scheme: 'bearer',
+            bearerFormat: 'umpire_token',
+            description:
+              'API token from POST /api/tokens (prefix umpire_). Send as Authorization: Bearer umpire_…. Required on protected routes when auth is enabled.',
+          },
+          sessionCookie: {
+            type: 'apiKey',
+            in: 'cookie',
+            name: 'umpire_session',
+            description:
+              'Browser session from POST /api/auth/login. Used by the web UI and agent chat WebSocket.',
+          },
+        },
       },
       tags: [
         {name: 'health', description: 'Liveness'},
-        {name: 'auth', description: 'Session, API tokens, and auth policy'},
+        {name: 'auth', description: 'Session login/logout, auth policy, and current principal'},
         {
           name: 'api-tokens',
           description: 'Bearer tokens for agents and automation',
         },
-        {name: 'agent', description: 'AI agent WebSocket chat'},
+        {
+          name: 'agent',
+          description:
+            'Built-in AI agent settings and WebSocket chat (see route description for frame protocol)',
+        },
         {name: 'users', description: 'User accounts (admin)'},
         {name: 'roles', description: 'Roles and plugin allowlists (admin)'},
         {name: 'groups', description: 'Group trees and tags'},
         {
           name: 'targets',
           description:
-            'URLs to monitor; optional check_ids and notifier_ids (empty = all loaded)',
+            'URLs to monitor; optional check_ids and notifier_ids (empty = all enabled)',
         },
-        {name: 'checks', description: 'Loaded check plugins'},
-        {name: 'notifiers', description: 'Loaded notifier plugins'},
+        {name: 'checks', description: 'Loaded check plugins (inventory)'},
+        {name: 'notifiers', description: 'Loaded notifier plugins (inventory)'},
         {
           name: 'plugins',
           description:
-            'Loaded plugins and their namespaced HTTP routes (/api/plugins/<kind>/<id>/…)',
+            'Plugin catalog, runtime enable/disable, and namespaced HTTP routes (/api/plugins/<kind>/<id>/…)',
+        },
+        {
+          name: 'http-check',
+          description: 'HTTP check plugin — global defaults and per-target overrides',
+        },
+        {
+          name: 'keyword-body-check',
+          description: 'Keyword/body check plugin — per-target config',
         },
         {
           name: 'tokens',
-          description:
-            'FCM destinations (FID preferred) at /api/plugins/notify/fcm/tokens (fcm notifier)',
+          description: 'FCM device destinations at /api/plugins/notify/fcm/tokens',
+        },
+        {
+          name: 'fcm',
+          description: 'FCM notifier — per-target routing overrides and tests',
         },
         {
           name: 'webhook',
           description:
-            'Webhook URL, HTTP method, and headers at /api/plugins/notify/webhook/config (webhook notifier)',
+            'Webhook URL, HTTP method, and headers at /api/plugins/notify/webhook/…',
+        },
+        {
+          name: 'slack',
+          description: 'Slack notifier config and per-target overrides',
+        },
+        {
+          name: 'discord',
+          description: 'Discord notifier config and per-target overrides',
+        },
+        {
+          name: 'telegram',
+          description: 'Telegram notifier config and per-target overrides',
+        },
+        {
+          name: 'email',
+          description: 'Email notifier config and per-target overrides',
+        },
+        {
+          name: 'system',
+          description:
+            'WebSocket HTTP bridge and other non-REST transports (see route descriptions)',
         },
         {name: 'settings', description: 'Alert policy and auth toggles'},
-        {name: 'status', description: 'Dashboard summary'},
+        {name: 'status', description: 'Dashboard summary and SSE live updates'},
         {
           name: 'incidents',
           description: 'Outage and recovery log from check history',
@@ -571,6 +671,16 @@ export async function registerOpenApi(app: FastifyInstance): Promise<void> {
 
   await app.register(swaggerUi, {
     routePrefix: '/documentation',
+    // No indexPrefix: with a trailing slash, Swagger UI uses relative ./static/
+    // asset URLs so /documentation/ and /umpire/documentation/ both work.
+    transformSpecification: (swaggerObject, req) => {
+      const prefix = requestPublicPrefix(req)
+      if (!prefix) return swaggerObject
+      return {
+        ...swaggerObject,
+        servers: [{url: prefix}],
+      }
+    },
     uiConfig: {
       docExpansion: 'list',
       deepLinking: true,

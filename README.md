@@ -177,7 +177,8 @@ docker run -d \
 Use your registry tag if you pulled a published image (e.g. `nitroxstudios/umpire-api:latest`). To build locally first: `docker compose build api`, then tag the resulting image or run `docker compose up api -d` and publish port `3000` on the `api` service (Compose does not expose it by default).
 
 - Health: `http://localhost:3000/api/health`
-- Swagger: `http://localhost:3000/documentation`
+- Swagger: `http://localhost:3000/documentation` — full interactive API reference
+- Operator guide with curl examples: [docs/api.md](docs/api.md)
 - Add a target: `POST /api/targets` with `url` and `interval_seconds`
 - Set a webhook URL: `PUT /api/plugins/notify/webhook/config`
 - Agents: point [MCP](mcp/README.md) at `http://localhost:3000` (or your public API URL)
@@ -218,6 +219,15 @@ BASE_PATH=/umpire docker compose up -d --build
 ```
 
 Asset URLs, React Router’s basename, API/SSE fetches, and the web container’s nginx rewrite are baked into the **web image** at build time. Changing `BASE_PATH` requires a rebuild (`--build`), not only a container restart.
+
+The API reads the same `BASE_PATH` at **runtime** (Compose passes it to the `api` service). Swagger UI uses **relative** asset URLs when you open `/documentation/` with a trailing slash, so it works at both `/documentation/` and `/umpire/documentation/`. The API resolves the public prefix per request from `X-Forwarded-Prefix` (set by the web container) with `BASE_PATH` as fallback — this supports **both** reverse-proxy styles:
+
+| Front proxy | Example `proxy_pass` | What the web container receives |
+|-------------|----------------------|----------------------------------|
+| **Preserve path** | `http://127.0.0.1:8089/umpire/` | `/umpire/documentation/` |
+| **Strip path** | `http://127.0.0.1:8089/` | `/documentation/` (header `X-Forwarded-Prefix: /umpire` added automatically) |
+
+If Swagger is a blank page, open **`…/documentation/`** (trailing slash), confirm `.env` has `BASE_PATH=/umpire`, and rebuild **both** images. If your front nginx strips the path, it may also set `X-Forwarded-Prefix` (optional — the web image sets it when `BASE_PATH` is configured).
 
 Your reverse proxy can either forward `/umpire/...` as-is or strip the prefix before proxying; the web container accepts both when built with that `BASE_PATH`. Local health checks stay on the published port without the prefix: `http://127.0.0.1:8089/api/health`.
 
@@ -324,47 +334,20 @@ Pushes and pull requests run [GitHub Actions](.github/workflows/ci.yml) (current
 
 ## API
 
-Swagger UI: [http://localhost:8089/documentation](http://localhost:8089/documentation) (or API directly at `:3000/documentation`). OpenAPI JSON: `/documentation/json`.
+**Authoritative reference:** Swagger UI at [http://localhost:8089/documentation](http://localhost:8089/documentation) (or `:3000/documentation` on the API). OpenAPI JSON: `/documentation/json`.
 
-- `GET/POST/PATCH/DELETE /api/groups` (`GET /api/groups?tree=1` for nested trees)
-- `GET/POST/PATCH/DELETE /api/targets` (optional `group_id`, optional `check_ids` / `notifier_ids`; empty allowlist = all **enabled** of that kind)
-- `GET /api/notifiers/check-ids` — which targets have a per-notifier override (check allowlist and/or custom plugin settings)
-- `GET/PUT /api/targets/:id/notifiers/:notifierId/check-ids` — core check allowlist for one target + notifier
-- `GET /api/targets/:id/results`
-- `GET /api/incidents` — outage and recovery log (newest first; optional `?limit=`)
-- `GET /api/checks` — loaded check plugins `{ id }` (pipeline still skips disabled ones)
-- `GET /api/notifiers` — loaded notifier plugins `{ id, ready }` (pipeline still skips disabled ones)
-- `GET /api/plugins` — loaded plugins + namespaced HTTP routes
-- `GET /api/plugin-manager` — runtime plugin enable/disable state
-- `PUT /api/plugin-manager/:kind/:id` — toggle a loaded plugin (`kind` = `check` | `notify` | `scheduler`) without restart
-- `GET/PUT /api/plugins/check/http/config` — global default HTTP check parameters (`data/http-check-defaults.json`)
-- `GET /api/plugins/check/http/overrides` — `{ targetIds }` for targets with a custom HTTP override
-- `GET/PUT/DELETE /api/plugins/check/http/targets/:targetId/config` — per-target override (`useCustom` + optional fields merged over defaults); `POST .../test` — one-shot test with effective or form config
-- `GET/PUT /api/plugins/check/keyword-body/targets/:targetId/config` — per-target keyword/body check config
-- `GET/POST/PATCH/DELETE /api/plugins/notify/fcm/tokens` — FCM FID destinations
-- `POST /api/plugins/notify/fcm/tokens/import` — import `{ fids: [...] }`; duplicates skipped
-- `POST /api/plugins/notify/fcm/tokens/test` — send a test push to a raw FID
-- `POST /api/plugins/notify/fcm/tokens/:id/test` — send a test push; FCM success is stored as `sent`, not `ok`
-- `POST /api/plugins/notify/fcm/tokens/:id/received` — `{ received: true|false }` confirms on-device result (`false` disables the destination)
-- `GET/PUT/DELETE /api/plugins/notify/fcm/targets/:targetId/config` — per-target FCM routing override
-- `GET/PUT /api/plugins/notify/webhook/config` — default webhook notifier parameters
-- `GET /api/plugins/notify/webhook/overrides`, `GET/PUT/DELETE /api/plugins/notify/webhook/targets/:targetId/config`, `POST .../test` — per-target webhook override
-- Same `/overrides` + `/targets/:targetId/config` + `/test` pattern for **slack**, **discord**, **telegram**, **email**
-- `GET/PUT /api/plugins/notify/slack/config`, `POST /api/plugins/notify/slack/test` — Slack defaults + test
-- `GET/PUT /api/plugins/notify/discord/config`, `POST /api/plugins/notify/discord/test` — Discord defaults + test
-- `GET/PUT /api/plugins/notify/telegram/config`, `POST /api/plugins/notify/telegram/test` — Telegram defaults + test
-- `GET/PUT /api/plugins/notify/email/config`, `POST /api/plugins/notify/email/test` — Email defaults + test
-- `GET/PUT /api/settings`
-- `GET /api/status`
-- `GET /api/schema`
-- `GET /api/auth/me` — current principal (session cookie or Bearer token)
-- `GET/POST/DELETE /api/tokens` — API tokens for agents (`Authorization: Bearer umpire_…`). UI: **Settings → API tokens**. See [docs/agents.md](docs/agents.md#api-tokens).
-- `GET /api/agent/status` — AI agent enabled/configured state (public)
-- `GET/PUT /api/agent/settings` — AI agent LLM config (admin). UI: **Settings → AI Agent**
-- `GET /api/agent/ws` — WebSocket chat with the built-in agent (streaming). UI: **Agent** (`/agent`)
-- `GET /api/health`
-- `GET /api/ws` — WebSocket HTTP bridge; JSON frames call any `/api` route (including plugins). See [docs/core.md](docs/core.md#websocket-http-bridge).
-- `GET /api/stream` — SSE live updates for the UI
+**Operator guide** (headless curl examples, auth, route map): **[docs/api.md](docs/api.md)**.
+
+Summary of route groups:
+
+- **Core** — `/api/health`, `/api/groups`, `/api/targets`, `/api/settings`, `/api/status`, `/api/incidents`, `/api/schema`, `/api/checks`, `/api/notifiers`, `/api/plugins`, `/api/plugin-manager`
+- **Auth & admin** — `/api/auth/*`, `/api/tokens`, `/api/users`, `/api/roles` (when auth is enabled)
+- **Per-target** — `/api/targets/:id/results`, `/api/targets/:id/checks/:checkId/config`, `/api/targets/:id/notifiers/:notifierId/check-ids`
+- **Plugins** — `/api/plugins/<kind>/<id>/…` (HTTP check, webhook, Slack, FCM, etc. — see `GET /api/plugins`)
+- **Agent** — `/api/agent/status`, `/api/agent/settings`, `/api/agent/ws` (WebSocket)
+- **Realtime** — `/api/stream` (SSE), `/api/ws` (WebSocket HTTP bridge)
+
+WebSocket and SSE frame protocols: [docs/agents.md](docs/agents.md#websockets). MCP tool surface: [mcp/README.md](mcp/README.md).
 
 ## Groups and tags
 
@@ -388,6 +371,7 @@ SQLite file: `./data/monitor.sqlite` (bind-mounted in Compose at `/data/monitor.
 - Dependency updates: Dependabot (`.github/dependabot.yml`) for npm, Docker, and GitHub Actions
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Browser extensions (Chrome + Firefox): [extensions/README.md](extensions/README.md)
+- HTTP API operator guide: [docs/api.md](docs/api.md)
 - AI agents (MCP, web chat, tokens, WebSockets): [docs/agents.md](docs/agents.md)
 - MCP server: [mcp/README.md](mcp/README.md)
 - Agent CLI + web chat: [agent/README.md](agent/README.md)

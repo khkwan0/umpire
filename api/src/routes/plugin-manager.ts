@@ -15,6 +15,9 @@ export async function pluginManagerRoutes(app: FastifyInstance): Promise<void> {
       schema: {
         tags: ['plugins'],
         summary: 'Get runtime plugin enable/disable state',
+        response: {
+          200: {$ref: 'PluginManagerState#'},
+        },
       },
     },
     async () => pluginManagerState(),
@@ -33,7 +36,7 @@ export async function pluginManagerRoutes(app: FastifyInstance): Promise<void> {
           type: 'object',
           required: ['kind', 'id'],
           properties: {
-            kind: {type: 'string'},
+            kind: {type: 'string', enum: ['check', 'notify', 'scheduler']},
             id: {type: 'string'},
           },
         },

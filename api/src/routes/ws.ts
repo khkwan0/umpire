@@ -294,7 +294,13 @@ export async function wsRoutes(app: FastifyInstance): Promise<void> {
         tags: ['system'],
         summary:
           'WebSocket HTTP bridge — JSON frames map to any /api route (including plugins)',
-        hide: true,
+        description:
+          'Upgrade to WebSocket. On connect: `{ "type": "connected", "auth": { … } | null }`. Client sends HTTP-shaped JSON frames `{ "id", "method", "path", "query?", "headers?", "body?" }`; server responds with `{ "id", "status", "headers?", "body?" }` from the same Fastify routes as HTTP. Auth: session cookie jar per connection; `Authorization: Bearer` on the upgrade request when supported. Blocked paths: `/api/ws`, `/api/agent/ws`, `/api/stream`. Full protocol: docs/agents.md#http-bridge-websocket-apiws.',
+        response: {
+          101: {
+            description: 'Switching Protocols — WebSocket upgrade',
+          },
+        },
       },
     },
     (socket, req) => {

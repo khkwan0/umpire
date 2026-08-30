@@ -76,7 +76,13 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
       schema: {
         tags: ['agent'],
         summary: 'WebSocket chat with the UMPIRE AI agent',
-        hide: true,
+        description:
+          'Upgrade to WebSocket. On connect: `{ "type": "ready", "enabled", "configured", "provider?", "model?" }`. Client frames: `{ "type": "ping", "id" }` → `{ "type": "pong", "id" }`; `{ "type": "chat", "id", "message", "history?" }` streams `started`, `tool_start`, `tool_end`, `reasoning_delta`, `assistant_delta`, `done`, or `error`. Requires a logged-in browser session (`umpire_session` cookie) on each chat frame — Bearer tokens are not used here; use MCP or `/api/ws` for token automation. Full protocol: docs/agents.md#agent-chat-websocket-apiagentws.',
+        response: {
+          101: {
+            description: 'Switching Protocols — WebSocket upgrade',
+          },
+        },
       },
     },
     (socket, req) => {

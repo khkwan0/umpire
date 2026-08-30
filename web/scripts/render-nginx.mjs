@@ -64,19 +64,75 @@ ${h(false)}
   location ${prefix}/api/ {
     proxy_pass http://api:3000/api/;
 ${h(false)}
+    proxy_set_header X-Forwarded-Prefix ${prefix};
     proxy_connect_timeout 5s;
     proxy_read_timeout 60s;
   }
 
-  location ${prefix}/documentation {
-    proxy_pass http://api:3000/documentation;
+  location = ${prefix}/documentation {
+    return 301 ${prefix}/documentation/;
+  }
+
+  location ${prefix}/documentation/ {
+    proxy_pass http://api:3000/documentation/;
 ${h(false)}
+    proxy_set_header X-Forwarded-Prefix ${prefix};
   }
 
   location ${prefix}/ {
     rewrite ^${prefix}/(.*)$ /$1 last;
   }
 `
+}
+
+function stripPrefixProxyHeaders(prefix) {
+  return `
+    proxy_set_header X-Forwarded-Prefix ${prefix};`
+}
+
+function patchStripPrefixLocations(conf, prefix) {
+  const header = stripPrefixProxyHeaders(prefix)
+  return conf
+    .replace(
+      `  location /api/ {
+    proxy_pass http://api:3000/api/;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_connect_timeout 5s;
+    proxy_read_timeout 60s;
+  }`,
+      `  location /api/ {
+    proxy_pass http://api:3000/api/;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;${header}
+    proxy_connect_timeout 5s;
+    proxy_read_timeout 60s;
+  }`,
+    )
+    .replace(
+      `  location /documentation/ {
+    proxy_pass http://api:3000/documentation/;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }`,
+      `  location /documentation/ {
+    proxy_pass http://api:3000/documentation/;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;${header}
+  }`,
+    )
 }
 
 const prefix = publicPrefix(process.env.BASE_PATH)
@@ -89,6 +145,7 @@ if (prefix) {
     'index index.html;',
     `index index.html;${prefixedApiLocations(prefix)}`,
   )
+  conf = patchStripPrefixLocations(conf, prefix)
 }
 
 const out = process.argv[2]

@@ -8,6 +8,18 @@ export async function streamRoutes(app: FastifyInstance): Promise<void> {
       schema: {
         tags: ['status'],
         summary: 'Server-sent event stream for UI live updates',
+        description:
+          'Long-lived `text/event-stream`. On connect the server sends event `connected`. Then publishes `plugin-manager.updated`, `targets.updated`, `status.updated`, and `incidents.updated` when core state changes, plus `heartbeat` every 15s. Each event has a JSON `data` payload with an `at` timestamp. See docs/agents.md#dashboard-sse-apistream.',
+        response: {
+          200: {
+            description: 'SSE stream (`text/event-stream`)',
+            content: {
+              'text/event-stream': {
+                schema: {type: 'string'},
+              },
+            },
+          },
+        },
       },
     },
     async (_req, reply) => {

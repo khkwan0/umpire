@@ -15,6 +15,7 @@ services:
     environment:
       PORT: "3000"
       DATABASE_PATH: /data/monitor.sqlite
+      BASE_PATH: ${BASE_PATH:-/}
       CHECK_TIMEOUT_MS: ${CHECK_TIMEOUT_MS:-10000}
       FCM_ANDROID_CHANNEL_ID: ${FCM_ANDROID_CHANNEL_ID:-}
     networks:
