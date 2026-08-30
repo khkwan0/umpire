@@ -31,12 +31,14 @@ interface CheckPlugin {
   id: string
   check(ctx: CheckContext): Promise<CheckOutcome>
   evaluateTarget?(params: TargetEvalParams): TargetCompatibility
-  registerRoutes?(app: FastifyInstance): void | Promise<void>
+  registerRoutes?(app: HttpApp): void | Promise<void>
   description?: string
 }
 ```
 
 Guard: `typeof id === 'string' && typeof check === 'function'`.
+
+`HttpApp` is the host HTTP application passed to `registerRoutes`. Register relative paths; the host prefixes them. The type is framework-agnostic — do not assume a particular HTTP library.
 
 **Scheduler plugin** — must have:
 
@@ -47,7 +49,7 @@ interface SchedulerPlugin {
   stop(): void
   reschedule(): void
   init?(ctx: SchedulerContext): void
-  registerRoutes?(app: FastifyInstance): void | Promise<void>
+  registerRoutes?(app: HttpApp): void | Promise<void>
   description?: string
 }
 ```
@@ -62,7 +64,7 @@ interface NotifierPlugin {
   isReady(): boolean
   notify(ctx: NotifyContext): Promise<void>
   init?(): void | Promise<void>
-  registerRoutes?(app: FastifyInstance): void | Promise<void>
+  registerRoutes?(app: HttpApp): void | Promise<void>
   description?: string
 }
 ```
@@ -80,7 +82,7 @@ These must all match:
 
 ### HTTP route collisions
 
-Duplicate method+path **within one plugin** fails Fastify at startup.
+Duplicate method+path **within one plugin** fails host route registration at startup.
 
 Do **not** register core paths like `/api/targets` from a plugin.
 
@@ -104,7 +106,7 @@ These are not validated by the loader. Follow them for correct behavior and good
 | Keep `evaluateTarget` fast — no network I/O | Target form becomes slow |
 | Match `evaluateTarget` rules with `check()` address parsing | UI and pipeline disagree |
 | Config validation in your `config.ts` — throw on invalid input | Bad config silently misbehaves |
-| Fastify `schema` on routes | Route missing from Swagger |
+| OpenAPI `schema` on routes | Route missing from Swagger |
 
 ### Notifier plugins
 

@@ -88,7 +88,7 @@ interface SchedulerPlugin {
   start(): void
   stop(): void
   reschedule(): void
-  registerRoutes?(app: FastifyInstance): void | Promise<void>
+  registerRoutes?(app: HttpApp): void | Promise<void>
 }
 ```
 

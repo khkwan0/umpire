@@ -10,16 +10,16 @@ Optional extras for any plugin kind: plugin-owned HTTP under `/api/plugins/…`,
 
 ### Mounting
 
-At startup, the host calls `registerRoutes` with a Fastify instance already prefixed:
+At startup, the host calls `registerRoutes` with an HTTP application already prefixed:
 
 ```text
 /api/plugins/<kind>/<id>
 ```
 
-Register **relative** paths:
+The `app` argument (`HttpApp`) is that host application. It is framework-agnostic — register relative paths; the host prefixes them.
 
 ```typescript
-async registerRoutes(app: FastifyInstance) {
+async registerRoutes(app: HttpApp) {
   app.get('/config', async () => readDefaults())
   app.put('/config', async (req, reply) => { /* … */ })
 }
@@ -84,7 +84,7 @@ Optional helper: `getAuthContext(request)` from [`api/src/auth/`](../../api/src/
 
 ### OpenAPI / Swagger
 
-Add Fastify `schema` so routes appear in `/documentation`. Shared components: [`api/src/openapi.ts`](../../api/src/openapi.ts).
+Add OpenAPI `schema` so routes appear in `/documentation`. Shared components: [`api/src/openapi.ts`](../../api/src/openapi.ts).
 
 ## Plugin UI
 

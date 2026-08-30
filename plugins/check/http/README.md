@@ -65,7 +65,7 @@ plugins/check/http/
   index.ts          # check() + evaluateTarget
   config.ts         # sidecar + DB overrides
   evaluate.ts       # status/latency evaluation
-  routes.ts         # Fastify routes + OpenAPI schemas
+  routes.ts         # HTTP routes + OpenAPI schemas
   ui/               # global defaults page + dashboard widget
 ```
 

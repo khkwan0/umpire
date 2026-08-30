@@ -215,5 +215,5 @@ Test `check()` with mocked `fetch` or stubbed network calls. Test that failed pr
 - [ ] Failed probes return `ok: false`, never throw
 - [ ] `evaluateTarget` if address shape matters
 - [ ] `registerRoutes` + UI if operators configure settings
-- [ ] Fastify `schema` on routes for Swagger
+- [ ] OpenAPI `schema` on routes for Swagger
 - [ ] Enabled in plugin manager (checks default on)

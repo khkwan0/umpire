@@ -75,7 +75,7 @@ Plugin HTTP and UI are a **side channel** for plugin-owned data. They are not ho
 initCore(DB)
   → initPlugins()           # load all plugins + plugin manager
   → scheduler.init(ctx)     # ctx = { getTargets, run: runCheck }
-  → register core Fastify routes
+  → register core HTTP routes
   → mountAllPluginRoutes()  # /api/plugins/<kind>/<id>/…
   → app.listen()
   → scheduler.start()
@@ -104,7 +104,7 @@ plugins/<kind>/<id>/
   index.ts          # required — export default (or `plugin`)
   README.md         # recommended — usage + developer notes
   config.ts         # optional — sidecar read/write, normalization
-  routes.ts         # optional — Fastify HTTP
+  routes.ts         # optional — HTTP routes
   send.ts           # optional — delivery logic (notifiers)
   ui/
     index.tsx       # optional — PluginUiModule
