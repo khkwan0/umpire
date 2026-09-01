@@ -36,6 +36,7 @@
   "devDependencies": {
     "@types/react": "~19.2.2",
     "googleapis": "^164.1.0",
+    "sharp": "^0.35.4",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -49,6 +50,7 @@
     "export_ios": "bash ./scripts/export_ios.sh",
     "unlock_signing_keychain": "bash ./scripts/unlock_signing_keychain.sh",
     "archive_android": "bash ./scripts/archive_android.sh",
+    "generate-icons": "node ./scripts/generate-icons.mjs",
     "web": "expo start --web",
     "lint": "expo lint"
   },

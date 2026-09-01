@@ -8,7 +8,6 @@
     "scheme": "umpire",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.umpire",
       "buildNumber": "1",
       "supportsTablet": true,
@@ -25,7 +24,7 @@
       "versionCode": 1,
       "googleServicesFile": "./firebase.google-services.json",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#ffffff",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -45,7 +44,7 @@
         {
           "backgroundColor": "#1b365d",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "imageWidth": 160
         }
       ],
       [

@@ -24,6 +24,7 @@ import {
   ensureNotificationChannel,
   presentRemoteNotification,
 } from '@/lib/notifications'
+import {useAuth} from './AuthProvider'
 import {useServer} from './ServerProvider'
 
 interface PushContextValue {
@@ -73,6 +74,7 @@ function deviceLabel(): string {
 
 export function PushProvider({children}: {children: ReactNode}) {
   const {serverUrl} = useServer()
+  const {ready: authReady, principal} = useAuth()
   const [permission, setPermission] = useState<
     'unknown' | 'granted' | 'denied'
   >('unknown')
@@ -123,10 +125,12 @@ export function PushProvider({children}: {children: ReactNode}) {
   }, [])
 
   useEffect(() => {
-    if (!serverUrl || Platform.OS === 'web') {
-      setPermission('unknown')
-      setRegistered(false)
-      lastTokenRef.current = null
+    if (!serverUrl || !authReady || Platform.OS === 'web') {
+      if (!serverUrl || Platform.OS === 'web') {
+        setPermission('unknown')
+        setRegistered(false)
+        lastTokenRef.current = null
+      }
       return
     }
 
@@ -149,7 +153,7 @@ export function PushProvider({children}: {children: ReactNode}) {
       unsubscribeRefresh()
       unsubscribeMessage()
     }
-  }, [serverUrl, registerToken])
+  }, [serverUrl, authReady, principal?.kind, registerToken])
 
   const value = useMemo(
     () => ({
