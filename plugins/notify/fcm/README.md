@@ -50,6 +50,7 @@ Add FIDs one-by-one, import a JSON array (`POST …/tokens/import`), or test wit
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/plugins/notify/fcm/tokens` | List destinations |
+| POST | `/api/plugins/notify/fcm/tokens/register` | Mobile upsert (`fid` or `token`, optional `label`) |
 | POST | `/api/plugins/notify/fcm/tokens` | Create destination |
 | PATCH | `/api/plugins/notify/fcm/tokens/:id` | Update label / enabled |
 | DELETE | `/api/plugins/notify/fcm/tokens/:id` | Remove destination |

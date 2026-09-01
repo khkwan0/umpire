@@ -195,6 +195,17 @@ export interface PluginManagerState {
   notifiers: PluginManagerNotifierEntry[]
 }
 
+export interface FcmDestination {
+  id: number
+  fid: string
+  label: string
+  enabled: number
+  created_at: string
+  last_test_ok: number | null
+  last_test_error: string | null
+  last_tested_at: string | null
+}
+
 export interface StatusResponse {
   core: {engine: string}
   checks: PluginRef[]
@@ -535,6 +546,13 @@ export const api = {
       request<{ok: boolean}>(`/api/plugin-manager/${kind}/${id}`, {
         method: 'PUT',
         body: JSON.stringify({enabled}),
+      }),
+  },
+  fcm: {
+    register: (token: string, label?: string) =>
+      request<FcmDestination>('/api/plugins/notify/fcm/tokens/register', {
+        method: 'POST',
+        body: JSON.stringify({token, label}),
       }),
   },
 }

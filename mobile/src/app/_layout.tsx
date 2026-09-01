@@ -1,6 +1,7 @@
 import {Redirect, Stack, useSegments, ThemeProvider, DarkTheme, DefaultTheme} from 'expo-router'
 import {ActivityIndicator, View} from 'react-native'
 import {AuthProvider, useAuth} from '@/providers/AuthProvider'
+import {PushProvider} from '@/providers/PushProvider'
 import {RealtimeProvider} from '@/providers/RealtimeProvider'
 import {ServerProvider, useServer} from '@/providers/ServerProvider'
 import {useUmpireTheme} from '@/hooks/use-umpire-theme'
@@ -82,9 +83,11 @@ function ThemedRoot() {
     <ThemeProvider value={navTheme}>
       <ServerProvider>
         <AuthProvider>
-          <RealtimeProvider>
-            <RootNavigator />
-          </RealtimeProvider>
+          <PushProvider>
+            <RealtimeProvider>
+              <RootNavigator />
+            </RealtimeProvider>
+          </PushProvider>
         </AuthProvider>
       </ServerProvider>
     </ThemeProvider>

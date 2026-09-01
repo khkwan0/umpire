@@ -203,6 +203,25 @@ export function recordDestinationTest(
   return next
 }
 
+/** Upsert a destination for mobile self-registration (re-enables on repeat register). */
+export function registerDestination(fid: string, label = ''): FcmDestination {
+  const trimmed = fid.trim()
+  if (!trimmed) throw new Error('fid required')
+  const rows = readAll()
+  const idx = rows.findIndex(r => r.fid === trimmed)
+  if (idx < 0) return createDestination(trimmed, label)
+  const existing = rows[idx]!
+  const nextLabel = label.trim() || existing.label
+  const next: FcmDestination = {
+    ...existing,
+    label: nextLabel,
+    enabled: 1,
+  }
+  rows[idx] = next
+  writeAll(rows)
+  return next
+}
+
 export function createDestination(fid: string, label = ''): FcmDestination {
   const trimmed = fid.trim()
   if (!trimmed) throw new Error('fid required')

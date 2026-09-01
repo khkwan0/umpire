@@ -7,6 +7,14 @@ export function isReadMethod(method: string): boolean {
   return m === 'GET' || m === 'HEAD' || m === 'OPTIONS'
 }
 
+/** Mobile apps register their own FCM token without admin/write access. */
+export function isDeviceRegistrationPath(method: string, path: string): boolean {
+  return (
+    method.toUpperCase() === 'POST' &&
+    path === '/api/plugins/notify/fcm/tokens/register'
+  )
+}
+
 export function isAdminOnlyPath(method: string, path: string): boolean {
   if (path === '/api/users' || path.startsWith('/api/users/')) return true
   if (path === '/api/roles' || path.startsWith('/api/roles/')) return true
@@ -83,7 +91,7 @@ export function evaluateGate(input: {
     }
   }
 
-  if (!read && !effective.can_write) {
+  if (!read && !effective.can_write && !isDeviceRegistrationPath(method, path)) {
     return {ok: false, status: 403, error: 'Write access required'}
   }
   if (isAdminOnlyPath(method, path) && !effective.is_admin) {

@@ -16,6 +16,7 @@ import {
   importDestinations,
   listDestinations,
   recordDestinationTest,
+  registerDestination,
   updateDestination,
 } from './destinations.js'
 import {isUnregisteredTokenError, sendToMany, testPushCopy} from './send.js'
@@ -279,6 +280,44 @@ export async function registerFcmRoutes(app: FastifyInstance): Promise<void> {
         : recordDestinationTest(id, 'error', 'not received', {enabled: false})
       if (!updated) return reply.code(404).send({error: 'not found'})
       return updated
+    },
+  )
+
+  app.post<{Body: {fid?: string; token?: string; label?: string}}>(
+    '/tokens/register',
+    {
+      schema: {
+        tags: ['tokens'],
+        summary: 'Register this device for FCM alerts (upsert)',
+        description:
+          'Mobile clients call this after obtaining an FCM registration token. Accepts `fid` or `token`. Re-registering the same value re-enables the destination. Does not require write access.',
+        body: {
+          type: 'object',
+          properties: {
+            fid: {type: 'string'},
+            token: {type: 'string', description: 'Alias for fid'},
+            label: {type: 'string'},
+          },
+        },
+        response: {
+          200: fcmDestinationSchema,
+          400: errorResponse,
+        },
+      },
+    },
+    async (req, reply) => {
+      const fid = (req.body?.fid ?? req.body?.token ?? '').trim()
+      const label = (req.body?.label ?? '').trim()
+      if (!fid) {
+        return reply.code(400).send({error: 'fid or token required'})
+      }
+      try {
+        return registerDestination(fid, label)
+      } catch (err) {
+        return reply
+          .code(400)
+          .send({error: err instanceof Error ? err.message : String(err)})
+      }
     },
   )
 

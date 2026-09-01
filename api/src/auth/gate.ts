@@ -5,6 +5,7 @@ import {getBearerToken} from './tokens.js'
 import {getSessionToken} from './cookies.js'
 import {
   isAdminOnlyPath,
+  isDeviceRegistrationPath,
   isReadMethod,
   parsePluginPath,
   pluginAllowed,
@@ -127,7 +128,7 @@ export async function registerAuthGate(app: FastifyInstance): Promise<void> {
 
     ;(req as AuthRequest).auth = principal
 
-    if (!read && !principal.can_write) {
+    if (!read && !principal.can_write && !isDeviceRegistrationPath(method, path)) {
       return deny(reply, 403, 'Write access required')
     }
 

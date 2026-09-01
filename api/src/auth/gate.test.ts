@@ -137,6 +137,30 @@ describe('evaluateGate', () => {
     ).toEqual({ok: true})
   })
 
+  it('allows read-only users to register FCM device tokens', () => {
+    expect(
+      evaluateGate({
+        authEnabled: true,
+        allowReadonlyWithoutAuth: false,
+        method: 'POST',
+        path: '/api/plugins/notify/fcm/tokens/register',
+        principal: readOnlyUser,
+      }),
+    ).toEqual({ok: true})
+  })
+
+  it('still blocks read-only users from admin FCM token management', () => {
+    expect(
+      evaluateGate({
+        authEnabled: true,
+        allowReadonlyWithoutAuth: false,
+        method: 'POST',
+        path: '/api/plugins/notify/fcm/tokens',
+        principal: readOnlyUser,
+      }),
+    ).toEqual({ok: false, status: 403, error: 'Write access required'})
+  })
+
   it('enforces custom role plugin allowlists', () => {
     expect(
       evaluateGate({

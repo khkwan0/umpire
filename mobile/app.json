@@ -11,24 +11,34 @@
       "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.umpire",
       "buildNumber": "1",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "entitlements": {
+        "aps-environment": "production"
+      },
+      "infoPlist": {
+        "UIBackgroundModes": ["remote-notification"]
+      }
     },
     "android": {
       "package": "com.umpire",
       "versionCode": 1,
+      "googleServicesFile": "./firebase.google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": ["android.permission.POST_NOTIFICATIONS"]
     },
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "./plugins/withAndroidFirebaseNotificationManifest",
       "expo-router",
       [
         "expo-splash-screen",
@@ -38,6 +48,25 @@
           "imageWidth": 76
         }
       ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static",
+            "forceStaticLinking": ["RNFBApp", "RNFBMessaging"]
+          }
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#1b365d",
+          "defaultChannel": "umpire-alerts"
+        }
+      ],
+      "@react-native-firebase/app",
+      "@react-native-firebase/messaging",
       "./plugins/withIosMarketingVersion",
       "./plugins/withIosSignEmbeddedFrameworks",
       "./plugins/withAndroidReleaseSigning"
