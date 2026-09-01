@@ -1,6 +1,6 @@
 {
   "name": "umpire-extensions",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "description": "UMPIRE browser extensions (Chrome + Firefox) for target health and outage notifications",
   "type": "module",
@@ -11,6 +11,8 @@
     "build:firefox": "wxt build -b firefox --mv3",
     "zip": "wxt zip",
     "zip:firefox": "wxt zip -b firefox --mv3",
+    "version:bump": "node scripts/bump-version.mjs",
+    "store:release": "node scripts/bump-version.mjs && npm run icons && npm run compile && npm run zip && npm run zip:firefox",
     "icons": "node scripts/build-icons.mjs",
     "playwright:install": "playwright install chromium",
     "store:screenshots": "node scripts/capture-screenshots.mjs",

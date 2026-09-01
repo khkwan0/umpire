@@ -1,5 +1,7 @@
 # UMPIRE browser extensions
 
+**[Install from the Chrome Web Store](https://chromewebstore.google.com/detail/umpire/lhhafgjninkefjakefhmeepfehfpcmhl)** — toolbar health badge and desktop outage alerts for Chrome and Chromium browsers.
+
 Chrome (MV3) and Firefox (MV3) **companion** extensions that connect to a **UMPIRE server you host** (API + web UI). This extension does not monitor anything by itself — you must run UMPIRE separately.
 
 Once connected, the extension can:
@@ -9,6 +11,16 @@ Once connected, the extension can:
 - Fire desktop notifications when a target goes down/partial or recovers
 
 One TypeScript codebase, built with [WXT](https://wxt.dev/).
+
+## Install
+
+The published Chrome extension is the easiest way to get started:
+
+**[UMPIRE on the Chrome Web Store](https://chromewebstore.google.com/detail/umpire/lhhafgjninkefjakefhmeepfehfpcmhl)**
+
+After installing, open **Options**, set your UMPIRE base URL, and grant site access. You still need a running UMPIRE server — the store listing is a companion, not a hosted monitor.
+
+For Firefox, or to hack on the source, use the local setup below.
 
 ## Setup
 
@@ -65,13 +77,17 @@ The extension does **not** use the `/api/ws` HTTP bridge (that is RPC, not a pus
 Store listing copy, privacy policy, permission justifications, and screenshots live in [`store/`](store/).
 
 ```bash
-npm run zip          # Chrome upload zip
-npm run zip:firefox  # Firefox upload zip
+npm run store:release   # bump patch version, then icons + compile + both store zips
+npm run zip             # Chrome upload zip (no version bump)
+npm run zip:firefox     # Firefox upload zip (no version bump)
+npm run version:bump    # bump patch only; add --minor or --major if needed
 npm run store:screenshots  # regenerate 1280×800 PNGs from mockups
 npm run store:screenshots:prep  # composite raw captures in store/screenshots/source/
 ```
 
 See [`store/LISTING.md`](store/LISTING.md) for short/long descriptions, support URLs, and the release checklist.
+
+Published listing: **[UMPIRE on the Chrome Web Store](https://chromewebstore.google.com/detail/umpire/lhhafgjninkefjakefhmeepfehfpcmhl)**.
 
 ## Layout
 

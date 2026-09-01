@@ -1,6 +1,7 @@
 # UMPIRE
 
 [![CI](https://github.com/khkwan0/umpire/actions/workflows/ci.yml/badge.svg)](https://github.com/khkwan0/umpire/actions/workflows/ci.yml)
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/lhhafgjninkefjakefhmeepfehfpcmhl?label=Chrome%20Web%20Store)](https://chromewebstore.google.com/detail/umpire/lhhafgjninkefjakefhmeepfehfpcmhl)
 
 **Universal Monitoring Plugin & Incident Reporter** — monitoring you can stand up in minutes and grow without rewriting the host.
 
@@ -36,6 +37,10 @@ Full deployment guide (tags, reverse proxy, upgrades): **[docs/deployment.md](do
 ### Run from source
 
 Building locally? Use the deploy script or Compose from a git clone — see **[Run locally](#run-locally)**. Only the **API** is required for headless monitoring — see **[API only](#api-only-headless)**.
+
+## Browser companion
+
+Keep target health on the toolbar without a dashboard tab open. **[Install UMPIRE from the Chrome Web Store](https://chromewebstore.google.com/detail/umpire/lhhafgjninkefjakefhmeepfehfpcmhl)** — badge counts, popup status, and optional desktop alerts when a target goes down or recovers. You still run UMPIRE yourself; the extension only talks to your server. Source and Firefox builds: [extensions/README.md](extensions/README.md).
 
 ## Plugin architecture
 
@@ -395,7 +400,7 @@ SQLite file: `./data/monitor.sqlite` (bind-mounted in Compose at `/data/monitor.
 - CI: GitHub Actions on push/PR ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)). Optional CD: Jenkins — [setup](docs/jenkins.md)
 - Dependency updates: Dependabot (`.github/dependabot.yml`) for npm, Docker, and GitHub Actions
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
-- Browser extensions (Chrome + Firefox): [extensions/README.md](extensions/README.md)
+- Browser companion: **[Chrome Web Store](https://chromewebstore.google.com/detail/umpire/lhhafgjninkefjakefhmeepfehfpcmhl)** — source and Firefox: [extensions/README.md](extensions/README.md)
 - HTTP API operator guide: [docs/api.md](docs/api.md)
 - **Deployment** (Docker Hub, Compose, reverse proxy): [docs/deployment.md](docs/deployment.md)
 - AI agents (MCP, web chat, tokens, WebSockets): [docs/agents.md](docs/agents.md)

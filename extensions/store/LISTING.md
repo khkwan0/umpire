@@ -6,6 +6,7 @@ Use this file when submitting to the **Chrome Web Store**, **Firefox Add-ons (AM
 
 | Field | URL |
 |-------|-----|
+| Chrome Web Store | https://chromewebstore.google.com/detail/umpire/lhhafgjninkefjakefhmeepfehfpcmhl |
 | Homepage | https://github.com/khkwan0/umpire |
 | Support | https://github.com/khkwan0/umpire/issues |
 | Privacy policy | https://github.com/khkwan0/umpire/blob/master/extensions/store/PRIVACY.md |
@@ -216,9 +217,10 @@ npm run store:screenshots:prep:all
 
 ## Release checklist
 
-1. Bump `version` in `extensions/package.json` and `extensions/wxt.config.ts`
-2. `npm run icons && npm run compile && npm run zip && npm run zip:firefox`
-3. Upload zips to each store dashboard
-4. Paste listing copy and permission justifications from this file
-5. Attach screenshots from `store/screenshots/`
-6. Link privacy policy URL
+1. `npm run store:release` — auto-bumps patch version in `package.json` + `wxt.config.ts`, then builds both store zips
+2. Upload zips from `.output/` to each store dashboard
+3. Paste listing copy and permission justifications from this file
+4. Attach screenshots from `store/screenshots/`
+5. Link privacy policy URL
+
+Optional: `npm run version:bump -- --minor` (or `--major`, `--dry-run`) before a manual build.
