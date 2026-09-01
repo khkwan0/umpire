@@ -130,7 +130,11 @@ export async function registerAuthGate(app: FastifyInstance): Promise<void> {
 
     ;(req as AuthRequest).auth = principal
 
-    if (!read && !principal.can_write && !isDeviceRegistrationPath(method, path)) {
+    if (
+      !read &&
+      !principal.can_write &&
+      !isDeviceRegistrationPath(method, path)
+    ) {
       return deny(reply, 403, 'Write access required')
     }
 
