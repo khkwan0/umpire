@@ -137,6 +137,18 @@ describe('evaluateGate', () => {
     ).toEqual({ok: true})
   })
 
+  it('allows anonymous FCM device registration when auth is enabled', () => {
+    expect(
+      evaluateGate({
+        authEnabled: true,
+        allowReadonlyWithoutAuth: false,
+        method: 'POST',
+        path: '/api/plugins/notify/fcm/tokens/register',
+        principal: null,
+      }),
+    ).toEqual({ok: true})
+  })
+
   it('allows read-only users to register FCM device tokens', () => {
     expect(
       evaluateGate({

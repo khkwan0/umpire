@@ -28,9 +28,10 @@ import {useAuth} from './AuthProvider'
 import {useServer} from './ServerProvider'
 
 interface PushContextValue {
-  permission: 'unknown' | 'granted' | 'denied'
+  permission: 'unknown' | 'granted' | 'denied' | 'unavailable'
   registered: boolean
   lastError: string | null
+  deviceSupported: boolean
   refresh: () => Promise<void>
 }
 
@@ -72,20 +73,38 @@ function deviceLabel(): string {
   return os || 'mobile'
 }
 
+function pushLog(message: string, detail?: unknown) {
+  if (__DEV__) {
+    console.log(`[push] ${message}`, detail ?? '')
+  }
+}
+
 export function PushProvider({children}: {children: ReactNode}) {
   const {serverUrl} = useServer()
   const {ready: authReady, principal} = useAuth()
   const [permission, setPermission] = useState<
-    'unknown' | 'granted' | 'denied'
+    'unknown' | 'granted' | 'denied' | 'unavailable'
   >('unknown')
   const [registered, setRegistered] = useState(false)
   const [lastError, setLastError] = useState<string | null>(null)
   const lastTokenRef = useRef<string | null>(null)
   const busyRef = useRef(false)
+  const deviceSupported = Platform.OS !== 'web' && Device.isDevice
 
-  const registerToken = useCallback(async () => {
-    if (Platform.OS === 'web' || !Device.isDevice) return
-    if (!getApiBaseUrl()) return
+  const registerToken = useCallback(async (force = false) => {
+    if (Platform.OS === 'web') {
+      setPermission('unavailable')
+      return
+    }
+    if (!Device.isDevice) {
+      setPermission('unavailable')
+      setLastError('Push requires a physical device (not a simulator)')
+      return
+    }
+    if (!getApiBaseUrl()) {
+      pushLog('skip register — no server URL')
+      return
+    }
     if (busyRef.current) return
 
     busyRef.current = true
@@ -94,31 +113,55 @@ export function PushProvider({children}: {children: ReactNode}) {
       setPermission(allowed ? 'granted' : 'denied')
       if (!allowed) {
         setRegistered(false)
+        setLastError('Notification permission denied')
+        pushLog('permission denied')
         return
       }
 
       await ensureNotificationChannel()
       const messaging = getMessaging()
-      const token = await getToken(messaging)
+      let token: string
+      try {
+        token = await getToken(messaging)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        setRegistered(false)
+        setLastError(
+          Platform.OS === 'ios' && message.toLowerCase().includes('aps')
+            ? 'FCM unavailable — add GoogleService-Info.plist and rebuild'
+            : `FCM token error: ${message}`,
+        )
+        pushLog('getToken failed', message)
+        return
+      }
+
       if (!token) {
         setRegistered(false)
         setLastError('FCM token unavailable')
+        pushLog('empty token')
         return
       }
-      if (token === lastTokenRef.current) {
+      if (!force && token === lastTokenRef.current) {
         setRegistered(true)
         setLastError(null)
         return
       }
 
+      pushLog('registering token', token.slice(0, 20) + '…')
       await api.fcm.register(token, deviceLabel())
       lastTokenRef.current = token
       setRegistered(true)
       setLastError(null)
+      pushLog('registered with server')
     } catch (err) {
-      if (isTransientApiError(err)) return
+      if (isTransientApiError(err)) {
+        pushLog('transient error, will retry later', err)
+        return
+      }
+      const message = err instanceof Error ? err.message : String(err)
       setRegistered(false)
-      setLastError(err instanceof Error ? err.message : String(err))
+      setLastError(message)
+      pushLog('register failed', message)
     } finally {
       busyRef.current = false
     }
@@ -138,8 +181,9 @@ export function PushProvider({children}: {children: ReactNode}) {
 
     const messaging = getMessaging()
     const unsubscribeRefresh = onTokenRefresh(messaging, () => {
+      pushLog('token refreshed')
       lastTokenRef.current = null
-      void registerToken()
+      void registerToken(true)
     })
     const unsubscribeMessage = onMessage(messaging, async remoteMessage => {
       try {
@@ -153,16 +197,22 @@ export function PushProvider({children}: {children: ReactNode}) {
       unsubscribeRefresh()
       unsubscribeMessage()
     }
-  }, [serverUrl, authReady, principal?.kind, registerToken])
+  }, [serverUrl, authReady, principal?.user?.id, registerToken])
+
+  const refresh = useCallback(async () => {
+    lastTokenRef.current = null
+    await registerToken(true)
+  }, [registerToken])
 
   const value = useMemo(
     () => ({
       permission,
       registered,
       lastError,
-      refresh: registerToken,
+      deviceSupported,
+      refresh,
     }),
-    [permission, registered, lastError, registerToken],
+    [permission, registered, lastError, deviceSupported, refresh],
   )
 
   return <PushContext.Provider value={value}>{children}</PushContext.Provider>

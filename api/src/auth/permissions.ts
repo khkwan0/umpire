@@ -77,7 +77,16 @@ export function evaluateGate(input: {
   const read = isReadMethod(method)
   let effective = principal
   if (!effective) {
-    if (read && allowReadonlyWithoutAuth) {
+    if (isDeviceRegistrationPath(method, path)) {
+      effective = {
+        kind: 'anonymous',
+        user: null,
+        is_admin: false,
+        can_write: false,
+        plugins: 'all',
+        single_user_mode: false,
+      }
+    } else if (read && allowReadonlyWithoutAuth) {
       effective = {
         kind: 'anonymous',
         user: null,

@@ -119,7 +119,9 @@ export async function registerAuthGate(app: FastifyInstance): Promise<void> {
     }
 
     if (!principal) {
-      if (read && settings.allow_readonly_without_auth) {
+      if (isDeviceRegistrationPath(method, path)) {
+        principal = getCore().anonymousReadOnlyPrincipal()
+      } else if (read && settings.allow_readonly_without_auth) {
         principal = getCore().anonymousReadOnlyPrincipal()
       } else {
         return deny(reply, 401, 'Authentication required')

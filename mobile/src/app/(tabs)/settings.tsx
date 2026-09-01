@@ -32,6 +32,7 @@ import {
   SectionTitle,
 } from '@/components/umpire-ui'
 import {useAuth} from '@/providers/AuthProvider'
+import {usePush} from '@/providers/PushProvider'
 import {useServer} from '@/providers/ServerProvider'
 import {useUmpireTheme} from '@/hooks/use-umpire-theme'
 import {Spacing} from '@/constants/umpire-theme'
@@ -42,6 +43,13 @@ export default function SettingsScreen() {
   const {colors} = useUmpireTheme()
   const {serverUrl, disconnect} = useServer()
   const {principal, policy, logout, canWrite} = useAuth()
+  const {
+    permission: pushPermission,
+    registered: pushRegistered,
+    lastError: pushError,
+    deviceSupported: pushDeviceSupported,
+    refresh: refreshPush,
+  } = usePush()
   const router = useRouter()
   const [settings, setSettings] = useState<Settings | null>(null)
   const [pluginState, setPluginState] = useState<PluginManagerState | null>(null)
@@ -176,6 +184,27 @@ export default function SettingsScreen() {
               ) : null}
             </>
           )}
+        </Panel>
+
+        <Panel>
+          <SectionTitle>Push notifications</SectionTitle>
+          <MutedText>
+            {pushDeviceSupported
+              ? pushRegistered
+                ? 'This device is registered for FCM alerts.'
+                : 'Not registered with the server yet.'
+              : 'Unavailable on simulator or web.'}
+          </MutedText>
+          <MutedText>
+            {`Permission: ${pushPermission}`}
+          </MutedText>
+          {pushError ? <ErrorText>{pushError}</ErrorText> : null}
+          {pushDeviceSupported ? (
+            <SecondaryButton
+              title="Register push token"
+              onPress={() => void refreshPush()}
+            />
+          ) : null}
         </Panel>
 
         <Panel>

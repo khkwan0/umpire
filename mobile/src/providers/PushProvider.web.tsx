@@ -6,9 +6,10 @@ import {
 } from 'react'
 
 interface PushContextValue {
-  permission: 'unknown' | 'granted' | 'denied'
+  permission: 'unknown' | 'granted' | 'denied' | 'unavailable'
   registered: boolean
   lastError: string | null
+  deviceSupported: boolean
   refresh: () => Promise<void>
 }
 
@@ -17,9 +18,10 @@ const PushContext = createContext<PushContextValue | null>(null)
 export function PushProvider({children}: {children: ReactNode}) {
   const value = useMemo(
     () => ({
-      permission: 'unknown' as const,
+      permission: 'unavailable' as const,
       registered: false,
       lastError: null,
+      deviceSupported: false,
       refresh: async () => {},
     }),
     [],
