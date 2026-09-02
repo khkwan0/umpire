@@ -1,4 +1,7 @@
 {
+  "auth": {
+    "rbac": true
+  },
   "check": {
     "http": true,
     "tls": false,
