@@ -71,6 +71,8 @@ Environment variables (set in `.env` next to the compose file):
 | `BASE_PATH` | `/` | Public URL prefix — must match the **web image** build |
 | `UMPIRE_DATA_DIR` | `./data` | Host directory for SQLite + plugin config |
 | `CHECK_TIMEOUT_MS` | `10000` | HTTP check timeout |
+| `UMPIRE_ADMIN_USERNAME` | *(required)* | Bootstrap admin username on fresh install |
+| `UMPIRE_ADMIN_PASSWORD` | *(required)* | Bootstrap admin password on fresh install |
 
 Example `.env` for a custom registry mirror:
 

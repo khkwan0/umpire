@@ -1,5 +1,5 @@
 import {useState} from 'react'
-import {Text, View} from 'react-native'
+import {View} from 'react-native'
 import {useRouter} from 'expo-router'
 import {Screen} from '@/components/screen'
 import {Field, PrimaryButton} from '@/components/form'
@@ -9,7 +9,7 @@ import {useUmpireTheme} from '@/hooks/use-umpire-theme'
 import {Spacing} from '@/constants/umpire-theme'
 
 export default function LoginScreen() {
-  const {login, policy} = useAuth()
+  const {login} = useAuth()
   const router = useRouter()
   const {colors} = useUmpireTheme()
   const [username, setUsername] = useState('')
@@ -40,11 +40,6 @@ export default function LoginScreen() {
           borderColor: colors.line,
           padding: Spacing.three,
         }}>
-        {policy?.allow_readonly_without_auth ? (
-          <Text style={{color: colors.textSecondary, marginBottom: Spacing.two}}>
-            Anonymous read-only access is allowed. Sign in for write access.
-          </Text>
-        ) : null}
         <Field
           label="Username"
           value={username}

@@ -36,8 +36,6 @@ export interface GroupTreeNode extends Group {
 export interface Settings {
   alert_policy: AlertPolicy
   throttle_minutes: number
-  auth_enabled: boolean
-  allow_readonly_without_auth: boolean
 }
 
 export type AuthPluginKind = 'check' | 'notify' | 'scheduler'
@@ -73,12 +71,9 @@ export interface AuthPrincipal {
   is_admin: boolean
   can_write: boolean
   plugins: 'all' | RolePluginRef[]
-  single_user_mode: boolean
 }
 
 export interface AuthPolicy {
-  auth_enabled: boolean
-  allow_readonly_without_auth: boolean
   login_required: boolean
   user_count: number
 }

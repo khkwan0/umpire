@@ -45,16 +45,12 @@ describeStore('core sqlite store', () => {
     expect(core.getSettings()).toEqual({
       alert_policy: 'state_change',
       throttle_minutes: 30,
-      auth_enabled: false,
-      allow_readonly_without_auth: false,
     })
     expect(
       core.updateSettings({alert_policy: 'throttle', throttle_minutes: 5}),
     ).toEqual({
       alert_policy: 'throttle',
       throttle_minutes: 5,
-      auth_enabled: false,
-      allow_readonly_without_auth: false,
     })
     expect(() =>
       core.updateSettings({alert_policy: 'nope' as 'state_change'}),
@@ -62,9 +58,14 @@ describeStore('core sqlite store', () => {
     expect(() => core.updateSettings({throttle_minutes: 0})).toThrow(
       'throttle_minutes must be >= 1',
     )
-    expect(() => core.updateSettings({auth_enabled: true})).toThrow(
-      'Cannot enable auth until at least one user exists',
-    )
+  })
+
+  it('bootstraps admin on a fresh install', () => {
+    const user = core.bootstrapAdmin('admin', 'password1')
+    expect(user.username).toBe('admin')
+    expect(user.role_slug).toBe('admin')
+    expect(core.countUsers()).toBe(1)
+    core.ensureAuthEnabled()
   })
 
   it('assigns group tags by path and builds a tree', () => {

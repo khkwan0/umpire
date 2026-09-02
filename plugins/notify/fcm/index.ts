@@ -1,49 +1,54 @@
 import fs from 'node:fs'
-import {getApps} from 'firebase-admin/app'
 import type {NotifierPlugin} from '../../../api/src/plugins/types.js'
-import {serviceAccountPath} from './credentials.js'
+import {credentialsStatus, readServiceAccountFile} from './credentials.js'
 import {registerFcmRoutes} from './routes.js'
-import {initFirebase, sendToMany} from './send.js'
+import {
+  initFirebase,
+  isMessagingReady,
+  sendToMany,
+} from './send.js'
 import {matchingFids, resolveFcmConfigForTarget} from './config.js'
+import {
+  isFcmNotifierReady,
+  setFcmNotifierReady,
+  syncFcmNotifierReady,
+} from './runtime.js'
 
-let ready = false
+function initFromDisk(): void {
+  const credPath = credentialsStatus().path
+  if (!fs.existsSync(credPath)) {
+    setFcmNotifierReady(false)
+    console.warn(
+      `[notify:fcm] credentials file missing at ${credPath}; alerts disabled`,
+    )
+    return
+  }
+  const parsed = readServiceAccountFile()
+  if (!parsed) {
+    setFcmNotifierReady(false)
+    console.error('[notify:fcm] credentials file is invalid')
+    return
+  }
+  try {
+    initFirebase(parsed.account)
+    syncFcmNotifierReady()
+    if (isFcmNotifierReady()) console.log('[notify:fcm] initialized')
+  } catch (err) {
+    setFcmNotifierReady(false)
+    console.error('[notify:fcm] failed to initialize', err)
+  }
+}
 
 const fcmNotifier: NotifierPlugin = {
   id: 'fcm',
   description: 'Pushes alerts to Firebase Cloud Messaging FID destinations.',
 
   init(): void {
-    const credPath = serviceAccountPath()
-    if (!fs.existsSync(credPath)) {
-      console.warn(
-        `[notify:fcm] credentials file missing at ${credPath}; alerts disabled`,
-      )
-      return
-    }
-    if (getApps().length) {
-      ready = true
-      return
-    }
-    try {
-      const raw = JSON.parse(fs.readFileSync(credPath, 'utf8')) as {
-        project_id: string
-        client_email: string
-        private_key: string
-      }
-      initFirebase({
-        projectId: raw.project_id,
-        clientEmail: raw.client_email,
-        privateKey: raw.private_key.replace(/\\n/g, '\n'),
-      })
-      ready = true
-      console.log('[notify:fcm] initialized')
-    } catch (err) {
-      console.error('[notify:fcm] failed to initialize', err)
-    }
+    initFromDisk()
   },
 
   isReady(): boolean {
-    return ready
+    return isFcmNotifierReady()
   },
 
   async registerRoutes(app) {
@@ -51,7 +56,7 @@ const fcmNotifier: NotifierPlugin = {
   },
 
   async notify(ctx) {
-    if (!ready) {
+    if (!isFcmNotifierReady()) {
       console.warn('[notify:fcm] skip send — not initialized')
       return
     }

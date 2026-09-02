@@ -20,6 +20,8 @@ import {
   updateDestination,
 } from './destinations.js'
 import {isUnregisteredTokenError, sendToMany, testPushCopy} from './send.js'
+import {applyServiceAccount, clearServiceAccount, isFcmNotifierReady} from './runtime.js'
+import {credentialsStatus} from './credentials.js'
 
 const errorResponse = {
   type: 'object',
@@ -80,6 +82,29 @@ const fcmDestinationTestSchema = {
   },
 } as const
 
+const fcmCredentialsStatusSchema = {
+  type: 'object',
+  required: [
+    'configured',
+    'project_id',
+    'client_email',
+    'client_id',
+    'path',
+    'ready',
+  ],
+  properties: {
+    configured: {type: 'boolean'},
+    project_id: {type: ['string', 'null']},
+    client_email: {type: ['string', 'null']},
+    client_id: {type: ['string', 'null']},
+    path: {type: 'string'},
+    ready: {
+      type: 'boolean',
+      description: 'True when Firebase Admin SDK initialized successfully.',
+    },
+  },
+} as const
+
 async function testFcmConfig(config: FcmConfig): Promise<void> {
   const destinations = destinationsForConfig(config)
   if (destinations.length === 0) {
@@ -94,6 +119,89 @@ async function testFcmConfig(config: FcmConfig): Promise<void> {
 }
 
 export async function registerFcmRoutes(app: FastifyInstance): Promise<void> {
+  app.get(
+    '/credentials',
+    {
+      schema: {
+        tags: ['fcm'],
+        summary: 'FCM service account status (no private key)',
+        response: {
+          200: fcmCredentialsStatusSchema,
+        },
+      },
+    },
+    async () => ({
+      ...credentialsStatus(),
+      ready: isFcmNotifierReady(),
+    }),
+  )
+
+  app.put(
+    '/credentials',
+    {
+      schema: {
+        tags: ['fcm'],
+        summary: 'Upload Firebase service account JSON',
+        description:
+          'Body is the JSON key file from Firebase Console → Project settings → Service accounts → Generate new private key. Saved to the plugin sidecar and loaded immediately — no API restart required.',
+        body: {
+          type: 'object',
+          required: ['type', 'project_id', 'private_key', 'client_email'],
+          properties: {
+            type: {type: 'string', enum: ['service_account']},
+            project_id: {type: 'string'},
+            private_key: {type: 'string'},
+            client_email: {type: 'string'},
+            client_id: {type: 'string'},
+            private_key_id: {type: 'string'},
+          },
+          additionalProperties: true,
+        },
+        response: {
+          200: {
+            type: 'object',
+            required: ['ok', 'status'],
+            properties: {
+              ok: {type: 'boolean'},
+              status: fcmCredentialsStatusSchema,
+              error: {type: 'string'},
+            },
+          },
+          400: errorResponse,
+        },
+      },
+    },
+    async (req, reply) => {
+      const result = await applyServiceAccount(req.body)
+      if (!result.ok) {
+        return reply
+          .code(400)
+          .send({error: result.error ?? 'failed to apply credentials'})
+      }
+      return {
+        ok: true,
+        status: {...result.status, ready: isFcmNotifierReady()},
+      }
+    },
+  )
+
+  app.delete(
+    '/credentials',
+    {
+      schema: {
+        tags: ['fcm'],
+        summary: 'Remove stored Firebase service account',
+        response: {
+          204: {type: 'null', description: 'Removed'},
+        },
+      },
+    },
+    async (_req, reply) => {
+      await clearServiceAccount()
+      return reply.code(204).send()
+    },
+  )
+
   app.get(
     '/tokens',
     {

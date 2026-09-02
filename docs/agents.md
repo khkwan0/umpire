@@ -33,8 +33,6 @@ curl -s -b /tmp/umpire.cookies -X POST http://localhost:8089/api/tokens \
 
 Copy the `token` field (`umpire_…`) — it is shown **once**. Use a dedicated user/role with the minimum permissions your agent needs.
 
-When `auth_enabled` is false, tokens are optional (anonymous admin applies).
-
 ### 3a. Wire MCP (Cursor / Claude Desktop)
 
 ```bash
@@ -180,9 +178,8 @@ Chat sessions are stored in SQLite (`agent_chats`, `agent_chat_messages`). The w
 | Principal | REST (`/api/agent/chats`) | WebSocket (`chat` frame) |
 |-----------|---------------------------|---------------------------|
 | Logged-in user (session cookie or `Authorization: Bearer umpire_…`) | Chats scoped to `user_id` | Pass `chat_id`; messages persist automatically |
-| Anonymous when `auth_enabled` is false | Send `X-Umpire-Chat-Owner: <uuid>` on every request | Pass `chat_id` and `owner_key` (same uuid) on each `chat` frame |
 
-Write access is required (`can_write`). Read-only anonymous principals cannot create or use chats.
+Write access is required (`can_write`). Read-only users cannot create or use chats.
 
 ### REST examples
 

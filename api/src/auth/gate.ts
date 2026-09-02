@@ -7,6 +7,7 @@ import {
   isAdminOnlyPath,
   isDeviceRegistrationPath,
   isReadMethod,
+  isSelfServiceAuthPath,
   parsePluginPath,
   pluginAllowed,
 } from './permissions.js'
@@ -42,12 +43,11 @@ function deny(
 }
 
 /**
- * Resolve the effective principal for a request (Bearer token, session, or anonymous).
+ * Resolve the effective principal for a request (Bearer token or session).
  * Does not enforce; used by the gate and GET /api/auth/me.
  */
 export function resolvePrincipal(req: FastifyRequest): AuthPrincipal | null {
   const store = getCore()
-  const settings = store.getSettings()
 
   const bearer = getBearerToken(req)
   if (bearer) {
@@ -56,22 +56,9 @@ export function resolvePrincipal(req: FastifyRequest): AuthPrincipal | null {
 
   const token = getSessionToken(req)
   if (token) {
-    const principal = store.resolveSessionPrincipal(token)
-    if (principal) return principal
+    return store.resolveSessionPrincipal(token)
   }
-  if (!settings.auth_enabled) {
-    return {
-      kind: 'anonymous',
-      user: null,
-      is_admin: true,
-      can_write: true,
-      plugins: 'all',
-      single_user_mode: store.countUsers() === 1,
-    }
-  }
-  if (settings.allow_readonly_without_auth) {
-    return store.anonymousReadOnlyPrincipal()
-  }
+
   return null
 }
 
@@ -95,12 +82,6 @@ export async function registerAuthGate(app: FastifyInstance): Promise<void> {
       return
     }
 
-    const settings = getCore().getSettings()
-    if (!settings.auth_enabled) {
-      ;(req as AuthRequest).auth = resolvePrincipal(req)!
-      return
-    }
-
     const method = req.method.toUpperCase()
     const read = isReadMethod(method)
     const bearer = getBearerToken(req)
@@ -121,8 +102,6 @@ export async function registerAuthGate(app: FastifyInstance): Promise<void> {
     if (!principal) {
       if (isDeviceRegistrationPath(method, path)) {
         principal = getCore().anonymousReadOnlyPrincipal()
-      } else if (read && settings.allow_readonly_without_auth) {
-        principal = getCore().anonymousReadOnlyPrincipal()
       } else {
         return deny(reply, 401, 'Authentication required')
       }
@@ -133,7 +112,12 @@ export async function registerAuthGate(app: FastifyInstance): Promise<void> {
     if (
       !read &&
       !principal.can_write &&
+<<<<<<< HEAD
       !isDeviceRegistrationPath(method, path)
+=======
+      !isDeviceRegistrationPath(method, path) &&
+      !isSelfServiceAuthPath(method, path)
+>>>>>>> 7341e40 (initial auith)
     ) {
       return deny(reply, 403, 'Write access required')
     }

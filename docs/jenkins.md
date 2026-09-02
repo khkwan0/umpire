@@ -15,7 +15,7 @@ This Jenkins pipeline is optional **on-host** CD. The repo ships a Declarative P
 
 Jest writes `api/junit.xml`. The **JUnit** publisher shows pass/fail history on the job.
 
-FCM is **off by default**. Deploy does not need a Firebase file. To use FCM: enable it in **Settings → Plugin manager**, then put a real Admin SDK JSON at `data/fcm-service-account.json` on the agent (copy from `plugins/notify/fcm/fcm-service-account.json.example`). Until both are done, FCM stays disabled / `ready: false`.
+FCM is **off by default**. Deploy does not need a Firebase file. To use FCM: enable it in **Settings → Plugin manager**, then upload the Admin SDK JSON under **Notifiers → FCM FIDs** (or place `data/fcm-service-account.json` on the agent). Until both are done, FCM stays disabled / `ready: false`.
 
 Compose builds `api` and `web` from the **repo root** so the images can copy [`plugins/`](../plugins/). Do not change the build context to `api/` or `web/`.
 

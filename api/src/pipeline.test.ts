@@ -78,8 +78,6 @@ describe('runCheck', () => {
     store.getSettings.mockReturnValue({
       alert_policy: 'state_change',
       throttle_minutes: 30,
-      auth_enabled: false,
-      allow_readonly_without_auth: false,
     })
     store.getTargetState.mockReturnValue(undefined)
     store.getTargetCheckConfig.mockReturnValue(null)

@@ -27,10 +27,12 @@ All paths below are relative to the base URL.
 
 ## Authentication
 
-Auth is **off by default**. When enabled (`PUT /api/settings` → `auth_enabled: true`), protected routes require either:
+Authentication is **always required**. Protected routes accept either:
 
 - **Session cookie** — `POST /api/auth/login`, then send `umpire_session` on later requests
 - **Bearer token** — `POST /api/tokens` (while logged in), then `Authorization: Bearer umpire_…`
+
+On a fresh install, set `UMPIRE_ADMIN_USERNAME` and `UMPIRE_ADMIN_PASSWORD` before starting the API (see [deployment guide](deployment.md)). Change the bootstrap password with `POST /api/auth/change-password` or **Settings → Change password**.
 
 Check policy without credentials: `GET /api/auth/policy`. Current principal: `GET /api/auth/me`.
 
@@ -114,7 +116,7 @@ Each loaded plugin mounts under `/api/plugins/<kind>/<id>/…`. Common patterns:
 | Keyword-body check | — | `GET/PUT …/check/keyword-body/targets/:targetId/config` |
 | Webhook | `GET/PUT …/notify/webhook/config`, `POST …/test` | `GET …/overrides`, `GET/PUT/DELETE …/targets/:targetId/config`, `POST …/test` |
 | Slack, Discord, Telegram, Email | Same as webhook | Same as webhook |
-| FCM | `GET/POST/PATCH/DELETE …/notify/fcm/tokens`, import/test routes | `GET/PUT/DELETE …/targets/:targetId/config` |
+| FCM | `GET/PUT/DELETE …/notify/fcm/credentials`, `GET/POST/PATCH/DELETE …/notify/fcm/tokens`, import/test/register routes | `GET/PUT/DELETE …/targets/:targetId/config` |
 
 Use `GET /api/plugins` for the exact method/path list on your deployment (depends on `api/plugins.json` and plugin-manager flags).
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   api,
+  type FcmCredentialsStatus,
   type FcmDestination,
   type FcmDestinationImportResult,
   type FcmDestinationTestResult,
@@ -79,9 +80,24 @@ export default function TokensPage() {
     null,
   )
   const fileRef = useRef<HTMLInputElement>(null)
+  const credentialsFileRef = useRef<HTMLInputElement>(null)
+  const [credentials, setCredentials] = useState<FcmCredentialsStatus | null>(
+    null,
+  )
+  const [credentialsJson, setCredentialsJson] = useState('')
+  const [credentialsBusy, setCredentialsBusy] = useState(false)
+  const [credentialsError, setCredentialsError] = useState<string | null>(null)
+  const [credentialsMessage, setCredentialsMessage] = useState<string | null>(
+    null,
+  )
 
   const load = useCallback(async () => {
-    setTokens(await api.tokens.list())
+    const [rows, creds] = await Promise.all([
+      api.tokens.list(),
+      api.tokens.credentials.get(),
+    ])
+    setTokens(rows)
+    setCredentials(creds)
   }, [])
 
   useEffect(() => {
@@ -256,8 +272,163 @@ export default function TokensPage() {
     }
   }
 
+  function parseCredentialsJson(text: string): Record<string, unknown> {
+    const parsed = JSON.parse(text) as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('service account JSON must be an object')
+    }
+    return parsed as Record<string, unknown>
+  }
+
+  async function onCredentialsFile(file: File | undefined) {
+    if (!file) return
+    setCredentialsError(null)
+    setCredentialsMessage(null)
+    try {
+      const text = await file.text()
+      setCredentialsJson(text)
+      parseCredentialsJson(text)
+    } catch (err) {
+      setCredentialsError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  async function onSaveCredentials(e: FormEvent) {
+    e.preventDefault()
+    setCredentialsBusy(true)
+    setCredentialsError(null)
+    setCredentialsMessage(null)
+    try {
+      const payload = parseCredentialsJson(credentialsJson)
+      const result = await api.tokens.credentials.put(payload)
+      if (!result.ok) {
+        throw new Error(result.error ?? 'failed to save credentials')
+      }
+      setCredentials(result.status)
+      setCredentialsJson('')
+      if (credentialsFileRef.current) credentialsFileRef.current.value = ''
+      setCredentialsMessage('Service account saved. FCM is ready to send.')
+    } catch (err) {
+      setCredentialsError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setCredentialsBusy(false)
+    }
+  }
+
+  async function onRemoveCredentials() {
+    if (
+      !window.confirm(
+        'Remove the stored Firebase service account? Push delivery will stop until you upload a new key.',
+      )
+    ) {
+      return
+    }
+    setCredentialsBusy(true)
+    setCredentialsError(null)
+    setCredentialsMessage(null)
+    try {
+      await api.tokens.credentials.remove()
+      await load()
+      setCredentialsJson('')
+      if (credentialsFileRef.current) credentialsFileRef.current.value = ''
+      setCredentialsMessage('Service account removed.')
+    } catch (err) {
+      setCredentialsError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setCredentialsBusy(false)
+    }
+  }
+
   return (
     <div className="stack">
+      <section className="panel">
+        <h2>Firebase service account</h2>
+        <p className="muted">
+          Each UMPIRE server needs its own Firebase project credentials to send
+          push notifications. Upload the JSON private key from Firebase Console.
+          The file is stored on the server only; the private key is never shown
+          again after upload.
+        </p>
+        <ol className="muted small">
+          <li>
+            Open{' '}
+            <a href="https://console.firebase.google.com/" target="_blank" rel="noreferrer">
+              Firebase Console
+            </a>{' '}
+            and select your project (or create one).
+          </li>
+          <li>
+            Go to <strong>Project settings</strong> (gear) →{' '}
+            <strong>Service accounts</strong>.
+          </li>
+          <li>
+            Click <strong>Generate new private key</strong> and download the{' '}
+            <span className="mono">.json</span> file.
+          </li>
+          <li>
+            For iOS delivery, also upload your APNs key under{' '}
+            <strong>Project settings → Cloud Messaging</strong> (Apple app
+            configuration).
+          </li>
+          <li>Paste or upload that JSON below, then save.</li>
+        </ol>
+        {credentials && (
+          <p className={credentials.ready ? 'ok' : credentials.configured ? 'error' : 'muted'}>
+            {credentials.configured ? (
+              <>
+                <strong>{credentials.ready ? 'Ready' : 'Configured but not ready'}</strong>
+                {credentials.project_id ? ` · ${credentials.project_id}` : ''}
+                {credentials.client_email ? (
+                  <>
+                    {' '}
+                    · <span className="mono">{credentials.client_email}</span>
+                  </>
+                ) : null}
+              </>
+            ) : (
+              'No service account configured yet.'
+            )}
+          </p>
+        )}
+        <form className="form-col" onSubmit={onSaveCredentials} style={{ maxWidth: 'none' }}>
+          <label className="grow">
+            Service account JSON
+            <textarea
+              value={credentialsJson}
+              onChange={(e) => setCredentialsJson(e.target.value)}
+              placeholder='{ "type": "service_account", "project_id": "...", ... }'
+              spellCheck={false}
+            />
+          </label>
+          <div className="form-row">
+            <label>
+              File
+              <input
+                ref={credentialsFileRef}
+                type="file"
+                accept="application/json,.json"
+                onChange={(e) => void onCredentialsFile(e.target.files?.[0])}
+              />
+            </label>
+            <button type="submit" disabled={credentialsBusy || !credentialsJson.trim()}>
+              {credentialsBusy ? 'Saving…' : 'Save credentials'}
+            </button>
+            {credentials?.configured ? (
+              <button
+                type="button"
+                className="danger"
+                disabled={credentialsBusy}
+                onClick={() => void onRemoveCredentials()}
+              >
+                Remove
+              </button>
+            ) : null}
+          </div>
+        </form>
+        {credentialsMessage && <p className="ok">{credentialsMessage}</p>}
+        {credentialsError && <p className="error">{credentialsError}</p>}
+      </section>
+
       <section className="panel">
         <h2>Add FCM FID</h2>
         <p className="muted">

@@ -98,14 +98,14 @@ export function AuthProvider({children}: {children: ReactNode}) {
 
   const canAccessPlugin = useCallback(
     (kind: AuthPluginKind, id: string) => {
-      if (!principal) return !policy?.login_required
+      if (!principal) return false
       if (principal.plugins === 'all') return true
       return principal.plugins.some(p => p.kind === kind && p.id === id)
     },
-    [principal, policy],
+    [principal],
   )
 
-  const canWrite = principal?.can_write ?? !policy?.login_required
+  const canWrite = Boolean(principal?.can_write)
 
   const value = useMemo(
     () => ({

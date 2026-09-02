@@ -4,7 +4,7 @@ import {useAuth} from '../auth'
 import {assetUrl} from '../basePath'
 
 export default function LoginPage() {
-  const {ready, policy, principal, login} = useAuth()
+  const {ready, principal, login} = useAuth()
   const navigate = useNavigate()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -15,14 +15,6 @@ export default function LoginPage() {
 
   if (principal?.kind === 'user') {
     return <Navigate to="/" replace />
-  }
-
-  if (policy && !policy.login_required && !policy.auth_enabled) {
-    return <Navigate to="/" replace />
-  }
-
-  if (policy && policy.auth_enabled && !policy.login_required) {
-    // Anonymous read-only is allowed; still permit login for writers.
   }
 
   async function onSubmit(e: FormEvent) {

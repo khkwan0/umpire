@@ -812,8 +812,6 @@ export const core: CoreStore = {
         ? policy
         : 'state_change',
       throttle_minutes: Math.max(1, Number(map.throttle_minutes) || 30),
-      auth_enabled: map.auth_enabled === '1',
-      allow_readonly_without_auth: map.allow_readonly_without_auth === '1',
     }
   },
 
@@ -822,10 +820,6 @@ export const core: CoreStore = {
     const next: Settings = {
       alert_policy: partial.alert_policy ?? current.alert_policy,
       throttle_minutes: partial.throttle_minutes ?? current.throttle_minutes,
-      auth_enabled: partial.auth_enabled ?? current.auth_enabled,
-      allow_readonly_without_auth:
-        partial.allow_readonly_without_auth ??
-        current.allow_readonly_without_auth,
     }
     if (
       !['state_change', 'every_fail', 'throttle'].includes(next.alert_policy)
@@ -835,18 +829,14 @@ export const core: CoreStore = {
     if (!Number.isFinite(next.throttle_minutes) || next.throttle_minutes < 1) {
       throw new Error('throttle_minutes must be >= 1')
     }
-    if (next.auth_enabled && core.countUsers() < 1) {
-      throw new Error('Cannot enable auth until at least one user exists')
-    }
     const upsert = getStmts().upsertSetting
     upsert.run('alert_policy', next.alert_policy)
     upsert.run('throttle_minutes', String(next.throttle_minutes))
-    upsert.run('auth_enabled', next.auth_enabled ? '1' : '0')
-    upsert.run(
-      'allow_readonly_without_auth',
-      next.allow_readonly_without_auth ? '1' : '0',
-    )
     return next
+  },
+
+  ensureAuthEnabled(): void {
+    getStmts().upsertSetting.run('auth_enabled', '1')
   },
 
   getStoredAgentSettings() {
@@ -1189,6 +1179,19 @@ export const core: CoreStore = {
     return Number(row.n) || 0
   },
 
+  bootstrapAdmin(username: string, password: string): User {
+    if (core.countUsers() > 0) {
+      throw new Error('Bootstrap admin can only be created on a fresh install')
+    }
+    const adminRole = core.getRoleBySlug('admin')
+    if (!adminRole) throw new Error('admin role not found')
+    return core.createUser({
+      username,
+      password,
+      role_id: adminRole.id,
+    })
+  },
+
   listUsers(): User[] {
     return (getStmts().selectUsers.all() as UserRow[]).map(mapUser)
   },
@@ -1264,9 +1267,8 @@ export const core: CoreStore = {
   },
 
   deleteUser(id: number): boolean {
-    const settings = core.getSettings()
-    if (settings.auth_enabled && core.countUsers() <= 1) {
-      throw new Error('Cannot delete the last user while auth is enabled')
+    if (core.countUsers() <= 1) {
+      throw new Error('Cannot delete the last user')
     }
     const result = getStmts().deleteUserById.run(id)
     return result.changes > 0
@@ -1425,7 +1427,6 @@ export const core: CoreStore = {
       is_admin: false,
       can_write: false,
       plugins: 'all',
-      single_user_mode: core.countUsers() === 1,
     }
   },
 
@@ -1434,15 +1435,13 @@ export const core: CoreStore = {
     if (!user) return null
     const role = core.getRole(user.role_id)
     if (!role) return null
-    const singleUserMode = core.countUsers() === 1
-    if (singleUserMode || role.slug === 'admin') {
+    if (role.slug === 'admin') {
       return {
         kind: 'user',
         user,
         is_admin: true,
         can_write: true,
         plugins: 'all',
-        single_user_mode: singleUserMode,
       }
     }
     return {
@@ -1451,7 +1450,6 @@ export const core: CoreStore = {
       is_admin: false,
       can_write: role.can_write,
       plugins: role.plugins,
-      single_user_mode: false,
     }
   },
 
@@ -1741,11 +1739,12 @@ export function initCore(databasePath: string): void {
   const insertSetting = stmts.insertSettingIgnore
   insertSetting.run('alert_policy', 'state_change')
   insertSetting.run('throttle_minutes', '30')
-  insertSetting.run('auth_enabled', '0')
+  insertSetting.run('auth_enabled', '1')
   insertSetting.run('allow_readonly_without_auth', '0')
 
   const insertRole = stmts.insertRoleIgnore
   insertRole.run('admin', 'Admin', 1, 1)
+  insertRole.run('read_write', 'Read + write', 1, 1)
   insertRole.run('read_only', 'Read only', 1, 0)
 
   console.log(`[core] sqlite=${resolved}`)

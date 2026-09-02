@@ -113,19 +113,27 @@ Docker: [`api/Dockerfile`](../api/Dockerfile) and [`web/Dockerfile`](../web/Dock
 
 ## Authentication and RBAC
 
-Auth is **host-owned** (not a plugin kind). Default: disabled — every HTTP API is open.
+Auth is **always on** and **host-owned** (not a plugin kind). On a fresh install the API creates the first admin from `UMPIRE_ADMIN_USERNAME` and `UMPIRE_ADMIN_PASSWORD` and refuses to start without them. Existing databases with users ignore those env vars; auth is forced on at startup.
 
-| Setting | Meaning |
+| Env var | Purpose |
 |---------|---------|
-| `auth_enabled` | When true, mutating methods need a session with `can_write`; admin-only paths need `is_admin` |
-| `allow_readonly_without_auth` | When auth is on, allow unauthenticated `GET`/`HEAD` as read-only |
+| `UMPIRE_ADMIN_USERNAME` | Bootstrap admin username (fresh install only) |
+| `UMPIRE_ADMIN_PASSWORD` | Bootstrap admin password (fresh install only, min 8 chars) |
+
+Built-in roles (seeded, immutable):
+
+| Slug | Access |
+|------|--------|
+| `admin` | Full access including user/role management and settings |
+| `read_write` | Mutate targets, checks, and notifiers; no admin paths |
+| `read_only` | Read-only API access |
+
+Custom roles have `can_write` plus a plugin allowlist (`role_plugins`). Empty allowlist = no plugin HTTP/UI access.
 
 Rules:
 
-- Cannot set `auth_enabled` until at least one user exists.
-- With exactly one user, that user is always effective **admin** (full access), regardless of assigned role.
-- Built-in roles `admin` and `read_only` are seeded and immutable. Custom roles have `can_write` plus a plugin allowlist (`role_plugins`). Empty allowlist = no plugin HTTP/UI access.
 - Admin-only: `/api/users`, `/api/roles`, `PUT /api/settings`, plugin-manager mutations.
+- Any signed-in user may `POST /api/auth/change-password`.
 - Plugin namespaces `/api/plugins/<kind>/<id>/…` are gated by the allowlist for non-admin roles.
 - Pipeline / in-process `runCheck` writes are **not** gated by HTTP auth.
 
@@ -143,7 +151,7 @@ Send `Authorization: Bearer umpire_…` on HTTP and WebSocket-bridge requests. T
 
 **UI:** **Settings → API tokens** — create and revoke tokens without curl.
 
-When `auth_enabled` is false, tokens are optional (anonymous admin applies).
+All API access requires authentication (session cookie or Bearer token). Public paths: `/api/health`, `/api/auth/policy`, `/api/auth/login`, `/api/auth/logout`.
 
 ### AI agents (MCP and built-in web chat)
 

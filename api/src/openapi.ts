@@ -166,20 +166,13 @@ const checkResultSchema = {
 const settingsSchema = {
   $id: 'Settings',
   type: 'object',
-  required: [
-    'alert_policy',
-    'throttle_minutes',
-    'auth_enabled',
-    'allow_readonly_without_auth',
-  ],
+  required: ['alert_policy', 'throttle_minutes'],
   properties: {
     alert_policy: {
       type: 'string',
       enum: ['state_change', 'every_fail', 'throttle'],
     },
     throttle_minutes: {type: 'integer', minimum: 1},
-    auth_enabled: {type: 'boolean'},
-    allow_readonly_without_auth: {type: 'boolean'},
   },
 } as const
 
@@ -247,14 +240,7 @@ const userSchema = {
 const authPrincipalSchema = {
   $id: 'AuthPrincipal',
   type: 'object',
-  required: [
-    'kind',
-    'user',
-    'is_admin',
-    'can_write',
-    'plugins',
-    'single_user_mode',
-  ],
+  required: ['kind', 'user', 'is_admin', 'can_write', 'plugins'],
   properties: {
     kind: {type: 'string', enum: ['anonymous', 'user']},
     user: {oneOf: [{$ref: 'User#'}, {type: 'null'}]},
@@ -266,7 +252,6 @@ const authPrincipalSchema = {
         {type: 'array', items: {$ref: 'RolePluginRef#'}},
       ],
     },
-    single_user_mode: {type: 'boolean'},
   },
 } as const
 

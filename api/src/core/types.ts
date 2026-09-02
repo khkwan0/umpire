@@ -101,6 +101,8 @@ export interface CoreStore {
   dumpData(): Record<string, unknown[]>
 
   countUsers(): number
+  bootstrapAdmin(username: string, password: string): User
+  ensureAuthEnabled(): void
   listUsers(): User[]
   getUser(id: number): User | undefined
   getUserByUsername(username: string): User | undefined

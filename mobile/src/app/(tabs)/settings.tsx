@@ -42,7 +42,7 @@ const POLICIES: AlertPolicy[] = ['state_change', 'every_fail', 'throttle']
 export default function SettingsScreen() {
   const {colors} = useUmpireTheme()
   const {serverUrl, disconnect} = useServer()
-  const {principal, policy, logout, canWrite} = useAuth()
+  const {principal, logout, canWrite} = useAuth()
   const {
     permission: pushPermission,
     registered: pushRegistered,
@@ -171,17 +171,11 @@ export default function SettingsScreen() {
             </>
           ) : (
             <>
-              <MutedText>
-                {policy?.auth_enabled
-                  ? 'Anonymous session'
-                  : 'Authentication disabled'}
-              </MutedText>
-              {policy?.auth_enabled ? (
-                <PrimaryButton
-                  title="Sign in"
-                  onPress={() => router.push('/login')}
-                />
-              ) : null}
+              <MutedText>Not signed in</MutedText>
+              <PrimaryButton
+                title="Sign in"
+                onPress={() => router.push('/login')}
+              />
             </>
           )}
         </Panel>

@@ -18,6 +18,13 @@ export function isDeviceRegistrationPath(
   )
 }
 
+/** Any signed-in user may change their own password. */
+export function isSelfServiceAuthPath(method: string, path: string): boolean {
+  return (
+    method.toUpperCase() === 'POST' && path === '/api/auth/change-password'
+  )
+}
+
 export function isAdminOnlyPath(method: string, path: string): boolean {
   if (path === '/api/users' || path.startsWith('/api/users/')) return true
   if (path === '/api/roles' || path.startsWith('/api/roles/')) return true
@@ -59,13 +66,11 @@ export type GateDecision =
   {ok: true} | {ok: false; status: 401 | 403; error: string}
 
 export function evaluateGate(input: {
-  authEnabled: boolean
-  allowReadonlyWithoutAuth: boolean
   method: string
   path: string
   principal: AuthPrincipal | null
 }): GateDecision {
-  const {authEnabled, allowReadonlyWithoutAuth, method, path, principal} = input
+  const {method, path, principal} = input
   if (!path.startsWith('/api/')) return {ok: true}
   if (
     path === '/api/health' ||
@@ -75,7 +80,6 @@ export function evaluateGate(input: {
   ) {
     return {ok: true}
   }
-  if (!authEnabled) return {ok: true}
 
   const read = isReadMethod(method)
   let effective = principal
@@ -87,16 +91,6 @@ export function evaluateGate(input: {
         is_admin: false,
         can_write: false,
         plugins: 'all',
-        single_user_mode: false,
-      }
-    } else if (read && allowReadonlyWithoutAuth) {
-      effective = {
-        kind: 'anonymous',
-        user: null,
-        is_admin: false,
-        can_write: false,
-        plugins: 'all',
-        single_user_mode: false,
       }
     } else {
       return {ok: false, status: 401, error: 'Authentication required'}
@@ -106,7 +100,12 @@ export function evaluateGate(input: {
   if (
     !read &&
     !effective.can_write &&
+<<<<<<< HEAD
     !isDeviceRegistrationPath(method, path)
+=======
+    !isDeviceRegistrationPath(method, path) &&
+    !isSelfServiceAuthPath(method, path)
+>>>>>>> 7341e40 (initial auith)
   ) {
     return {ok: false, status: 403, error: 'Write access required'}
   }

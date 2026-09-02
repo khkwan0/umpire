@@ -144,7 +144,7 @@ Shipped [`plugins/notify/fcm/`](../../plugins/notify/fcm/) — many destinations
 
 | Piece | Implementation |
 |-------|----------------|
-| Credentials | `data/fcm-service-account.json` (Firebase Admin SDK) |
+| Credentials | `data/fcm-service-account.json` (Firebase Admin SDK) — upload via **Notifiers → FCM FIDs** or copy manually |
 | Destinations | `data/fcm-tokens.json` — list of device FIDs |
 | CRUD routes | `GET/POST/PATCH/DELETE /tokens`, `POST /tokens/:id/test` |
 | Per-target routing | `token_ids` on override — empty = all enabled destinations |

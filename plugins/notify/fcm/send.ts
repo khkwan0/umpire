@@ -1,5 +1,6 @@
 import {
   cert,
+  deleteApp,
   getApps,
   initializeApp,
   type ServiceAccount,
@@ -24,6 +25,19 @@ export function isMessagingReady(): boolean {
 export function initFirebase(account: ServiceAccount): void {
   if (getApps().length) return
   initializeApp({credential: cert(account)})
+}
+
+export async function remountFirebase(account: ServiceAccount): Promise<void> {
+  for (const app of getApps()) {
+    await deleteApp(app)
+  }
+  initializeApp({credential: cert(account)})
+}
+
+export async function shutdownFirebase(): Promise<void> {
+  for (const app of getApps()) {
+    await deleteApp(app)
+  }
 }
 
 function androidChannelId(): string | undefined {

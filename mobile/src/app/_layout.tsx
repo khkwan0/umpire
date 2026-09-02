@@ -8,7 +8,7 @@ import {useUmpireTheme} from '@/hooks/use-umpire-theme'
 
 function RootNavigator() {
   const {ready: serverReady, serverUrl} = useServer()
-  const {ready: authReady, policy, principal} = useAuth()
+  const {ready: authReady, principal} = useAuth()
   const {colors} = useUmpireTheme()
   const segments = useSegments()
   const onAuthScreen =
@@ -27,10 +27,7 @@ function RootNavigator() {
   }
 
   const needsLogin =
-    serverUrl &&
-    policy?.login_required &&
-    principal?.kind !== 'user' &&
-    segments[0] !== 'login'
+    serverUrl && principal?.kind !== 'user' && segments[0] !== 'login'
 
   if (needsLogin) {
     return <Redirect href="/login" />

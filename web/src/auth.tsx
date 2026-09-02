@@ -38,28 +38,15 @@ export function AuthProvider({children}: {children: ReactNode}) {
     try {
       const nextPolicy = await api.auth.policy()
       setPolicy(nextPolicy)
-      if (nextPolicy.login_required) {
-        try {
-          const me = await api.auth.me()
-          setPrincipal(me.principal)
-        } catch (err) {
-          if (isTransientApiError(err)) {
-            setReconnecting(true)
-            return
-          }
-          setPrincipal(null)
+      try {
+        const me = await api.auth.me()
+        setPrincipal(me.principal)
+      } catch (err) {
+        if (isTransientApiError(err)) {
+          setReconnecting(true)
+          return
         }
-      } else {
-        try {
-          const me = await api.auth.me()
-          setPrincipal(me.principal)
-        } catch (err) {
-          if (isTransientApiError(err)) {
-            setReconnecting(true)
-            return
-          }
-          setPrincipal(null)
-        }
+        setPrincipal(null)
       }
       setReconnecting(false)
       setReady(true)
@@ -94,11 +81,11 @@ export function AuthProvider({children}: {children: ReactNode}) {
 
   const canAccessPlugin = useCallback(
     (kind: AuthPluginKind, id: string) => {
-      if (!principal) return !policy?.login_required
+      if (!principal) return false
       if (principal.plugins === 'all') return true
       return principal.plugins.some(p => p.kind === kind && p.id === id)
     },
-    [principal, policy],
+    [principal],
   )
 
   const value = useMemo(

@@ -4,22 +4,15 @@ import websocket from '@fastify/websocket'
 import {registerOpenApi} from '../openapi.js'
 import {healthRoutes} from './health.js'
 
-const settings = {
-  auth_enabled: false,
-  allow_readonly_without_auth: false,
-}
-
 const core = {
-  getSettings: () => settings,
-  countUsers: () => 0,
   resolveSessionPrincipal: jest.fn(() => null),
+  resolveApiTokenPrincipal: jest.fn(() => null),
   anonymousReadOnlyPrincipal: () => ({
     kind: 'anonymous' as const,
     user: null,
     is_admin: false,
     can_write: false,
     plugins: 'all' as const,
-    single_user_mode: false,
   }),
 }
 
@@ -63,8 +56,6 @@ function waitForMessage(
 
 describe('websocket HTTP bridge', () => {
   beforeEach(() => {
-    settings.auth_enabled = false
-    settings.allow_readonly_without_auth = false
     jest.clearAllMocks()
   })
 
@@ -81,11 +72,7 @@ describe('websocket HTTP bridge', () => {
     const hello = await waitForMessage(socket, msg => msg.type === 'connected')
     expect(hello).toMatchObject({
       type: 'connected',
-      auth: {
-        kind: 'anonymous',
-        is_admin: true,
-        can_write: true,
-      },
+      auth: null,
     })
 
     const responsePromise = waitForMessage(socket, msg => msg.id === 'health-1')
@@ -108,9 +95,6 @@ describe('websocket HTTP bridge', () => {
   })
 
   it('defers WS handshake auth; rejects blocked paths and unauthenticated writes', async () => {
-    settings.auth_enabled = true
-    settings.allow_readonly_without_auth = false
-
     const app = Fastify()
     await registerOpenApi(app)
     await registerAuthGate(app)
@@ -119,7 +103,6 @@ describe('websocket HTTP bridge', () => {
     await app.register(wsRoutes)
     await app.ready()
 
-    // Upgrade is allowed without a session; auth is enforced on inject() frames.
     const unauthSocket = await app.injectWS('/api/ws')
     const unauthHello = await waitForMessage(
       unauthSocket,
@@ -149,7 +132,6 @@ describe('websocket HTTP bridge', () => {
     })
     unauthSocket.terminate()
 
-    settings.allow_readonly_without_auth = true
     const socket = await app.injectWS('/api/ws')
     await waitForMessage(socket, msg => msg.type === 'connected')
 

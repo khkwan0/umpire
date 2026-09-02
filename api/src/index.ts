@@ -2,6 +2,7 @@ import Fastify from 'fastify'
 import websocket from '@fastify/websocket'
 import {initCore, getCore, closeCore} from './core/index.js'
 import {registerAuthGate} from './auth/index.js'
+import {ensureAuthBootstrap} from './auth/bootstrap.js'
 import {
   initPlugins,
   getScheduler,
@@ -37,6 +38,7 @@ const databasePath = process.env.DATABASE_PATH || './data/monitor.sqlite'
 
 async function main() {
   initCore(databasePath)
+  ensureAuthBootstrap()
   await initPlugins()
 
   getScheduler().init?.({

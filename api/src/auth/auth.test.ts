@@ -37,43 +37,47 @@ describeAuth('auth store and RBAC', () => {
     closeCore()
   })
 
-  it('seeds system roles and blocks enabling auth with zero users', () => {
+  it('seeds system roles including read_write', () => {
     const roles = core.listRoles()
-    expect(roles.map(r => r.slug).sort()).toEqual(['admin', 'read_only'])
+    expect(roles.map(r => r.slug).sort()).toEqual([
+      'admin',
+      'read_only',
+      'read_write',
+    ])
     expect(roles.every(r => r.is_system && r.plugins === 'all')).toBe(true)
-    expect(() => core.updateSettings({auth_enabled: true})).toThrow(
-      /at least one user/,
-    )
   })
 
-  it('creates users, enables auth, and elevates single-user to admin', () => {
-    const admin = core.getRoleBySlug('admin')!
+  it('bootstraps an admin user and enforces role permissions', () => {
+    const adminUser = core.bootstrapAdmin('root', 'password1')
+    expect(adminUser.role_slug).toBe('admin')
+
+    const adminPrincipal = core.principalForUser(adminUser.id)!
+    expect(adminPrincipal.is_admin).toBe(true)
+    expect(adminPrincipal.can_write).toBe(true)
+
+    const readWrite = core.getRoleBySlug('read_write')!
+    const writer = core.createUser({
+      username: 'writer',
+      password: 'password1',
+      role_id: readWrite.id,
+    })
+    const writerPrincipal = core.principalForUser(writer.id)!
+    expect(writerPrincipal.is_admin).toBe(false)
+    expect(writerPrincipal.can_write).toBe(true)
+
     const readOnly = core.getRoleBySlug('read_only')!
-    const user = core.createUser({
-      username: 'solo',
+    const viewer = core.createUser({
+      username: 'viewer',
       password: 'password1',
       role_id: readOnly.id,
     })
-    expect(user.role_slug).toBe('read_only')
-    expect(core.updateSettings({auth_enabled: true}).auth_enabled).toBe(true)
-
-    const principal = core.principalForUser(user.id)!
-    expect(principal.single_user_mode).toBe(true)
-    expect(principal.is_admin).toBe(true)
-    expect(principal.can_write).toBe(true)
-
-    core.createUser({
-      username: 'second',
-      password: 'password1',
-      role_id: admin.id,
-    })
-    const after = core.principalForUser(user.id)!
-    expect(after.single_user_mode).toBe(false)
-    expect(after.is_admin).toBe(false)
-    expect(after.can_write).toBe(false)
+    const viewerPrincipal = core.principalForUser(viewer.id)!
+    expect(viewerPrincipal.is_admin).toBe(false)
+    expect(viewerPrincipal.can_write).toBe(false)
   })
 
   it('rejects mutating system roles and empty custom plugin allowlists', () => {
+    core.bootstrapAdmin('root', 'password1')
     const admin = core.getRoleBySlug('admin')!
     expect(() => core.updateRole(admin.id, {name: 'Nope'})).toThrow(
       /cannot be modified/,
@@ -89,16 +93,12 @@ describeAuth('auth store and RBAC', () => {
     expect(custom.is_system).toBe(false)
   })
 
-  it('resolves session principals and anonymous read-only', () => {
+  it('resolves session principals', () => {
     const admin = core.getRoleBySlug('admin')!
     const user = core.createUser({
       username: 'admin',
       password: 'password1',
       role_id: admin.id,
-    })
-    core.updateSettings({
-      auth_enabled: true,
-      allow_readonly_without_auth: true,
     })
 
     const token = newSessionToken()
@@ -133,7 +133,6 @@ describeAuth('auth store and RBAC', () => {
       password: 'password1',
       role_id: readOnly.id,
     })
-    core.updateSettings({auth_enabled: true})
 
     const raw = newApiToken()
     const created = core.createApiToken({
@@ -155,16 +154,22 @@ describeAuth('auth store and RBAC', () => {
     expect(core.resolveApiTokenPrincipal(raw)).toBeNull()
   })
 
-  it('blocks deleting the last user while auth is enabled', () => {
-    const admin = core.getRoleBySlug('admin')!
-    const user = core.createUser({
-      username: 'only',
-      password: 'password1',
-      role_id: admin.id,
-    })
-    core.updateSettings({auth_enabled: true})
+  it('blocks deleting the last user', () => {
+    const user = core.bootstrapAdmin('only', 'password1')
     expect(() => core.deleteUser(user.id)).toThrow(/last user/)
-    core.updateSettings({auth_enabled: false})
-    expect(core.deleteUser(user.id)).toBe(true)
+  })
+
+  it('invalidates sessions when password changes', () => {
+    const user = core.bootstrapAdmin('solo', 'password1')
+    const token = newSessionToken()
+    const expires = new Date(Date.now() + 60_000)
+      .toISOString()
+      .slice(0, 19)
+      .replace('T', ' ')
+    core.createSession(user.id, hashSessionToken(token), expires)
+    expect(core.resolveSessionPrincipal(token)).not.toBeNull()
+
+    core.updateUser(user.id, {password: 'new-password1'})
+    expect(core.resolveSessionPrincipal(token)).toBeNull()
   })
 })

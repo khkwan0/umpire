@@ -53,11 +53,24 @@ export interface FcmDestinationImportResult {
   skipped: Array<{fid: string; reason: string}>
 }
 
+export interface FcmCredentialsStatus {
+  configured: boolean
+  project_id: string | null
+  client_email: string | null
+  client_id: string | null
+  path: string
+  ready: boolean
+}
+
+export interface FcmCredentialsApplyResult {
+  ok: boolean
+  status: FcmCredentialsStatus
+  error?: string
+}
+
 export interface Settings {
   alert_policy: AlertPolicy
   throttle_minutes: number
-  auth_enabled: boolean
-  allow_readonly_without_auth: boolean
 }
 
 export type AuthPluginKind = 'check' | 'notify' | 'scheduler'
@@ -93,12 +106,9 @@ export interface AuthPrincipal {
   is_admin: boolean
   can_write: boolean
   plugins: 'all' | RolePluginRef[]
-  single_user_mode: boolean
 }
 
 export interface AuthPolicy {
-  auth_enabled: boolean
-  allow_readonly_without_auth: boolean
   login_required: boolean
   user_count: number
 }
@@ -591,6 +601,19 @@ export const api = {
     },
   },
   tokens: {
+    credentials: {
+      get: () =>
+        request<FcmCredentialsStatus>('/api/plugins/notify/fcm/credentials'),
+      put: (data: Record<string, unknown>) =>
+        request<FcmCredentialsApplyResult>('/api/plugins/notify/fcm/credentials', {
+          method: 'PUT',
+          body: JSON.stringify(data),
+        }),
+      remove: () =>
+        request<void>('/api/plugins/notify/fcm/credentials', {
+          method: 'DELETE',
+        }),
+    },
     list: () => request<FcmDestination[]>('/api/plugins/notify/fcm/tokens'),
     create: (data: {fid: string; label?: string}) =>
       request<FcmDestination>('/api/plugins/notify/fcm/tokens', {
@@ -649,6 +672,14 @@ export const api = {
         body: JSON.stringify({username, password}),
       }),
     logout: () => request<{ok: boolean}>('/api/auth/logout', {method: 'POST'}),
+    changePassword: (currentPassword: string, newPassword: string) =>
+      request<AuthMe>('/api/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({
+          current_password: currentPassword,
+          new_password: newPassword,
+        }),
+      }),
   },
   agent: {
     status: () => request<AgentStatus>('/api/agent/status'),

@@ -14,7 +14,6 @@ const admin: AuthPrincipal = {
   is_admin: true,
   can_write: true,
   plugins: 'all',
-  single_user_mode: false,
 }
 
 const writerCustom: AuthPrincipal = {
@@ -30,7 +29,6 @@ const writerCustom: AuthPrincipal = {
   is_admin: false,
   can_write: true,
   plugins: [{kind: 'notify', id: 'webhook'}],
-  single_user_mode: false,
 }
 
 const readOnlyUser: AuthPrincipal = {
@@ -46,50 +44,14 @@ const readOnlyUser: AuthPrincipal = {
   is_admin: false,
   can_write: false,
   plugins: 'all',
-  single_user_mode: false,
 }
 
 describe('evaluateGate', () => {
-  it('allows everything when auth is disabled', () => {
+  it('requires auth for reads', () => {
     expect(
       evaluateGate({
-        authEnabled: false,
-        allowReadonlyWithoutAuth: false,
-        method: 'DELETE',
-        path: '/api/targets/1',
-        principal: null,
-      }),
-    ).toEqual({ok: true})
-  })
-
-  it('requires auth for reads when anonymous read-only is off', () => {
-    expect(
-      evaluateGate({
-        authEnabled: true,
-        allowReadonlyWithoutAuth: false,
         method: 'GET',
         path: '/api/status',
-        principal: null,
-      }),
-    ).toEqual({ok: false, status: 401, error: 'Authentication required'})
-  })
-
-  it('allows anonymous reads when configured', () => {
-    expect(
-      evaluateGate({
-        authEnabled: true,
-        allowReadonlyWithoutAuth: true,
-        method: 'GET',
-        path: '/api/status',
-        principal: null,
-      }),
-    ).toEqual({ok: true})
-    expect(
-      evaluateGate({
-        authEnabled: true,
-        allowReadonlyWithoutAuth: true,
-        method: 'POST',
-        path: '/api/targets',
         principal: null,
       }),
     ).toEqual({ok: false, status: 401, error: 'Authentication required'})
@@ -98,8 +60,6 @@ describe('evaluateGate', () => {
   it('blocks writes for read-only principals', () => {
     expect(
       evaluateGate({
-        authEnabled: true,
-        allowReadonlyWithoutAuth: false,
         method: 'POST',
         path: '/api/targets',
         principal: readOnlyUser,
@@ -107,11 +67,19 @@ describe('evaluateGate', () => {
     ).toEqual({ok: false, status: 403, error: 'Write access required'})
   })
 
+  it('allows read-only users to change their password', () => {
+    expect(
+      evaluateGate({
+        method: 'POST',
+        path: '/api/auth/change-password',
+        principal: readOnlyUser,
+      }),
+    ).toEqual({ok: true})
+  })
+
   it('restricts admin-only paths', () => {
     expect(
       evaluateGate({
-        authEnabled: true,
-        allowReadonlyWithoutAuth: false,
         method: 'GET',
         path: '/api/users',
         principal: writerCustom,
@@ -119,8 +87,6 @@ describe('evaluateGate', () => {
     ).toEqual({ok: false, status: 403, error: 'Admin access required'})
     expect(
       evaluateGate({
-        authEnabled: true,
-        allowReadonlyWithoutAuth: false,
         method: 'PUT',
         path: '/api/settings',
         principal: writerCustom,
@@ -128,8 +94,6 @@ describe('evaluateGate', () => {
     ).toEqual({ok: false, status: 403, error: 'Admin access required'})
     expect(
       evaluateGate({
-        authEnabled: true,
-        allowReadonlyWithoutAuth: false,
         method: 'GET',
         path: '/api/users',
         principal: admin,
@@ -137,11 +101,9 @@ describe('evaluateGate', () => {
     ).toEqual({ok: true})
   })
 
-  it('allows anonymous FCM device registration when auth is enabled', () => {
+  it('allows anonymous FCM device registration', () => {
     expect(
       evaluateGate({
-        authEnabled: true,
-        allowReadonlyWithoutAuth: false,
         method: 'POST',
         path: '/api/plugins/notify/fcm/tokens/register',
         principal: null,
@@ -152,8 +114,6 @@ describe('evaluateGate', () => {
   it('allows read-only users to register FCM device tokens', () => {
     expect(
       evaluateGate({
-        authEnabled: true,
-        allowReadonlyWithoutAuth: false,
         method: 'POST',
         path: '/api/plugins/notify/fcm/tokens/register',
         principal: readOnlyUser,
@@ -164,8 +124,6 @@ describe('evaluateGate', () => {
   it('still blocks read-only users from admin FCM token management', () => {
     expect(
       evaluateGate({
-        authEnabled: true,
-        allowReadonlyWithoutAuth: false,
         method: 'POST',
         path: '/api/plugins/notify/fcm/tokens',
         principal: readOnlyUser,
@@ -176,8 +134,6 @@ describe('evaluateGate', () => {
   it('enforces custom role plugin allowlists', () => {
     expect(
       evaluateGate({
-        authEnabled: true,
-        allowReadonlyWithoutAuth: false,
         method: 'GET',
         path: '/api/plugins/notify/webhook/config',
         principal: writerCustom,
@@ -185,8 +141,6 @@ describe('evaluateGate', () => {
     ).toEqual({ok: true})
     expect(
       evaluateGate({
-        authEnabled: true,
-        allowReadonlyWithoutAuth: false,
         method: 'GET',
         path: '/api/plugins/notify/slack/config',
         principal: writerCustom,

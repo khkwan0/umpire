@@ -159,7 +159,7 @@ function pluginKey(p: RolePluginRef): string {
 
 export default function SettingsPage() {
   const {restart} = useOnboarding()
-  const {principal, refresh: refreshAuth, policy} = useAuth()
+  const {principal, refresh: refreshAuth} = useAuth()
   const isAdmin = Boolean(principal?.is_admin)
   const canWrite = Boolean(principal?.can_write)
   const signedIn = principal?.kind === 'user'
@@ -167,8 +167,9 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<Settings | null>(null)
   const [policyAlert, setPolicyAlert] = useState<AlertPolicy>('state_change')
   const [throttle, setThrottle] = useState(30)
-  const [authEnabled, setAuthEnabled] = useState(false)
-  const [allowReadonly, setAllowReadonly] = useState(false)
+  const [ownCurrentPassword, setOwnCurrentPassword] = useState('')
+  const [ownNewPassword, setOwnNewPassword] = useState('')
+  const [changePasswordBusy, setChangePasswordBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [reconnecting, setReconnecting] = useState(false)
@@ -261,8 +262,6 @@ export default function SettingsPage() {
         setSettings(s)
         setPolicyAlert(s.alert_policy)
         setThrottle(s.throttle_minutes)
-        setAuthEnabled(s.auth_enabled)
-        setAllowReadonly(s.allow_readonly_without_auth)
         setPlugins(p)
         setError(null)
         setReconnecting(false)
@@ -325,25 +324,21 @@ export default function SettingsPage() {
     }
   }
 
-  async function onSaveAuth(e: FormEvent) {
+  async function onChangePassword(e: FormEvent) {
     e.preventDefault()
-    setBusy(true)
+    setChangePasswordBusy(true)
     setError(null)
     setMessage(null)
     try {
-      const next = await api.settings.put({
-        auth_enabled: authEnabled,
-        allow_readonly_without_auth: allowReadonly,
-      })
-      setSettings(next)
-      setAuthEnabled(next.auth_enabled)
-      setAllowReadonly(next.allow_readonly_without_auth)
-      setMessage('Auth settings saved')
+      await api.auth.changePassword(ownCurrentPassword, ownNewPassword)
+      setOwnCurrentPassword('')
+      setOwnNewPassword('')
+      setMessage('Password changed')
       await refreshAuth()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
-      setBusy(false)
+      setChangePasswordBusy(false)
     }
   }
 
@@ -535,8 +530,6 @@ export default function SettingsPage() {
   if (!settings && !error && !reconnecting)
     return <p className="muted">Loading…</p>
 
-  const userCount = users.length || policy?.user_count || 0
-
   return (
     <div className="stack">
       {reconnecting && <ReconnectBanner />}
@@ -594,41 +587,40 @@ export default function SettingsPage() {
         </form>
       </section>
 
-      <section className="panel">
-        <h2>Authentication</h2>
-        <p className="muted small">
-          Auth starts disabled. Create at least one user before enabling auth.
-          When auth is on, mutations require a signed-in user with write access.
-        </p>
-        <form className="form-col" onSubmit={onSaveAuth}>
-          <label className="check-ids-item">
-            <input
-              type="checkbox"
-              checked={authEnabled}
-              disabled={!isAdmin || (userCount < 1 && !authEnabled)}
-              onChange={e => setAuthEnabled(e.target.checked)}
-            />
-            Enable authentication
-          </label>
-          <label className="check-ids-item">
-            <input
-              type="checkbox"
-              checked={allowReadonly}
-              disabled={!isAdmin || !authEnabled}
-              onChange={e => setAllowReadonly(e.target.checked)}
-            />
-            Allow read-only access without signing in
-          </label>
-          <button type="submit" disabled={busy || !isAdmin}>
-            Save auth settings
-          </button>
-        </form>
-        {userCount < 1 && (
+      {signedIn && (
+        <section className="panel">
+          <h2>Change password</h2>
           <p className="muted small">
-            Create a user below before enabling authentication.
+            Update the password for your account ({principal?.user?.username}).
           </p>
-        )}
-      </section>
+          <form className="form-col" onSubmit={onChangePassword}>
+            <label>
+              Current password
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={ownCurrentPassword}
+                onChange={e => setOwnCurrentPassword(e.target.value)}
+                required
+              />
+            </label>
+            <label>
+              New password
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={ownNewPassword}
+                onChange={e => setOwnNewPassword(e.target.value)}
+                required
+                minLength={8}
+              />
+            </label>
+            <button type="submit" disabled={changePasswordBusy}>
+              {changePasswordBusy ? 'Saving…' : 'Change password'}
+            </button>
+          </form>
+        </section>
+      )}
 
       <ApiTokensPanel signedIn={signedIn} isAdmin={isAdmin} users={users} />
 
@@ -759,8 +751,8 @@ export default function SettingsPage() {
         <section className="panel">
           <h2>Users</h2>
           <p className="muted small">
-            With a single user, that account is always treated as admin with
-            full access.
+            Assign Admin, Read + write, or Read only roles. Admins can manage
+            users, settings, and plugins.
           </p>
           <ul className="plain-list">
             {users.map(u => (
@@ -1039,7 +1031,7 @@ export default function SettingsPage() {
 
       {message && <p className="ok-text">{message}</p>}
       {error && <p className="error">{error}</p>}
-      {!canWrite && settings?.auth_enabled && (
+      {!canWrite && (
         <p className="muted small">
           You are in read-only mode; mutating settings requires write access.
         </p>

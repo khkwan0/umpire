@@ -31,15 +31,8 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         response: {
           200: {
             type: 'object',
-            required: [
-              'auth_enabled',
-              'allow_readonly_without_auth',
-              'login_required',
-              'user_count',
-            ],
+            required: ['login_required', 'user_count'],
             properties: {
-              auth_enabled: {type: 'boolean'},
-              allow_readonly_without_auth: {type: 'boolean'},
               login_required: {type: 'boolean'},
               user_count: {type: 'integer'},
             },
@@ -49,14 +42,9 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     },
     async () => {
       const store = getCore()
-      const settings = store.getSettings()
-      const userCount = store.countUsers()
       return {
-        auth_enabled: settings.auth_enabled,
-        allow_readonly_without_auth: settings.allow_readonly_without_auth,
-        login_required:
-          settings.auth_enabled && !settings.allow_readonly_without_auth,
-        user_count: userCount,
+        login_required: true,
+        user_count: store.countUsers(),
       }
     },
   )
@@ -134,6 +122,70 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       }
       clearSessionCookie(req, reply)
       return {ok: true}
+    },
+  )
+
+  app.post<{
+    Body: {current_password?: string; new_password?: string}
+  }>(
+    '/api/auth/change-password',
+    {
+      schema: {
+        tags: ['auth'],
+        summary: 'Change password for the signed-in user',
+        body: {
+          type: 'object',
+          required: ['current_password', 'new_password'],
+          properties: {
+            current_password: {type: 'string'},
+            new_password: {type: 'string'},
+          },
+        },
+        response: {
+          200: {$ref: 'AuthMe#'},
+          400: errorResponse,
+          401: errorResponse,
+        },
+      },
+    },
+    async (req, reply) => {
+      const principal = getAuthContext(req)
+      if (!principal?.user) {
+        return reply.code(401).send({error: 'Authentication required'})
+      }
+      const currentPassword =
+        typeof req.body?.current_password === 'string'
+          ? req.body.current_password
+          : ''
+      const newPassword =
+        typeof req.body?.new_password === 'string' ? req.body.new_password : ''
+      if (!currentPassword || !newPassword) {
+        return reply
+          .code(400)
+          .send({error: 'current_password and new_password required'})
+      }
+      const store = getCore()
+      const hash = store.getUserPasswordHash(principal.user.id)
+      if (!hash || !verifyPassword(currentPassword, hash)) {
+        return reply.code(401).send({error: 'Current password is incorrect'})
+      }
+      try {
+        store.updateUser(principal.user.id, {password: newPassword})
+      } catch (err) {
+        return reply
+          .code(400)
+          .send({error: err instanceof Error ? err.message : String(err)})
+      }
+      const token = newSessionToken()
+      const expires = new Date(Date.now() + SESSION_TTL_MS)
+      store.createSession(
+        principal.user.id,
+        hashSessionToken(token),
+        expiresSqlite(expires),
+      )
+      setSessionCookie(req, reply, token, expires)
+      const nextPrincipal = store.principalForUser(principal.user.id)!
+      return {principal: nextPrincipal}
     },
   )
 

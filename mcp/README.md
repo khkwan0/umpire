@@ -19,15 +19,13 @@ npm run build
 | Variable           | Required        | Description                                                                 |
 | ------------------ | --------------- | --------------------------------------------------------------------------- |
 | `UMPIRE_BASE_URL`  | No              | UMPIRE web/API origin (default `http://localhost:8089`)                     |
-| `UMPIRE_API_TOKEN` | When auth is on | Bearer token from **Settings → API tokens** or `POST /api/tokens`           |
-
-When `auth_enabled` is false, no token is needed.
+| `UMPIRE_API_TOKEN` | Yes             | Bearer token from **Settings → API tokens** or `POST /api/tokens`           |
 
 **`BASE_PATH`:** if UMPIRE is served at `https://example.com/umpire`, set `UMPIRE_BASE_URL` to that full prefix (e.g. `https://example.com/umpire`), not the domain root.
 
 ### Create an API token
 
-1. Enable auth and create a user in the UMPIRE Settings UI.
+1. Sign in with the bootstrap admin account (from `UMPIRE_ADMIN_USERNAME` / `UMPIRE_ADMIN_PASSWORD` in `.env`).
 2. Open **Settings → API tokens** and create a token, or use curl:
 
 ```bash

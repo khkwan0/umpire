@@ -125,7 +125,6 @@ export default function App() {
   const location = useLocation()
   const {
     ready: authReady,
-    policy,
     principal,
     reconnecting: authReconnecting,
     logout,
@@ -138,7 +137,7 @@ export default function App() {
   const [reconnecting, setReconnecting] = useState(false)
 
   const load = useCallback(async () => {
-    if (policy?.login_required && principal?.kind !== 'user') return
+    if (principal?.kind !== 'user') return
     try {
       const [nextCatalog, nextManager] = await Promise.all([
         api.plugins.list(),
@@ -155,7 +154,7 @@ export default function App() {
       setCatalog([])
       setReconnecting(false)
     }
-  }, [policy, principal])
+  }, [principal])
 
   useEffect(() => {
     void load()
@@ -242,7 +241,7 @@ export default function App() {
     )
   }
 
-  if (policy?.login_required && principal?.kind !== 'user') {
+  if (principal?.kind !== 'user') {
     return <Navigate to="/login" replace state={{from: location.pathname}} />
   }
 
@@ -329,18 +328,14 @@ export default function App() {
             >
               Sign out ({principal.user?.username})
             </button>
-          ) : policy?.auth_enabled ? (
-            <NavLink to="/login">Sign in</NavLink>
           ) : null}
         </nav>
       </header>
       <main>
         {(reconnecting || authReconnecting) && <ReconnectBanner />}
-        {!principal?.can_write && policy?.auth_enabled && (
+        {!principal?.can_write && (
           <p className="muted small read-only-banner">
-            Read-only mode
-            {principal?.kind === 'anonymous' ? ' (not signed in)' : ''}.
-            Mutations require a signed-in user with write access.
+            Read-only mode. Mutations require a signed-in user with write access.
           </p>
         )}
         <Routes>

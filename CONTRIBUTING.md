@@ -26,6 +26,8 @@ Run API:
 ```bash
 cd api && npm install && \
   DATABASE_PATH=../data/monitor.sqlite \
+  UMPIRE_ADMIN_USERNAME=admin \
+  UMPIRE_ADMIN_PASSWORD=change-me-dev \
   npm run dev
 ```
 
@@ -51,7 +53,7 @@ cd extensions && npm install && npm run build && npm run build:firefox
 cd mcp && npm install && npm run build
 ```
 
-See [`mcp/README.md`](mcp/README.md) and [`docs/agents.md`](docs/agents.md). Requires an API token when auth is enabled (`UMPIRE_API_TOKEN` or **Settings → API tokens**).
+See [`mcp/README.md`](mcp/README.md) and [`docs/agents.md`](docs/agents.md). Requires an API token (`UMPIRE_API_TOKEN` or **Settings → API tokens**).
 
 ### Agent CLI and web chat
 

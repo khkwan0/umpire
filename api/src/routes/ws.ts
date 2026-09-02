@@ -335,7 +335,6 @@ export async function wsRoutes(app: FastifyInstance): Promise<void> {
                 kind: auth.kind,
                 is_admin: auth.is_admin,
                 can_write: auth.can_write,
-                single_user_mode: auth.single_user_mode,
                 username: auth.user?.username ?? null,
               }
             : null,

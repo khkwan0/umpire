@@ -1,6 +1,4 @@
 export interface AuthPolicy {
-  auth_enabled: boolean
-  allow_readonly_without_auth: boolean
   login_required: boolean
   user_count: number
 }
@@ -10,7 +8,6 @@ export interface AuthPrincipal {
   user: {id: number; username: string} | null
   is_admin: boolean
   can_write: boolean
-  single_user_mode: boolean
 }
 
 export interface StatusTarget {

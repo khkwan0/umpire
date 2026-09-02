@@ -59,13 +59,6 @@ export interface Target {
 export interface Settings {
   alert_policy: AlertPolicy
   throttle_minutes: number
-  /** When false (default), all HTTP APIs are open. */
-  auth_enabled: boolean
-  /**
-   * When auth is enabled, allow unauthenticated GET/HEAD as read-only.
-   * Ignored when auth_enabled is false.
-   */
-  allow_readonly_without_auth: boolean
 }
 
 export type AgentLlmProvider = 'openai' | 'anthropic' | 'ollama' | 'vllm'
@@ -145,8 +138,6 @@ export interface AuthPrincipal {
   is_admin: boolean
   can_write: boolean
   plugins: 'all' | RolePluginRef[]
-  /** True when exactly one user exists; that user is always effective admin. */
-  single_user_mode: boolean
 }
 
 /** API token metadata (secret value is never stored or returned after creation). */
