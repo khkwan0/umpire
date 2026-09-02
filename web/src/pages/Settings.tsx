@@ -623,21 +623,23 @@ export default function SettingsPage() {
             Control whether visitors can browse the dashboard without signing
             in. Write access always requires a signed-in account.
           </p>
-          <label className="checkbox-row">
-            <input
-              type="checkbox"
-              checked={allowReadonlyWithoutAuth}
-              onChange={e => setAllowReadonlyWithoutAuth(e.target.checked)}
-            />
-            Allow read-only access without signing in
-          </label>
-          <button
-            type="button"
-            onClick={() => void onSaveAuthConfig()}
-            disabled={authConfigBusy}
-          >
-            {authConfigBusy ? 'Saving…' : 'Save authentication settings'}
-          </button>
+          <div className="form-col">
+            <label className="check-ids-item">
+              <input
+                type="checkbox"
+                checked={allowReadonlyWithoutAuth}
+                onChange={e => setAllowReadonlyWithoutAuth(e.target.checked)}
+              />
+              Allow read-only access without signing in
+            </label>
+            <button
+              type="button"
+              onClick={() => void onSaveAuthConfig()}
+              disabled={authConfigBusy}
+            >
+              {authConfigBusy ? 'Saving…' : 'Save authentication settings'}
+            </button>
+          </div>
         </section>
       )}
 
