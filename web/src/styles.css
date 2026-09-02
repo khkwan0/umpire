@@ -829,6 +829,10 @@ button.ghost:hover {
   margin-bottom: 1rem;
 }
 
+.login-continue {
+  margin-top: 1rem;
+}
+
 .nav-text-button {
   background: transparent;
   border: none;

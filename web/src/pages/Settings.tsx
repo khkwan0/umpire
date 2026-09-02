@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useMemo, useState, type FormEvent} from 'react'
+import {Link} from 'react-router-dom'
 import {
   api,
   isTransientApiError,
@@ -159,7 +160,7 @@ function pluginKey(p: RolePluginRef): string {
 
 export default function SettingsPage() {
   const {restart} = useOnboarding()
-  const {principal, policy, refresh: refreshAuth} = useAuth()
+  const {principal, policy, refresh: refreshAuth, logout} = useAuth()
   const isAdmin = Boolean(principal?.is_admin)
   const canWrite = Boolean(principal?.can_write)
   const signedIn = principal?.kind === 'user'
@@ -615,6 +616,33 @@ export default function SettingsPage() {
           </button>
         </form>
       </section>
+
+      {policy?.auth_enabled && (
+        <section className="panel">
+          <h2>Account</h2>
+          {signedIn ? (
+            <>
+              <p className="muted small">
+                Signed in as <strong>{principal?.user?.username}</strong>
+                {principal?.is_admin ? ' (admin)' : ''}.
+              </p>
+              <button type="button" onClick={() => void logout()}>
+                Sign out
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="muted small">
+                Sign in for write access. You can also authenticate without the
+                UI: <code>POST /api/auth/login</code> sets a session cookie;
+                create a Bearer token with <code>POST /api/tokens</code> after
+                logging in. See <code>docs/api.md</code>.
+              </p>
+              <Link to="/login">Sign in</Link>
+            </>
+          )}
+        </section>
+      )}
 
       {policy?.auth_enabled && isAdmin && (
         <section className="panel">

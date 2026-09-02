@@ -329,14 +329,23 @@ export default function App() {
             >
               Sign out ({principal.user?.username})
             </button>
+          ) : policy?.auth_enabled ? (
+            <NavLink to="/login">Sign in</NavLink>
           ) : null}
         </nav>
       </header>
       <main>
         {(reconnecting || authReconnecting) && <ReconnectBanner />}
-        {!principal?.can_write && (
+        {!principal?.can_write && policy?.auth_enabled && (
           <p className="muted small read-only-banner">
-            Read-only mode. Mutations require a signed-in user with write access.
+            Read-only mode.{' '}
+            {principal?.kind === 'user' ? (
+              <>Mutations require write access.</>
+            ) : (
+              <>
+                <NavLink to="/login">Sign in</NavLink> for write access.
+              </>
+            )}
           </p>
         )}
         <Routes>

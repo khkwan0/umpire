@@ -1,5 +1,5 @@
 import {useState, type FormEvent} from 'react'
-import {Navigate, useNavigate} from 'react-router-dom'
+import {Link, Navigate, useNavigate} from 'react-router-dom'
 import {useAuth} from '../auth'
 import {assetUrl} from '../basePath'
 
@@ -78,6 +78,11 @@ export default function LoginPage() {
           </button>
         </form>
         {error && <p className="error">{error}</p>}
+        {policy?.allow_readonly_without_auth && (
+          <p className="muted small login-continue">
+            <Link to="/">Continue without signing in</Link> (read-only).
+          </p>
+        )}
       </div>
     </div>
   )
