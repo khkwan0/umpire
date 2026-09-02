@@ -100,12 +100,8 @@ export function evaluateGate(input: {
   if (
     !read &&
     !effective.can_write &&
-<<<<<<< HEAD
-    !isDeviceRegistrationPath(method, path)
-=======
     !isDeviceRegistrationPath(method, path) &&
     !isSelfServiceAuthPath(method, path)
->>>>>>> 7341e40 (initial auith)
   ) {
     return {ok: false, status: 403, error: 'Write access required'}
   }

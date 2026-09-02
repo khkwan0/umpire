@@ -112,12 +112,8 @@ export async function registerAuthGate(app: FastifyInstance): Promise<void> {
     if (
       !read &&
       !principal.can_write &&
-<<<<<<< HEAD
-      !isDeviceRegistrationPath(method, path)
-=======
       !isDeviceRegistrationPath(method, path) &&
       !isSelfServiceAuthPath(method, path)
->>>>>>> 7341e40 (initial auith)
     ) {
       return deny(reply, 403, 'Write access required')
     }

@@ -122,9 +122,11 @@ services:
     environment:
       DATABASE_PATH: /data/monitor.sqlite
       BASE_PATH: /
+      UMPIRE_ADMIN_USERNAME: ${UMPIRE_ADMIN_USERNAME:?UMPIRE_ADMIN_USERNAME is required}
+      UMPIRE_ADMIN_PASSWORD: ${UMPIRE_ADMIN_PASSWORD:?UMPIRE_ADMIN_PASSWORD is required}
 ```
 
-Configure via REST ([docs/api.md](api.md)) or [MCP](../mcp/README.md). Swagger: `http://localhost:3000/documentation/`.
+Configure via REST ([docs/api.md](api.md)) or [MCP](../mcp/README.md). Log in with bootstrap credentials, then use session cookies or API tokens for subsequent requests. Swagger: `http://localhost:3000/documentation/`.
 
 ## Reverse proxy
 

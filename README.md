@@ -199,17 +199,20 @@ docker run -d \
   -p 3000:3000 \
   -v "$(pwd)/data:/data" \
   -e DATABASE_PATH=/data/monitor.sqlite \
-  umpire-api:latest
+  -e UMPIRE_ADMIN_USERNAME=admin \
+  -e UMPIRE_ADMIN_PASSWORD=change-me-on-first-login \
+  nitroxstudios/umpire-api:latest
 ```
 
-Use your registry tag if you pulled a published image (e.g. `nitroxstudios/umpire-api:latest`). To build locally first: `docker compose build api`, then tag the resulting image or run `docker compose up api -d` and publish port `3000` on the `api` service (Compose does not expose it by default).
+Use your registry tag if you pulled a published image. To build locally first: `docker compose build api`, then tag the resulting image or run `docker compose up api -d` and publish port `3000` on the `api` service (Compose does not expose it by default).
 
 - Health: `http://localhost:3000/api/health`
-- Swagger: `http://localhost:3000/documentation` — full interactive API reference
-- Operator guide with curl examples: [docs/api.md](docs/api.md)
+- Swagger: `http://localhost:3000/documentation/` — full interactive API reference
+- Operator guide with curl examples: [docs/api.md](docs/api.md) — includes login and bootstrap flow
+- Log in: `POST /api/auth/login` with bootstrap credentials, then use session cookie or create an API token
 - Add a target: `POST /api/targets` with `url` and `interval_seconds`
 - Set a webhook URL: `PUT /api/plugins/notify/webhook/config`
-- Agents: point [MCP](mcp/README.md) at `http://localhost:3000` (or your public API URL)
+- Agents: point [MCP](mcp/README.md) at `http://localhost:3000` with `UMPIRE_API_TOKEN`
 
 ### Deploy script (recommended — API + web)
 

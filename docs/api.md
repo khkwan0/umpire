@@ -27,47 +27,126 @@ All paths below are relative to the base URL.
 
 ## Authentication
 
-Authentication is **always required**. Protected routes accept either:
+Authentication is **always required**. The web UI is optional — the API enforces the same rules for curl, MCP, mobile, and scripts.
 
-- **Session cookie** — `POST /api/auth/login`, then send `umpire_session` on later requests
+### Bootstrap (fresh install)
+
+On first start with an empty database, the API creates the initial admin from environment variables and refuses to start without them:
+
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `UMPIRE_ADMIN_USERNAME` | Fresh install only | Bootstrap admin username (min 2 chars) |
+| `UMPIRE_ADMIN_PASSWORD` | Fresh install only | Bootstrap admin password (min 8 chars) |
+
+Existing databases with users ignore these variables. Auth is always enabled.
+
+**API-only Docker example:**
+
+```bash
+mkdir -p data
+docker run -d \
+  --name umpire-api \
+  -p 3000:3000 \
+  -v "$(pwd)/data:/data" \
+  -e DATABASE_PATH=/data/monitor.sqlite \
+  -e UMPIRE_ADMIN_USERNAME=admin \
+  -e UMPIRE_ADMIN_PASSWORD=change-me-on-first-login \
+  nitroxstudios/umpire-api:latest
+```
+
+Change the bootstrap password after first login (see below). Use secrets management in production — do not commit real passwords.
+
+### Credentials
+
+Protected routes accept either:
+
+- **Session cookie** — `POST /api/auth/login`, then send `umpire_session` on later requests (`curl -c` / `-b`)
 - **Bearer token** — `POST /api/tokens` (while logged in), then `Authorization: Bearer umpire_…`
 
-On a fresh install, set `UMPIRE_ADMIN_USERNAME` and `UMPIRE_ADMIN_PASSWORD` before starting the API (see [deployment guide](deployment.md)). Change the bootstrap password with `POST /api/auth/change-password` or **Settings → Change password**.
+Public paths (no credentials): `/api/health`, `/api/auth/policy`, `/api/auth/login`, `/api/auth/logout`.
 
-Check policy without credentials: `GET /api/auth/policy`. Current principal: `GET /api/auth/me`.
+| Endpoint | Access | Purpose |
+|----------|--------|---------|
+| `GET /api/auth/policy` | Public | Returns `{ login_required, user_count }` |
+| `GET /api/auth/me` | Authenticated | Current principal |
+| `POST /api/auth/login` | Public | Set session cookie |
+| `POST /api/auth/logout` | Session | Clear session |
+| `POST /api/auth/change-password` | Authenticated | `{ current_password, new_password }` — any signed-in user |
+
+### Roles
+
+Built-in roles (seeded on install):
+
+| Slug | Access |
+|------|--------|
+| `admin` | Full access — users, roles, settings, plugin manager |
+| `read_write` | Mutate targets, checks, notifiers; no admin paths |
+| `read_only` | Read-only API access |
+
+Admins create additional users via `POST /api/users` with a `role_id`. Custom roles (plugin allowlists) via `/api/roles`.
 
 See [Agents guide — API tokens](agents.md#api-tokens) for token creation and MCP usage.
 
 ## Quick start (headless)
 
-Minimal flow: add a target, configure webhook delivery, confirm status.
+Minimal flow: start API with bootstrap env, log in, add a target, configure webhook delivery, confirm status.
 
 ```bash
 API=http://localhost:3000
+USER=admin
+PASS=change-me-on-first-login
 
-# 1. Health
+# 0. Health (no auth)
 curl -fsS "$API/api/health"
 
-# 2. Add a target (check every 60s)
-curl -fsS -X POST "$API/api/targets" \
+# 1. Log in and save session cookie
+curl -fsS -c /tmp/umpire.cookies -X POST "$API/api/auth/login" \
+  -H 'content-type: application/json' \
+  -d "{\"username\":\"$USER\",\"password\":\"$PASS\"}"
+
+# 2. (Recommended) Change bootstrap password
+curl -fsS -b /tmp/umpire.cookies -X POST "$API/api/auth/change-password" \
+  -H 'content-type: application/json' \
+  -d '{"current_password":"'"$PASS"'","new_password":"your-new-password"}'
+
+# 3. (Optional) Create a long-lived API token for scripts/MCP
+curl -fsS -b /tmp/umpire.cookies -X POST "$API/api/tokens" \
+  -H 'content-type: application/json' \
+  -d '{"label":"automation","expires_in_days":365}'
+# Copy the umpire_… token from the response (shown once).
+# Then use:  -H "Authorization: Bearer umpire_…"
+
+# 4. Add a target (check every 60s)
+curl -fsS -b /tmp/umpire.cookies -X POST "$API/api/targets" \
   -H 'content-type: application/json' \
   -d '{"url":"https://example.com","interval_seconds":60,"enabled":true}'
 
-# 3. Set global webhook URL (default notifier)
-curl -fsS -X PUT "$API/api/plugins/notify/webhook/config" \
+# 5. Set global webhook URL (default notifier)
+curl -fsS -b /tmp/umpire.cookies -X PUT "$API/api/plugins/notify/webhook/config" \
   -H 'content-type: application/json' \
   -d '{"url":"https://hooks.example.com/umpire","method":"POST"}'
 
-# 4. Dashboard summary
-curl -fsS "$API/api/status"
+# 6. Dashboard summary
+curl -fsS -b /tmp/umpire.cookies "$API/api/status"
 ```
 
-Optional: enable loaded notifiers in **Settings → Plugin manager** via API:
+Enable loaded notifiers via API (admin or write access):
 
 ```bash
-curl -fsS -X PUT "$API/api/plugin-manager/notify/slack" \
+curl -fsS -b /tmp/umpire.cookies -X PUT "$API/api/plugin-manager/notify/slack" \
   -H 'content-type: application/json' \
   -d '{"enabled":true}'
+```
+
+Create additional users (admin only):
+
+```bash
+# List roles to get role_id for admin, read_write, or read_only
+curl -fsS -b /tmp/umpire.cookies "$API/api/roles"
+
+curl -fsS -b /tmp/umpire.cookies -X POST "$API/api/users" \
+  -H 'content-type: application/json' \
+  -d '{"username":"ops","password":"password-here","role_id":2}'
 ```
 
 ## Route map
@@ -78,7 +157,7 @@ curl -fsS -X PUT "$API/api/plugin-manager/notify/slack" \
 |------|---------|------|
 | Health | `GET` | `/api/health` |
 | Auth | `GET` | `/api/auth/policy`, `/api/auth/me` |
-| Auth | `POST` | `/api/auth/login`, `/api/auth/logout` |
+| Auth | `POST` | `/api/auth/login`, `/api/auth/logout`, `/api/auth/change-password` |
 | API tokens | `GET`, `POST` | `/api/tokens` |
 | API tokens | `DELETE` | `/api/tokens/:id` |
 | Users (admin) | `GET`, `POST` | `/api/users` |
