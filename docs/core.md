@@ -115,6 +115,8 @@ Docker: [`api/Dockerfile`](../api/Dockerfile) and [`web/Dockerfile`](../web/Dock
 
 Authentication is an **auth plugin** (fourth plugin kind), not baked into core. The shipped **`rbac`** plugin (`"auth": "rbac"` in [`api/plugins.json`](../api/plugins.json), enabled by default) provides username/password sessions, API tokens, and role-based access control.
 
+**Only one auth plugin runs at a time.** `plugins.json` has a single `"auth"` id; swap it and restart the API to change auth systems. To implement OAuth, LDAP, or another flow, see **[Auth plugins — build your own](plugins/08-auth-plugins.md)**.
+
 | Mode | Behavior |
 |------|----------|
 | Auth plugin disabled or absent from `plugins.json` | **Open mode** — anonymous admin on every request; no login |

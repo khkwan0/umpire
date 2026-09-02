@@ -409,5 +409,5 @@ SQLite file: `./data/monitor.sqlite` (bind-mounted in Compose at `/data/monitor.
 - AI agents (MCP, web chat, tokens, WebSockets): [docs/agents.md](docs/agents.md)
 - MCP server: [mcp/README.md](mcp/README.md)
 - Agent CLI + web chat: [agent/README.md](agent/README.md)
-- Plugin authoring (API + UI + dashboard widgets): [docs/plugins.md](docs/plugins.md) — implementations live in [`plugins/`](plugins/)
+- Plugin authoring (API + UI + dashboard widgets + auth): [docs/plugins.md](docs/plugins.md) — auth plugins: [docs/plugins/08-auth-plugins.md](docs/plugins/08-auth-plugins.md) (one auth plugin at a time)
 - Core host (pipeline, schema, plugin host, UI shell): [docs/core.md](docs/core.md)

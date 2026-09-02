@@ -15,7 +15,7 @@ Multi-chapter guide for writing UMPIRE **check**, **scheduler**, **notifier**, a
 | 5 | [Scheduler plugins](plugins/05-scheduler-plugins.md) — when to replace `interval` |
 | 6 | [HTTP routes & UI](plugins/06-routes-and-ui.md) — `registerRoutes`, React pages, widgets |
 | 7 | [Registration & testing](plugins/07-registration-and-testing.md) — wiring, verify, tests |
-| 8 | [Auth plugins](plugins/08-auth-plugins.md) — rbac reference, `AuthPlugin` contract, open mode |
+| 8 | [Auth plugins](plugins/08-auth-plugins.md) — **one slot only**; build your own login flow, rbac reference |
 
 Operator setup lives in [`README.md`](../README.md). Changing the host: **[Core developer guide](core.md)**.
 

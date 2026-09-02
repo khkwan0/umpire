@@ -58,6 +58,8 @@ When enabled, `GET /api/auth/policy` returns `login_required: false` and anonymo
 
 Disabling or enabling the auth plugin itself requires an **API restart** (Settings → Plugin manager → Auth).
 
+**Custom auth:** Only one auth plugin can be active. To replace rbac with your own login flow (OAuth, API keys, etc.), implement `plugins/auth/<id>/` and set `"auth": "<id>"` in `plugins.json`. Full guide: **[Auth plugins](plugins/08-auth-plugins.md)**.
+
 **API-only Docker example:**
 
 ```bash

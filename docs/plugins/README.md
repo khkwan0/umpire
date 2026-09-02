@@ -15,7 +15,7 @@ Operator setup (run the app, shipped plugins, core HTTP API) lives in [`README.m
 | 5 | [Scheduler plugins](05-scheduler-plugins.md) | When to replace `interval`, hello world → production scheduler |
 | 6 | [HTTP routes & UI](06-routes-and-ui.md) | `registerRoutes`, React pages, dashboard widgets |
 | 7 | [Registration & testing](07-registration-and-testing.md) | `plugins.json`, plugin manager, verify checklist, tests |
-| 8 | [Auth plugins](08-auth-plugins.md) | rbac reference, `AuthPlugin` contract, open vs secured mode |
+| 8 | [Auth plugins](08-auth-plugins.md) | **One plugin only** — custom login flow, `AuthPlugin` contract, rbac reference |
 
 ## Quick start
 
@@ -24,7 +24,7 @@ Operator setup (run the app, shipped plugins, core HTTP API) lives in [`README.m
 | Probe a URL (HTTP, TLS, DNS, keyword, …) | `check` | `check(ctx)` |
 | Decide *when* targets run (rarely: keep `interval`) | `scheduler` | `start` / `stop` / `reschedule` |
 | Deliver an alert (FCM, webhook, email, …) | `notify` | `isReady` + `notify(ctx)` |
-| Sessions, RBAC, API tokens (swap implementation) | `auth` | `bootstrap` + gate hooks + `registerRoutes` |
+| Login and access control (**one plugin only**) | `auth` | `bootstrap` + `resolvePrincipal` + `evaluateAccess` + `registerRoutes` |
 
 **Id rule (must all match):** folder name, `plugins.json` entry, `plugin.id`, and UI `id`.
 
