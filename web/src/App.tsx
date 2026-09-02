@@ -129,6 +129,7 @@ export default function App() {
     principal,
     reconnecting: authReconnecting,
     logout,
+    refresh: refreshAuth,
     canAccessPlugin,
   } = useAuth()
   const [catalog, setCatalog] = useState<PluginCatalogEntry[] | null>(null)
@@ -162,8 +163,9 @@ export default function App() {
   }, [load])
 
   const onRealtimeRefresh = useCallback(() => {
+    void refreshAuth()
     void load()
-  }, [load])
+  }, [refreshAuth, load])
 
   useRealtimeRefresh(onRealtimeRefresh)
 

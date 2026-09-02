@@ -80,7 +80,7 @@ export async function pluginManagerRoutes(app: FastifyInstance): Promise<void> {
           id,
           enabled,
         })
-        return {ok: true, restart_required: true}
+        return {ok: true, restart_required: enabled}
       }
       if (kind === 'check') {
         if (!getChecks().some(c => c.id === id)) {

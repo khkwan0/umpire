@@ -5,7 +5,7 @@ import {
   registerAuthGate,
   initAuthActiveState,
   isAuthPluginActive,
-  registerNoAuthPolicyRoute,
+  registerAuthPolicyRoute,
 } from './auth/index.js'
 import {
   initPlugins,
@@ -69,10 +69,9 @@ async function main() {
   })
 
   await app.register(healthRoutes)
-  if (auth && isAuthPluginActive()) {
+  await registerAuthPolicyRoute(app)
+  if (auth) {
     await auth.registerRoutes(app)
-  } else {
-    await registerNoAuthPolicyRoute(app)
   }
   await app.register(targetsRoutes)
   await app.register(groupsRoutes)

@@ -22,43 +22,6 @@ function expiresSqlite(date: Date): string {
 }
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
-  app.get(
-    '/api/auth/policy',
-    {
-      schema: {
-        tags: ['auth'],
-        summary: 'Public auth policy for UI gating',
-        response: {
-          200: {
-            type: 'object',
-            required: [
-              'auth_enabled',
-              'allow_readonly_without_auth',
-              'login_required',
-              'user_count',
-            ],
-            properties: {
-              auth_enabled: {type: 'boolean'},
-              allow_readonly_without_auth: {type: 'boolean'},
-              login_required: {type: 'boolean'},
-              user_count: {type: 'integer'},
-            },
-          },
-        },
-      },
-    },
-    async () => {
-      const store = getCore()
-      const allowReadonly = store.getAllowReadonlyWithoutAuth()
-      return {
-        auth_enabled: true,
-        allow_readonly_without_auth: allowReadonly,
-        login_required: !allowReadonly,
-        user_count: store.countUsers(),
-      }
-    },
-  )
-
   app.post<{Body: {username?: string; password?: string}}>(
     '/api/auth/login',
     {

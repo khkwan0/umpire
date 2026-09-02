@@ -41,6 +41,10 @@ jest.unstable_mockModule('../auth/active.js', () => ({
   isAuthPluginActive: () => authPluginActive,
 }))
 
+jest.unstable_mockModule('../plugins/manager.js', () => ({
+  isPluginEnabled: (_kind: string, _id: string) => authPluginActive,
+}))
+
 jest.unstable_mockModule('../plugins/runtime.js', () => ({
   getAuth: () => (authPluginActive ? mockAuthPlugin : undefined),
 }))

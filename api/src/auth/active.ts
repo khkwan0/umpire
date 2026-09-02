@@ -1,15 +1,16 @@
 import {getAuth} from '../plugins/runtime.js'
-import {isPluginEnabled} from '../plugins/manager.js'
+import {isAuthPluginActive} from './policy.js'
 
-let authActiveAtStartup = false
-
-/** Snapshot auth plugin enablement at startup (toggle requires restart). */
+/** No-op kept for call sites; auth active state is read at runtime from plugin manager. */
 export function initAuthActiveState(): void {
   const plugin = getAuth()
-  authActiveAtStartup =
-    plugin !== undefined && isPluginEnabled('auth', plugin.id)
+  if (plugin && isAuthPluginActive()) {
+    console.log(`[auth] plugin=${plugin.id} enabled`)
+  } else if (plugin) {
+    console.log(`[auth] plugin=${plugin.id} disabled (open mode)`)
+  } else {
+    console.log('[auth] no auth plugin loaded (open mode)')
+  }
 }
 
-export function isAuthPluginActive(): boolean {
-  return authActiveAtStartup
-}
+export {isAuthPluginActive} from './policy.js'

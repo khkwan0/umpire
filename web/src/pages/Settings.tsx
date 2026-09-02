@@ -323,11 +323,16 @@ export default function SettingsPage() {
       await api.pluginManager.setEnabled(kind, id, enabled)
       const next = await api.pluginManager.get()
       setPlugins(next)
-      setMessage(
-        kind === 'auth'
-          ? 'Auth plugin state saved — restart the API to apply'
-          : 'Plugin state updated',
-      )
+      if (kind === 'auth') {
+        await refreshAuth()
+        setMessage(
+          enabled
+            ? 'Auth enabled'
+            : 'Auth disabled — open mode is active',
+        )
+      } else {
+        setMessage('Plugin state updated')
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
