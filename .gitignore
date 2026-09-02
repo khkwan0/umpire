@@ -15,3 +15,4 @@ coverage/
 fcm-tokens.json
 webhook.json
 .env.*
+plugin-manager.json
