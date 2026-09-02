@@ -78,7 +78,7 @@ When operators enable auth in Settings, core enforces permissions on **all** `/a
 
 - Use real HTTP verbs: GET/HEAD for reads, POST/PUT/PATCH/DELETE for writes
 - Custom roles may be limited to specific plugin `kind`/`id` pairs
-- Do not reimplement users/roles/settings from a plugin
+- Auth plugins own login, users, roles, tokens, and auth Settings UI — not check/notify/scheduler plugins
 
 Optional helper: `getAuthContext(request)` from [`api/src/auth/`](../../api/src/auth/).
 
@@ -173,6 +173,66 @@ export default function HelloPage() {
 
 For subdirectory deploys, use `withBase('/api/plugins/…')` or `@umpire/web-api` helpers.
 
+## Auth plugin UI
+
+Auth plugins do **not** add nav routes like check/notify/scheduler plugins. Instead they export **Settings panels** embedded by core on the Settings page (web and mobile).
+
+### Discovery (web)
+
+[`web/src/auth-plugin-ui.ts`](../../web/src/auth-plugin-ui.ts) globs:
+
+```typescript
+import.meta.glob('../../plugins/auth/*/ui/index.tsx', { eager: true })
+```
+
+Exactly one file per auth plugin: `plugins/auth/<id>/ui/index.tsx`.
+
+### Discovery (mobile)
+
+[`mobile/src/auth-plugin-ui.ts`](../../mobile/src/auth-plugin-ui.ts) registers auth UI modules explicitly (Metro has no Vite glob). The shipped `rbac` plugin lives at [`plugins/auth/rbac/mobile/`](../../plugins/auth/rbac/mobile/). [`mobile/metro.config.js`](../../mobile/metro.config.js) watches the repo root and maps `@umpire/mobile-api`, `@umpire/mobile-auth`, `@umpire/mobile-ui`, etc. for plugin imports.
+
+### AuthPluginUiModule contract
+
+[`web/src/plugin-ui.ts`](../../web/src/plugin-ui.ts) (mirrored in [`mobile/src/plugin-ui.ts`](../../mobile/src/plugin-ui.ts)):
+
+```typescript
+import type { AuthPluginUiModule } from '@umpire/plugin-ui'
+import DisabledNotice from './DisabledNotice'
+import RbacSettings from './RbacSettings'
+
+export default {
+  id: 'rbac',              // must match plugin id
+  kind: 'auth',
+  Settings: RbacSettings,  // shown when auth is enabled
+  DisabledNotice,          // shown when auth plugin is loaded but disabled
+} satisfies AuthPluginUiModule
+```
+
+`Settings` receives `{ pluginManager }` — plugin manager state for role plugin allowlists and similar admin UI.
+
+### Core Settings integration
+
+[`web/src/pages/Settings.tsx`](../../web/src/pages/Settings.tsx) and [`mobile/src/app/(tabs)/settings.tsx`](../../mobile/src/app/(tabs)/settings.tsx):
+
+```tsx
+{activeAuthUi && plugins?.auth && !policy?.auth_enabled && (
+  <activeAuthUi.DisabledNotice />
+)}
+{activeAuthUi && policy?.auth_enabled && (
+  <activeAuthUi.Settings pluginManager={plugins} />
+)}
+```
+
+Core Settings keeps: appearance, alert policy, AI agent (web), server/push (mobile), **plugin manager** (including the auth enable/disable toggle), and device-specific panels. Account, users, roles, API tokens, and auth configuration live in the auth plugin.
+
+### Styling (web auth UI)
+
+Same as monitoring plugin UI: `@umpire/web-api`, `@umpire/web-auth`, shared CSS classes from [`web/src/styles.css`](../../web/src/styles.css).
+
+### Styling (mobile auth UI)
+
+Use `@umpire/mobile-api`, `@umpire/mobile-auth`, `@umpire/mobile-ui`, `@umpire/mobile-form` — see [`plugins/auth/rbac/mobile/`](../../plugins/auth/rbac/mobile/) for reference.
+
 ## Dashboard widgets
 
 The core Dashboard at `/` is not replaceable. Plugins may add a **panel** under the hero stats.
@@ -226,6 +286,7 @@ Plugin pages import `{ api, withBase } from '@umpire/web-api'`.
 ## Rebuild requirements
 
 - **API restart** after changing plugin TypeScript (or use `tsx watch`)
-- **Web rebuild** after adding/changing `ui/index.tsx` — Vite glob is build-time
+- **Web rebuild** after adding/changing `ui/index.tsx` or `plugins/auth/*/ui/index.tsx` — Vite globs are build-time
+- **Mobile:** restart Expo after adding/changing `plugins/auth/*/mobile/` (Metro registry in `mobile/src/auth-plugin-ui.ts`)
 - **Docker:** rebuild both `api` and `web` images from repo root
 - Do not run `npm run dev` and docker compose simultaneously (both bind port 8089)

@@ -30,7 +30,7 @@ Operator setup (run the app, shipped plugins, core HTTP API) lives in [`README.m
 
 See **[First plugin: from files to running](#first-plugin-from-files-to-running)** below for the full “I wrote the code, now what?” path.
 
-TypeScript contracts: [`api/src/plugins/types.ts`](../../api/src/plugins/types.ts). UI contract: [`web/src/plugin-ui.ts`](../../web/src/plugin-ui.ts).
+TypeScript contracts: [`api/src/plugins/types.ts`](../../api/src/plugins/types.ts). UI contracts: [`web/src/plugin-ui.ts`](../../web/src/plugin-ui.ts) (`PluginUiModule`, `AuthPluginUiModule`).
 
 ## First plugin: from files to running
 
@@ -101,7 +101,7 @@ Rebuild **both** `api` and `web` if you changed `ui/index.tsx` (Vite globs plugi
 | Check | **Enabled** — runs without extra steps |
 | Notifier | **Disabled** (except `webhook`) — turn on in **Settings → Plugin manager** |
 | Scheduler | **Enabled** — only one id in `plugins.json` |
-| Auth | **Enabled** — only one id in `plugins.json`; disable for open mode (restart required) |
+| Auth | **Enabled** — only one id in `plugins.json`; disable in plugin manager for open mode (immediate) |
 
 Or via API: `PUT /api/plugin-manager/notify/my-notify` with body `{ "enabled": true }`.
 

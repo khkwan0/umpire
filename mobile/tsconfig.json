@@ -3,18 +3,26 @@
   "compilerOptions": {
     "strict": true,
     "paths": {
-      "@/*": [
-        "./src/*"
-      ],
-      "@/assets/*": [
-        "./assets/*"
-      ]
+      "@/*": ["./src/*"],
+      "@/assets/*": ["./assets/*"],
+      "@umpire/mobile-api": ["./src/lib/api.ts"],
+      "@umpire/mobile-auth": ["./src/providers/AuthProvider.tsx"],
+      "@umpire/mobile-ui": ["./src/components/umpire-ui.tsx"],
+      "@umpire/mobile-form": ["./src/components/form.tsx"],
+      "@umpire/mobile-theme": ["./src/hooks/use-umpire-theme.ts"],
+      "@umpire/mobile-spacing": ["./src/constants/umpire-theme.ts"],
+      "@umpire/plugin-ui": ["./src/plugin-ui.ts"],
+      "react": ["./node_modules/@types/react/index.d.ts"],
+      "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime.d.ts"],
+      "react-native": ["./node_modules/react-native/types/index.d.ts"],
+      "expo-router": ["./node_modules/expo-router/build/index.d.ts"]
     }
   },
   "include": [
     "**/*.ts",
     "**/*.tsx",
     ".expo/types/**/*.ts",
-    "expo-env.d.ts"
+    "expo-env.d.ts",
+    "../plugins/auth/*/mobile/**/*"
   ]
 }

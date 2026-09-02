@@ -108,13 +108,26 @@ plugins/<kind>/<id>/
   routes.ts         # optional — HTTP routes
   send.ts           # optional — delivery logic (notifiers)
   ui/
-    index.tsx       # optional — PluginUiModule
+    index.tsx       # optional — PluginUiModule (check/notify/scheduler) or AuthPluginUiModule (auth)
     Page.tsx        # optional — React page
+  mobile/           # optional — AuthPluginUiModule for Expo (auth plugins only)
+    index.tsx
+```
+
+Auth plugins use `ui/` and `mobile/` for Settings panels (not nav routes). See [Chapter 6 — Auth plugin UI](06-routes-and-ui.md#auth-plugin-ui).
+
+```text
+plugins/auth/<id>/
+  index.ts          # required — AuthPlugin export
+  gate.ts           # resolvePrincipal + evaluateAccess
+  routes.ts         # login, users, roles, tokens
+  ui/index.tsx      # optional — web Settings panels
+  mobile/index.tsx  # optional — mobile Settings panels
 ```
 
 Single-file plugins also work: `plugins/<kind>/<id>.ts`.
 
-The API TypeScript build **excludes** `**/ui/**` ([`api/tsconfig.json`](../../api/tsconfig.json)). Plugin UI is typechecked by the web build.
+The API TypeScript build **excludes** plugin UI paths ([`api/tsconfig.json`](../../api/tsconfig.json)). Web plugin UI is typechecked by the web build; auth mobile UI by the mobile app (`mobile/tsconfig.json` includes `../plugins/auth/*/mobile/**/*`).
 
 ## Three plugin kinds
 

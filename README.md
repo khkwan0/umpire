@@ -397,7 +397,7 @@ SQLite file: `./data/monitor.sqlite` (bind-mounted in Compose at `/data/monitor.
 
 ## Notes
 
-- Authentication uses the **`rbac` auth plugin** (enabled by default). Set `UMPIRE_ADMIN_USERNAME` and `UMPIRE_ADMIN_PASSWORD` in `.env` before the **first** start when rbac is enabled (see `deploy/env.example`). Change the bootstrap password under **Settings → Change password** after signing in. Disable auth under **Settings → Plugin manager → Auth** for open mode (requires API restart). Prefer binding to localhost or a VPN/firewall in production.
+- Authentication uses the **`rbac` auth plugin** (enabled by default). Set `UMPIRE_ADMIN_USERNAME` and `UMPIRE_ADMIN_PASSWORD` in `.env` before the **first** start when rbac is enabled (see `deploy/env.example`). Change the bootstrap password in the rbac Settings panel after signing in. Disable auth under **Settings → Plugin manager → Auth** for open mode (immediate). Prefer binding to localhost or a VPN/firewall in production.
 - Default branch for this repo is `master`
 - Local run: [`./scripts/deploy.sh`](scripts/deploy.sh) or `docker compose up --build -d` (repo-root build context). Use host `npm run dev` only when writing plugins or core — [CONTRIBUTING.md](CONTRIBUTING.md)
 - CI: GitHub Actions on push/PR ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)). Optional CD: Jenkins — [setup](docs/jenkins.md)

@@ -45,8 +45,8 @@ Shared TypeScript contracts live in [`api/src/plugins/types.ts`](../api/src/plug
 | Change *which* notifier gets an alert | [`api/src/core/notifierRouting.ts`](../api/src/core/notifierRouting.ts) | Plugin UI reimplementing `check_ids` |
 | Change what a cycle does | [`api/src/pipeline.ts`](../api/src/pipeline.ts) | Check plugins writing `check_results` |
 | Add a core HTTP resource | `api/src/routes/` + OpenAPI in that file | Plugin `registerRoutes` on `/api/targets` |
-| Add auth / users / roles | [`api/src/auth/`](../api/src/auth/) + routes | A new plugin kind for login |
-| Add a core UI page | `web/src/pages/` + [`web/src/App.tsx`](../web/src/App.tsx) | Plugin `ui/` (that is plugin-owned) |
+| Add auth / users / roles | Auth plugin under `plugins/auth/` | A duplicate auth stack in core routes |
+| Add a core UI page | `web/src/pages/` + [`web/src/App.tsx`](../web/src/App.tsx) | Auth Settings panels (those belong in `plugins/auth/<id>/ui/` or `mobile/`) |
 | Persist new monitoring fields | [`api/src/core/schema.ts`](../api/src/core/schema.ts) + [`sqlite.ts`](../api/src/core/sqlite.ts) | Plugin sidecar JSON for core history |
 | Enable/disable a loaded plugin | Plugin manager ([`manager.ts`](../api/src/plugins/manager.ts)) | Removing it from the pipeline by hard-coding ids |
 
@@ -84,7 +84,8 @@ api/src/
 web/src/
   App.tsx                  # shell: Dashboard, Groups, Targets, Settings, plugin glob
   pages/                   # core screens
-  plugin-ui.ts             # PluginUiModule contract
+  plugin-ui.ts             # PluginUiModule + AuthPluginUiModule contracts
+  auth-plugin-ui.ts        # glob loader for plugins/auth/*/ui/
   realtime.ts              # SSE / polling hook
 ```
 
@@ -103,7 +104,7 @@ Docker: [`api/Dockerfile`](../api/Dockerfile) and [`web/Dockerfile`](../web/Dock
 1. `initCore(DATABASE_PATH)` — open SQLite, apply frozen schema.
 2. `initPlugins()` — read [`api/plugins.json`](../api/plugins.json), load modules, call notifier `init()`, then `initPluginManager()`.
 3. `scheduler.init({ getTargets, run })` — `run` **is** `runCheck`. That is the only way a cycle starts.
-4. Register auth gate (`onRequest`), core Fastify routes (including auth/users/roles), then `mountAllPluginRoutes`, then `GET /api/plugins` (catalog is filled by the mount).
+4. Register auth gate (`onRequest`), core routes (including `GET /api/auth/policy`), auth plugin `registerRoutes()` (login, users, roles, tokens), then `mountAllPluginRoutes`, then `GET /api/plugins` (catalog is filled by the mount).
 5. `listen`, then `scheduler.start()`.
 6. On `SIGTERM` / `SIGINT`: `scheduler.stop()`, `closeCore()`.
 
@@ -123,7 +124,9 @@ Authentication is an **auth plugin** (fourth plugin kind), not baked into core. 
 | rbac enabled (default) | Login required unless read-only-without-auth is on |
 | rbac + **Allow read-only without signing in** | Anonymous read (`GET`/`HEAD`/`OPTIONS`); writes need a signed-in user |
 
-**Plugin manager:** disabling auth under **Settings → Plugin manager → Auth** takes effect after an **API restart**. The read-only-without-auth toggle under **Settings → Authentication** applies immediately (no restart).
+**Plugin manager:** disabling auth under **Settings → Plugin manager → Auth** takes effect **immediately** (runtime gate reads plugin manager). The read-only-without-auth toggle in the rbac Settings panel applies immediately as well.
+
+Auth operator panels (Account, users, roles, API tokens, authentication settings) are owned by the active auth plugin — shipped in [`plugins/auth/rbac/ui/`](../plugins/auth/rbac/ui/) (web) and [`plugins/auth/rbac/mobile/`](../plugins/auth/rbac/mobile/) (mobile). Core Settings embeds them via `AuthPluginUiModule`.
 
 ### Bootstrap (fresh install, rbac enabled)
 
@@ -151,7 +154,7 @@ Existing databases with users ignore these vars. When rbac is disabled, bootstra
 
 When auth is off, core serves `{ "auth_enabled": false, "login_required": false, … }`. Clients use `login_required` to decide whether to redirect to `/login`.
 
-Admins may toggle anonymous read-only via **Settings → Authentication** or:
+Admins may toggle anonymous read-only via the rbac **Settings** panel (Authentication section) or:
 
 ```bash
 curl -fsS -b cookies.txt -X PUT "$API/api/plugins/auth/rbac/config" \
@@ -190,7 +193,7 @@ Bearer tokens complement browser cookie sessions for MCP servers, scripts, and o
 
 Send `Authorization: Bearer umpire_…` on HTTP and WebSocket-bridge requests. Tokens inherit the creating user's role and plugin allowlist. Store only a SHA-256 hash server-side (`api_tokens` table).
 
-**UI:** **Settings → API tokens** — create and revoke tokens without curl.
+**UI:** rbac **Settings** panel → **API tokens** — create and revoke tokens without curl.
 
 When rbac is enabled, protected routes require a session cookie or Bearer token (unless read-only-without-auth grants anonymous read access). In open mode (auth disabled), all routes behave as admin.
 
@@ -218,7 +221,7 @@ Tool calls use `app.inject()` with the WS session cookie. Streaming is implement
 
 See [`agent/README.md`](../agent/README.md).
 
-Source: core gate [`api/src/auth/gate.ts`](../api/src/auth/gate.ts); rbac implementation [`plugins/auth/rbac/`](../plugins/auth/rbac/). Plugin authoring: [Auth plugins](plugins/08-auth-plugins.md). UI: Settings + `/login`.
+Source: core gate [`api/src/auth/gate.ts`](../api/src/auth/gate.ts) and policy [`api/src/auth/policy.ts`](../api/src/auth/policy.ts); rbac implementation [`plugins/auth/rbac/`](../plugins/auth/rbac/). Plugin authoring: [Auth plugins](plugins/08-auth-plugins.md). UI: core `/login` + auth plugin Settings panels.
 
 ---
 
@@ -335,11 +338,11 @@ Pipeline and UI both honor `isPluginEnabled`. Disabled check/notifier plugins st
 
 ## HTTP API and UI shell
 
-Core Fastify modules live in [`api/src/routes/`](../api/src/routes/). Add `schema` on new routes so Swagger lists them. Do not let plugins register core paths. Auth gate: [`api/src/auth/`](../api/src/auth/).
+Core Fastify modules live in [`api/src/routes/`](../api/src/routes/). Add `schema` on new routes so Swagger lists them. Auth plugins register login/users/roles/tokens via `registerRoutes()` on the root app; monitoring plugins use `/api/plugins/<kind>/<id>/…` only. Auth gate: [`api/src/auth/`](../api/src/auth/).
 
-Core UI pages (always present): Dashboard, Groups, Targets, Settings, Login (when auth requires it), plus host screens for HTTP check overrides and notifier target overrides. Plugin pages are globbed at build time from `plugins/*/*/ui/index.tsx` ([`web/src/App.tsx`](../web/src/App.tsx)). Rebuild **web** after adding a plugin UI.
+Core UI pages (always present): Dashboard, Groups, Targets, Settings shell, Login (when auth requires it), plus host screens for HTTP check overrides and notifier target overrides. Monitoring plugin pages are globbed from `plugins/*/*/ui/index.tsx` ([`web/src/App.tsx`](../web/src/App.tsx)). Auth plugin Settings panels are globbed from `plugins/auth/*/ui/index.tsx` ([`web/src/auth-plugin-ui.ts`](../web/src/auth-plugin-ui.ts)). Mobile auth panels: [`plugins/auth/*/mobile/`](../plugins/auth/rbac/mobile/) via [`mobile/src/auth-plugin-ui.ts`](../mobile/src/auth-plugin-ui.ts). Rebuild **web** after adding plugin UI; restart **Expo** after mobile auth UI changes.
 
-[`PluginUiModule`](../web/src/plugin-ui.ts): `check` → Checks dropdown, `notify` → Notifiers dropdown, `scheduler` → top-level link. Optional `Dashboard` is a panel on the core home page, not a replacement for it.
+[`PluginUiModule`](../web/src/plugin-ui.ts): `check` → Checks dropdown, `notify` → Notifiers dropdown, `scheduler` → top-level link. [`AuthPluginUiModule`](../web/src/plugin-ui.ts): embedded on Settings when auth is active. Optional monitoring `Dashboard` is a panel on the core home page, not a replacement for it.
 
 The UI has **no auth**. Bind to localhost or put it behind a VPN.
 
@@ -431,7 +434,10 @@ Minimum checks for the area you touched:
 | Piece | Path |
 |-------|------|
 | Boot | [`api/src/index.ts`](../api/src/index.ts) |
-| Auth gate / sessions / API tokens | [`api/src/auth/`](../api/src/auth/) |
+| Auth gate + policy route | [`api/src/auth/`](../api/src/auth/) |
+| Auth plugin (rbac) | [`plugins/auth/rbac/`](../plugins/auth/rbac/) |
+| Auth Settings UI (web) | [`plugins/auth/rbac/ui/`](../plugins/auth/rbac/ui/), [`web/src/auth-plugin-ui.ts`](../web/src/auth-plugin-ui.ts) |
+| Auth Settings UI (mobile) | [`plugins/auth/rbac/mobile/`](../plugins/auth/rbac/mobile/), [`mobile/src/auth-plugin-ui.ts`](../mobile/src/auth-plugin-ui.ts) |
 | MCP server (agents) | [`mcp/`](../mcp/) |
 | Agent CLI + web chat | [`agent/`](../agent/) |
 | Agent WebSocket route | [`api/src/routes/agent-ws.ts`](../api/src/routes/agent-ws.ts) |
@@ -455,4 +461,5 @@ Minimum checks for the area you touched:
 | API image | [`api/Dockerfile`](../api/Dockerfile) (context = repo root) |
 | Web image | [`web/Dockerfile`](../web/Dockerfile) (context = repo root) |
 | UI shell | [`web/src/App.tsx`](../web/src/App.tsx) |
-| Plugin UI contract | [`web/src/plugin-ui.ts`](../web/src/plugin-ui.ts) |
+| Plugin UI contracts | [`web/src/plugin-ui.ts`](../web/src/plugin-ui.ts), [`web/src/auth-plugin-ui.ts`](../web/src/auth-plugin-ui.ts) |
+| Mobile auth UI loader | [`mobile/src/auth-plugin-ui.ts`](../mobile/src/auth-plugin-ui.ts) |

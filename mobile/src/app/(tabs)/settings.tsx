@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useState} from 'react'
+import {useCallback, useEffect, useMemo, useState} from 'react'
 import {
   Alert,
   RefreshControl,
@@ -17,6 +17,7 @@ import {
   type PluginManagerState,
   type Settings,
 } from '@/lib/api'
+import {authUiForPlugin} from '@/auth-plugin-ui'
 import {
   clearBearerToken,
   clearSessionCookie,
@@ -42,7 +43,7 @@ const POLICIES: AlertPolicy[] = ['state_change', 'every_fail', 'throttle']
 export default function SettingsScreen() {
   const {colors} = useUmpireTheme()
   const {serverUrl, disconnect} = useServer()
-  const {principal, logout, canWrite} = useAuth()
+  const {policy, principal, refresh: refreshAuth, canWrite} = useAuth()
   const {
     permission: pushPermission,
     registered: pushRegistered,
@@ -59,6 +60,11 @@ export default function SettingsScreen() {
   const [bearerDraft, setBearerDraft] = useState('')
   const [hasBearer, setHasBearer] = useState(false)
   const [pluginBusy, setPluginBusy] = useState<string | null>(null)
+
+  const activeAuthUi = useMemo(
+    () => authUiForPlugin(pluginState?.auth?.id),
+    [pluginState?.auth?.id],
+  )
 
   const load = useCallback(async () => {
     try {
@@ -101,7 +107,7 @@ export default function SettingsScreen() {
   }
 
   async function togglePlugin(
-    kind: 'check' | 'notify' | 'scheduler',
+    kind: 'auth' | 'check' | 'notify' | 'scheduler',
     id: string,
     enabled: boolean,
   ) {
@@ -111,6 +117,9 @@ export default function SettingsScreen() {
     try {
       await api.pluginManager.setEnabled(kind, id, enabled)
       await load()
+      if (kind === 'auth') {
+        await refreshAuth()
+      }
     } catch (err) {
       Alert.alert('Error', err instanceof Error ? err.message : String(err))
     } finally {
@@ -125,11 +134,6 @@ export default function SettingsScreen() {
     setHasBearer(!!token)
     setBearerDraft('')
     Alert.alert('Saved', 'API token updated')
-  }
-
-  async function handleLogout() {
-    await logout()
-    router.replace('/login')
   }
 
   async function handleDisconnect() {
@@ -159,26 +163,13 @@ export default function SettingsScreen() {
           <SecondaryButton title="Change server" onPress={() => void handleDisconnect()} />
         </Panel>
 
-        <Panel>
-          <SectionTitle>Account</SectionTitle>
-          {principal?.kind === 'user' ? (
-            <>
-              <MutedText>
-                {`Signed in as ${principal.user?.username ?? 'user'}`}
-                {principal.is_admin ? ' (admin)' : ''}
-              </MutedText>
-              <SecondaryButton title="Sign out" onPress={() => void handleLogout()} />
-            </>
-          ) : (
-            <>
-              <MutedText>Not signed in</MutedText>
-              <PrimaryButton
-                title="Sign in"
-                onPress={() => router.push('/login')}
-              />
-            </>
-          )}
-        </Panel>
+        {activeAuthUi && pluginState?.auth && !policy?.auth_enabled ? (
+          <activeAuthUi.DisabledNotice />
+        ) : null}
+
+        {activeAuthUi && policy?.auth_enabled ? (
+          <activeAuthUi.Settings pluginManager={pluginState} />
+        ) : null}
 
         <Panel>
           <SectionTitle>Push notifications</SectionTitle>
@@ -237,6 +228,23 @@ export default function SettingsScreen() {
         {pluginState && isAdmin ? (
           <Panel>
             <SectionTitle>Plugin manager</SectionTitle>
+            {pluginState.auth ? (
+              <>
+                <MutedText>
+                  Enabling or disabling auth takes effect immediately.
+                </MutedText>
+                <View style={styles.switchRow}>
+                  <Text style={{color: colors.text}}>{pluginState.auth.id}</Text>
+                  <Switch
+                    value={pluginState.auth.enabled}
+                    onValueChange={v =>
+                      void togglePlugin('auth', pluginState.auth!.id, v)
+                    }
+                    disabled={pluginBusy === `auth:${pluginState.auth.id}`}
+                  />
+                </View>
+              </>
+            ) : null}
             <MutedText>Scheduler: {pluginState.scheduler.id}</MutedText>
             <View style={styles.switchRow}>
               <Text style={{color: colors.text}}>Interval scheduler</Text>

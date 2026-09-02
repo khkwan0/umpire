@@ -45,18 +45,18 @@ Existing databases with users ignore these variables. When rbac is disabled, boo
 | Mode | How | Login |
 |------|-----|-------|
 | **Secured (default)** | `"auth": "rbac"` in `plugins.json`, enabled in plugin manager | Required (unless read-only-without-auth is on) |
-| **Open** | Remove `"auth"` from `plugins.json`, or disable auth in plugin manager and restart | Not required — all requests run as anonymous admin |
+| **Open** | Remove `"auth"` from `plugins.json`, or disable auth in plugin manager | Not required — all requests run as anonymous admin (immediate when using plugin manager) |
 
 ### Read-only without login (rbac only)
 
 Admins can allow unauthenticated read access while keeping writes protected:
 
-- **UI:** Settings → Authentication → *Allow read-only access without signing in*
+- **UI:** rbac Settings panel → Authentication → *Allow read-only access without signing in*
 - **API:** `PUT /api/plugins/auth/rbac/config` with `{ "allow_readonly_without_auth": true }`
 
 When enabled, `GET /api/auth/policy` returns `login_required: false` and anonymous clients receive read-only principals on `GET`/`HEAD`/`OPTIONS`.
 
-Disabling or enabling the auth plugin itself requires an **API restart** (Settings → Plugin manager → Auth).
+Disabling or enabling the auth plugin in plugin manager takes effect **immediately**. Swapping which auth plugin is loaded (`plugins.json` `"auth"` id) requires an **API restart**.
 
 **Custom auth:** Only one auth plugin can be active. To replace rbac with your own login flow (OAuth, API keys, etc.), implement `plugins/auth/<id>/` and set `"auth": "<id>"` in `plugins.json`. Full guide: **[Auth plugins](plugins/08-auth-plugins.md)**.
 
@@ -87,7 +87,7 @@ Public paths (no credentials): `/api/health`, `/api/auth/policy`, `/api/auth/log
 
 | Endpoint | Access | Purpose |
 |----------|--------|---------|
-| `GET /api/auth/policy` | Public | Returns `{ auth_enabled, allow_readonly_without_auth, login_required, user_count }` |
+| `GET /api/auth/policy` | Public (core) | Returns `{ auth_enabled, allow_readonly_without_auth, login_required, user_count }` — reflects plugin-manager state |
 | `GET /api/auth/me` | Authenticated | Current principal |
 | `POST /api/auth/login` | Public | Set session cookie |
 | `POST /api/auth/logout` | Session | Clear session |
@@ -202,7 +202,7 @@ curl -fsS -b /tmp/umpire.cookies -X POST "$API/api/users" \
 | Notifiers inventory | `GET` | `/api/notifiers` |
 | Plugin catalog | `GET` | `/api/plugins` |
 | Plugin manager | `GET` | `/api/plugin-manager` |
-| Plugin manager | `PUT` | `/api/plugin-manager/:kind/:id` (`kind` = `auth` \| `check` \| `notify` \| `scheduler`; auth toggle requires API restart) |
+| Plugin manager | `PUT` | `/api/plugin-manager/:kind/:id` (`kind` = `auth` \| `check` \| `notify` \| `scheduler`; takes effect immediately) |
 | Agent | `GET` | `/api/agent/status` |
 | Agent (admin) | `GET`, `PUT` | `/api/agent/settings` |
 

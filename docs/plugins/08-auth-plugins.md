@@ -14,10 +14,12 @@ This is a hard rule, not a convention:
 |------|--------|
 | **Single slot** | `plugins.json` has one `"auth"` key — a string id, not an array |
 | **One loaded module** | Core loads exactly one implementation from `plugins/auth/<id>/` |
-| **One active gate** | At startup, enablement is snapshotted; one plugin’s `resolvePrincipal` + `evaluateAccess` runs for every request |
+| **One active gate** | When enabled in plugin manager, one plugin’s `resolvePrincipal` + `evaluateAccess` runs for every request (checked at runtime — no restart) |
 | **No stacking** | You cannot run `rbac` and OAuth side by side — pick one id and swap it |
 
-To change auth systems, set `"auth": "your-id"` in `plugins.json` (or disable auth for open mode) and **restart the API**. Toggling enable/disable in plugin manager also requires a restart.
+To **swap implementations**, set `"auth": "your-id"` in `plugins.json` and **restart the API** (only one module can be loaded).
+
+To **enable or disable** the loaded auth plugin, use **Settings → Plugin manager → Auth** — takes effect **immediately** (same as check/notifier toggles). Open mode: disable auth in plugin manager, or remove the `"auth"` line from `plugins.json` and restart.
 
 ```json
 {
@@ -57,8 +59,12 @@ plugins/auth/<your-id>/
   index.ts      # default export: AuthPlugin
   bootstrap.ts  # optional first-run setup
   gate.ts       # resolvePrincipal + evaluateAccess helpers
-  routes.ts     # login, policy, token endpoints you expose
+  routes.ts     # login, users, roles, tokens, plugin config
+  ui/           # optional web Settings panels (see Chapter 6)
+  mobile/       # optional Expo Settings panels (see Chapter 6)
 ```
+
+Core registers `GET /api/auth/policy` ([`api/src/auth/policy.ts`](../../api/src/auth/policy.ts)) — it reflects the current plugin-manager auth state. Your plugin registers login, `me`, users, roles, tokens, etc. in `registerRoutes`.
 
 Minimal skeleton:
 
@@ -76,12 +82,7 @@ const example: AuthPlugin = {
 
   async registerRoutes(app) {
     // Register YOUR login/callback/token routes on the root app.
-    app.get('/api/auth/policy', async () => ({
-      auth_enabled: true,
-      allow_readonly_without_auth: false,
-      login_required: true,
-      user_count: 0,
-    }))
+    // Do not register GET /api/auth/policy — core owns that route.
     app.post('/api/auth/login', async (req, reply) => {
       // Validate credentials, set session cookie or return token payload.
       // Attach principal shape expected by clients (see below).
@@ -161,12 +162,12 @@ interface AuthPrincipal {
 
 The shipped web/mobile apps expect these when auth is on (you may extend, not break, the policy contract):
 
-| Route | Purpose |
-|-------|---------|
-| `GET /api/auth/policy` | **Public.** `{ auth_enabled, allow_readonly_without_auth, login_required, user_count }` — drives login redirect |
-| `GET /api/auth/me` | Current principal (401 if none) |
-| `POST /api/auth/login` | Your sign-in flow (form login, API key exchange, etc.) |
-| `POST /api/auth/logout` | End session (optional for pure Bearer setups) |
+| Route | Owner | Purpose |
+|-------|-------|---------|
+| `GET /api/auth/policy` | **Core** | **Public.** `{ auth_enabled, allow_readonly_without_auth, login_required, user_count }` — reflects plugin-manager state; drives login redirect |
+| `GET /api/auth/me` | Auth plugin | Current principal (401 if none) |
+| `POST /api/auth/login` | Auth plugin | Your sign-in flow (form login, API key exchange, etc.) |
+| `POST /api/auth/logout` | Auth plugin | End session (optional for pure Bearer setups) |
 
 Headless clients can skip the UI entirely: call your login route, then send the session cookie or `Authorization: Bearer …` on later requests. See [API guide — Authentication](../api.md#authentication).
 
@@ -195,9 +196,23 @@ Tables stay in core schema even when auth is disabled.
 1. Implement `plugins/auth/<your-id>/` (copy structure from [`plugins/auth/rbac/`](../../plugins/auth/rbac/) as a starting point).
 2. Change `"auth": "rbac"` → `"auth": "<your-id>"` in `plugins.json`.
 3. Restart the API.
-4. Update web login UI if your flow is not username/password — today [`web/src/pages/Login.tsx`](../../web/src/pages/Login.tsx) is generic; OAuth may need a plugin-owned page or redirect in `registerRoutes`.
+4. Provide **Settings UI** if your plugin has operator panels (Account, users, tokens, etc.) — see [HTTP routes & UI — Auth plugin UI](06-routes-and-ui.md#auth-plugin-ui). Core Settings embeds your `Settings` and `DisabledNotice` components; it keeps only the plugin-manager auth toggle.
+5. Update login UI if your flow is not username/password — [`web/src/pages/Login.tsx`](../../web/src/pages/Login.tsx) is generic; OAuth may need a plugin-owned page or redirect in `registerRoutes`.
 
 Only one auth plugin is loaded; changing the id is how you switch implementations.
+
+---
+
+## Auth plugin UI (Settings panels)
+
+Account, users, roles, API tokens, and auth configuration belong in the **auth plugin**, not in core Settings. The shipped **`rbac`** plugin provides:
+
+| Path | Platform |
+|------|----------|
+| [`plugins/auth/rbac/ui/`](../../plugins/auth/rbac/ui/) | Web (React + CSS) |
+| [`plugins/auth/rbac/mobile/`](../../plugins/auth/rbac/mobile/) | Expo / React Native |
+
+See [Chapter 6 — Auth plugin UI](06-routes-and-ui.md#auth-plugin-ui) for the `AuthPluginUiModule` contract and loader details.
 
 ---
 
@@ -209,8 +224,10 @@ Default plugin: username/password sessions, API Bearer tokens, roles, optional a
 |------|------|
 | `bootstrap.ts` | First admin from `UMPIRE_ADMIN_*` on empty DB |
 | `gate.ts` | Session/Bearer resolution + RBAC ACL |
-| `routes.ts` | Auth, users, roles, tokens + readonly config |
+| `routes.ts` | Login, users, roles, tokens + readonly config |
 | `index.ts` | `AuthPlugin` export |
+| `ui/` | Web Settings panels (`RbacSettings`, `ApiTokensPanel`, `DisabledNotice`) |
+| `mobile/` | Mobile Settings panels (same features, RN components) |
 
 Operator docs: [Core guide — Authentication](../core.md#authentication-and-rbac), [API guide](../api.md#authentication).
 
@@ -224,5 +241,6 @@ Operator docs: [Core guide — Authentication](../core.md#authentication-and-rba
 | `rbac` **enabled** | Login required (default) |
 | rbac + read-only without sign-in | Anonymous GET; writes need login |
 
-- Auth on/off in plugin manager → **restart required**
-- Read-only toggle in Settings → **immediate** (rbac only)
+- Auth on/off in plugin manager → **immediate** (no restart)
+- Swapping auth plugin id in `plugins.json` → **API restart**
+- Read-only toggle in rbac Settings → **immediate**

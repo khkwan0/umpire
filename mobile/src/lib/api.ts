@@ -187,6 +187,7 @@ export interface PluginManagerNotifierEntry extends PluginManagerEntry {
 }
 
 export interface PluginManagerState {
+  auth: PluginManagerEntry | null
   checks: PluginManagerEntry[]
   scheduler: PluginManagerEntry
   notifiers: PluginManagerNotifierEntry[]
@@ -432,6 +433,26 @@ export const api = {
         body: JSON.stringify({username, password}),
       }),
     logout: () => request<{ok: boolean}>('/api/auth/logout', {method: 'POST'}),
+    changePassword: (currentPassword: string, newPassword: string) =>
+      request<AuthMe>('/api/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({
+          current_password: currentPassword,
+          new_password: newPassword,
+        }),
+      }),
+    rbacConfig: {
+      put: (allowReadonlyWithoutAuth: boolean) =>
+        request<{allow_readonly_without_auth: boolean}>(
+          '/api/plugins/auth/rbac/config',
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              allow_readonly_without_auth: allowReadonlyWithoutAuth,
+            }),
+          },
+        ),
+    },
   },
   agent: {
     status: () => request<AgentStatus>('/api/agent/status'),
@@ -536,7 +557,7 @@ export const api = {
   pluginManager: {
     get: () => request<PluginManagerState>('/api/plugin-manager'),
     setEnabled: (
-      kind: 'check' | 'notify' | 'scheduler',
+      kind: 'auth' | 'check' | 'notify' | 'scheduler',
       id: string,
       enabled: boolean,
     ) =>
