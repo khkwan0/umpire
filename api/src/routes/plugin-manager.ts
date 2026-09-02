@@ -1,6 +1,11 @@
 import type {FastifyInstance} from 'fastify'
 import {pluginManagerState, setPluginEnabled} from '../plugins/manager.js'
-import {getAuth, getChecks, getNotifiers, getScheduler} from '../plugins/registry.js'
+import {
+  getAuth,
+  getChecks,
+  getNotifiers,
+  getScheduler,
+} from '../plugins/registry.js'
 import {publishRealtime} from '../realtime.js'
 
 const errorResponse = {
@@ -36,7 +41,10 @@ export async function pluginManagerRoutes(app: FastifyInstance): Promise<void> {
           type: 'object',
           required: ['kind', 'id'],
           properties: {
-            kind: {type: 'string', enum: ['auth', 'check', 'notify', 'scheduler']},
+            kind: {
+              type: 'string',
+              enum: ['auth', 'check', 'notify', 'scheduler'],
+            },
             id: {type: 'string'},
           },
         },

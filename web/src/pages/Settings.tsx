@@ -249,9 +249,7 @@ export default function SettingsPage() {
       if (kind === 'auth') {
         await refreshAuth()
         setMessage(
-          enabled
-            ? 'Auth enabled'
-            : 'Auth disabled — open mode is active',
+          enabled ? 'Auth enabled' : 'Auth disabled — open mode is active',
         )
       } else {
         setMessage('Plugin state updated')

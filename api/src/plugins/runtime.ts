@@ -1,4 +1,9 @@
-import type {CheckPlugin, NotifierPlugin, SchedulerPlugin, AuthPlugin} from './types.js'
+import type {
+  CheckPlugin,
+  NotifierPlugin,
+  SchedulerPlugin,
+  AuthPlugin,
+} from './types.js'
 
 let checks: CheckPlugin[] = []
 let scheduler: SchedulerPlugin | undefined

@@ -2,11 +2,7 @@ import fs from 'node:fs'
 import type {NotifierPlugin} from '../../../api/src/plugins/types.js'
 import {credentialsStatus, readServiceAccountFile} from './credentials.js'
 import {registerFcmRoutes} from './routes.js'
-import {
-  initFirebase,
-  isMessagingReady,
-  sendToMany,
-} from './send.js'
+import {initFirebase, isMessagingReady, sendToMany} from './send.js'
 import {matchingFids, resolveFcmConfigForTarget} from './config.js'
 import {
   isFcmNotifierReady,

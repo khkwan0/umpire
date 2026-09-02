@@ -282,8 +282,7 @@ export interface SchedulerPlugin extends PluginInfo {
 }
 
 export type GateDecision =
-  | {ok: true}
-  | {ok: false; status: 401 | 403; error: string}
+  {ok: true} | {ok: false; status: 401 | 403; error: string}
 
 /** Optional auth plugin — when disabled, core grants anonymous admin access. */
 export interface AuthPlugin extends PluginInfo {

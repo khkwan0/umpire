@@ -20,9 +20,7 @@ export function isDeviceRegistrationPath(
 
 /** Any signed-in user may change their own password. */
 export function isSelfServiceAuthPath(method: string, path: string): boolean {
-  return (
-    method.toUpperCase() === 'POST' && path === '/api/auth/change-password'
-  )
+  return method.toUpperCase() === 'POST' && path === '/api/auth/change-password'
 }
 
 export function isAdminOnlyPath(method: string, path: string): boolean {

@@ -3,11 +3,7 @@ import {
   removeServiceAccount,
   writeServiceAccount,
 } from './credentials.js'
-import {
-  isMessagingReady,
-  remountFirebase,
-  shutdownFirebase,
-} from './send.js'
+import {isMessagingReady, remountFirebase, shutdownFirebase} from './send.js'
 
 let ready = false
 

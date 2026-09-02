@@ -1,7 +1,4 @@
-import {
-  isAuthPluginUiModule,
-  type AuthPluginUiModule,
-} from './plugin-ui'
+import {isAuthPluginUiModule, type AuthPluginUiModule} from './plugin-ui'
 
 export type {AuthPluginUiModule, AuthPluginSettingsProps} from './plugin-ui'
 export {isAuthPluginUiModule}

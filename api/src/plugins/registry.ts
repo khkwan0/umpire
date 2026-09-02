@@ -19,7 +19,13 @@ import type {
   SchedulerPlugin,
 } from './types.js'
 
-export {getAuth, getChecks, getNotifiers, getScheduler, hasNotifier} from './runtime.js'
+export {
+  getAuth,
+  getChecks,
+  getNotifiers,
+  getScheduler,
+  hasNotifier,
+} from './runtime.js'
 
 interface PluginsConfig {
   auth?: string

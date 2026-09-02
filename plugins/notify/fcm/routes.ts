@@ -20,7 +20,11 @@ import {
   updateDestination,
 } from './destinations.js'
 import {isUnregisteredTokenError, sendToMany, testPushCopy} from './send.js'
-import {applyServiceAccount, clearServiceAccount, isFcmNotifierReady} from './runtime.js'
+import {
+  applyServiceAccount,
+  clearServiceAccount,
+  isFcmNotifierReady,
+} from './runtime.js'
 import {credentialsStatus} from './credentials.js'
 
 const errorResponse = {

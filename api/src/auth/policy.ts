@@ -55,9 +55,7 @@ export function authPolicyPayload() {
 export async function registerAuthPolicyRoute(
   app: FastifyInstance,
 ): Promise<void> {
-  app.get(
-    '/api/auth/policy',
-    {schema: policySchema},
-    async () => authPolicyPayload(),
+  app.get('/api/auth/policy', {schema: policySchema}, async () =>
+    authPolicyPayload(),
   )
 }

@@ -1,12 +1,12 @@
 import type {FastifyRequest} from 'fastify'
 import {getCore} from '../../../api/src/core/index.js'
-import {
-  getBearerToken,
-  getSessionToken,
-} from '../../../api/src/auth/index.js'
+import {getBearerToken, getSessionToken} from '../../../api/src/auth/index.js'
 import {hashSessionToken} from '../../../api/src/auth/cookies.js'
 import {hashApiToken} from '../../../api/src/auth/tokens.js'
-import type {AuthPrincipal, GateDecision} from '../../../api/src/plugins/types.js'
+import type {
+  AuthPrincipal,
+  GateDecision,
+} from '../../../api/src/plugins/types.js'
 import {
   isAdminOnlyPath,
   isDeviceRegistrationPath,
@@ -27,7 +27,9 @@ export function rbacPublicPaths(): Set<string> {
   return RBAC_PUBLIC_PATHS
 }
 
-export function rbacResolvePrincipal(req: FastifyRequest): AuthPrincipal | null {
+export function rbacResolvePrincipal(
+  req: FastifyRequest,
+): AuthPrincipal | null {
   const store = getCore()
 
   const bearer = getBearerToken(req)
@@ -86,10 +88,7 @@ export function rbacResolvePrincipalOrAnonymous(
     return store.anonymousReadOnlyPrincipal()
   }
 
-  if (
-    store.getAllowReadonlyWithoutAuth() &&
-    isReadMethod(method)
-  ) {
+  if (store.getAllowReadonlyWithoutAuth() && isReadMethod(method)) {
     return store.anonymousReadOnlyPrincipal()
   }
 

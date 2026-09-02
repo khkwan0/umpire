@@ -13,7 +13,8 @@ const validAccount = {
   type: 'service_account',
   project_id: 'umpire-test',
   private_key_id: 'key-id',
-  private_key: '-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----\\n',
+  private_key:
+    '-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----\\n',
   client_email: 'firebase-adminsdk@umpire-test.iam.gserviceaccount.com',
   client_id: '123',
 }
@@ -73,7 +74,10 @@ describe('writeServiceAccount', () => {
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fcm-cred-write-'))
-    process.env.FCM_CREDENTIALS_PATH = path.join(tmpDir, 'fcm-service-account.json')
+    process.env.FCM_CREDENTIALS_PATH = path.join(
+      tmpDir,
+      'fcm-service-account.json',
+    )
   })
 
   afterEach(() => {

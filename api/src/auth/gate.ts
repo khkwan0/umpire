@@ -97,10 +97,7 @@ export async function registerAuthGate(app: FastifyInstance): Promise<void> {
       return deny(reply, 401, 'Authentication required')
     }
 
-    const denied = applyDecision(
-      reply,
-      plugin!.evaluateAccess(req, principal),
-    )
+    const denied = applyDecision(reply, plugin!.evaluateAccess(req, principal))
     if (denied) return denied
     ;(req as AuthRequest).auth = principal
   })

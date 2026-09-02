@@ -608,10 +608,13 @@ export const api = {
       get: () =>
         request<FcmCredentialsStatus>('/api/plugins/notify/fcm/credentials'),
       put: (data: Record<string, unknown>) =>
-        request<FcmCredentialsApplyResult>('/api/plugins/notify/fcm/credentials', {
-          method: 'PUT',
-          body: JSON.stringify(data),
-        }),
+        request<FcmCredentialsApplyResult>(
+          '/api/plugins/notify/fcm/credentials',
+          {
+            method: 'PUT',
+            body: JSON.stringify(data),
+          },
+        ),
       remove: () =>
         request<void>('/api/plugins/notify/fcm/credentials', {
           method: 'DELETE',

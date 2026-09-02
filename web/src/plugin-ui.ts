@@ -53,7 +53,9 @@ export function hasDashboardWidget(
   return typeof ui.Dashboard === 'function'
 }
 
-export function isAuthPluginUiModule(value: unknown): value is AuthPluginUiModule {
+export function isAuthPluginUiModule(
+  value: unknown,
+): value is AuthPluginUiModule {
   if (!value || typeof value !== 'object') return false
   const m = value as Record<string, unknown>
   return (
