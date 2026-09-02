@@ -1,27 +1,13 @@
 import type {FastifyInstance, FastifyReply, FastifyRequest} from 'fastify'
-import {getCore} from '../core/index.js'
-import type {AuthPrincipal} from '../plugins/types.js'
+import {getAuth} from '../plugins/runtime.js'
+import type {AuthPrincipal, GateDecision} from '../plugins/types.js'
+import {isAuthPluginActive} from './active.js'
+import {anonymousAdminPrincipal} from './principals.js'
 import {getBearerToken} from './tokens.js'
-import {getSessionToken} from './cookies.js'
-import {
-  isAdminOnlyPath,
-  isDeviceRegistrationPath,
-  isReadMethod,
-  isSelfServiceAuthPath,
-  parsePluginPath,
-  pluginAllowed,
-} from './permissions.js'
 
 export type AuthRequest = FastifyRequest & {
   auth?: AuthPrincipal
 }
-
-const PUBLIC_PATHS = new Set([
-  '/api/health',
-  '/api/auth/policy',
-  '/api/auth/login',
-  '/api/auth/logout',
-])
 
 const WS_DEFER_AUTH_PATHS = new Set(['/api/agent/ws', '/api/ws'])
 
@@ -42,28 +28,27 @@ function deny(
   return reply.code(status).send({error})
 }
 
-/**
- * Resolve the effective principal for a request (Bearer token or session).
- * Does not enforce; used by the gate and GET /api/auth/me.
- */
-export function resolvePrincipal(req: FastifyRequest): AuthPrincipal | null {
-  const store = getCore()
-
-  const bearer = getBearerToken(req)
-  if (bearer) {
-    return store.resolveApiTokenPrincipal(bearer)
-  }
-
-  const token = getSessionToken(req)
-  if (token) {
-    return store.resolveSessionPrincipal(token)
-  }
-
-  return null
-}
-
 export function getAuthContext(req: FastifyRequest): AuthPrincipal | undefined {
   return (req as AuthRequest).auth
+}
+
+/** Resolve principal for /api/auth/me when auth plugin is active. */
+export function resolvePrincipal(req: FastifyRequest): AuthPrincipal | null {
+  const plugin = getAuth()
+  if (!plugin || !isAuthPluginActive()) {
+    return anonymousAdminPrincipal()
+  }
+  return plugin.resolvePrincipal(req)
+}
+
+function applyDecision(
+  reply: FastifyReply,
+  decision: GateDecision,
+): FastifyReply | undefined {
+  if (!decision.ok) {
+    return deny(reply, decision.status, decision.error)
+  }
+  return undefined
 }
 
 export async function registerAuthGate(app: FastifyInstance): Promise<void> {
@@ -72,59 +57,51 @@ export async function registerAuthGate(app: FastifyInstance): Promise<void> {
   app.addHook('onRequest', async (req, reply) => {
     const path = requestPath(req.url)
     if (!path.startsWith('/api/')) return
-    if (PUBLIC_PATHS.has(path)) return
+
+    const plugin = getAuth()
+    const authActive = isAuthPluginActive()
+
+    if (!authActive) {
+      if (path === '/api/auth/policy') return
+      ;(req as AuthRequest).auth = anonymousAdminPrincipal()
+      return
+    }
+
+    if (plugin?.publicPaths().has(path)) return
 
     if (WS_DEFER_AUTH_PATHS.has(path) && isWebSocketUpgrade(req)) {
-      const principal = resolvePrincipal(req)
+      const principal = plugin!.resolvePrincipal(req)
       if (principal) {
         ;(req as AuthRequest).auth = principal
       }
       return
     }
 
-    const method = req.method.toUpperCase()
-    const read = isReadMethod(method)
     const bearer = getBearerToken(req)
-    let principal: AuthPrincipal | null = null
-
     if (bearer) {
-      principal = getCore().resolveApiTokenPrincipal(bearer)
-      if (!principal) {
+      const tokenPrincipal = plugin!.resolvePrincipal(req)
+      if (!tokenPrincipal) {
         return deny(reply, 401, 'Invalid or expired API token')
       }
-    } else {
-      const token = getSessionToken(req)
-      if (token) {
-        principal = getCore().resolveSessionPrincipal(token)
-      }
+      const denied = applyDecision(
+        reply,
+        plugin!.evaluateAccess(req, tokenPrincipal),
+      )
+      if (denied) return denied
+      ;(req as AuthRequest).auth = tokenPrincipal
+      return
     }
 
+    const principal = plugin!.resolvePrincipal(req)
     if (!principal) {
-      if (isDeviceRegistrationPath(method, path)) {
-        principal = getCore().anonymousReadOnlyPrincipal()
-      } else {
-        return deny(reply, 401, 'Authentication required')
-      }
+      return deny(reply, 401, 'Authentication required')
     }
 
+    const denied = applyDecision(
+      reply,
+      plugin!.evaluateAccess(req, principal),
+    )
+    if (denied) return denied
     ;(req as AuthRequest).auth = principal
-
-    if (
-      !read &&
-      !principal.can_write &&
-      !isDeviceRegistrationPath(method, path) &&
-      !isSelfServiceAuthPath(method, path)
-    ) {
-      return deny(reply, 403, 'Write access required')
-    }
-
-    if (isAdminOnlyPath(method, path) && !principal.is_admin) {
-      return deny(reply, 403, 'Admin access required')
-    }
-
-    const plugin = parsePluginPath(path)
-    if (plugin && !pluginAllowed(principal, plugin.kind, plugin.id)) {
-      return deny(reply, 403, 'Plugin access denied')
-    }
   })
 }

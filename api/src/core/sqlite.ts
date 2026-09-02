@@ -11,7 +11,7 @@ import type {
   AgentChatToolRef,
   AlertPolicy,
   ApiToken,
-  AuthPluginKind,
+  MonitoringPluginKind,
   AuthPrincipal,
   CheckResult,
   Group,
@@ -506,7 +506,7 @@ function mapRole(row: RoleRow): Role {
           id: string
         }>
       ).map(p => ({
-        kind: p.kind as AuthPluginKind,
+        kind: p.kind as MonitoringPluginKind,
         id: p.id,
       }))
   return {
@@ -562,7 +562,7 @@ function uniqueRoleSlug(base: string): string {
   return slug
 }
 
-const AUTH_PLUGIN_KINDS = new Set<AuthPluginKind>([
+const MONITORING_PLUGIN_KINDS = new Set<MonitoringPluginKind>([
   'check',
   'notify',
   'scheduler',
@@ -583,9 +583,9 @@ function normalizeRolePlugins(input: RolePluginRef[]): RolePluginRef[] {
     ) {
       throw new Error('plugins entries must include kind and id')
     }
-    const kind = item.kind as AuthPluginKind
+    const kind = item.kind as MonitoringPluginKind
     const id = item.id.trim()
-    if (!AUTH_PLUGIN_KINDS.has(kind)) {
+    if (!MONITORING_PLUGIN_KINDS.has(kind)) {
       throw new Error(`invalid plugin kind: ${item.kind}`)
     }
     if (!id) throw new Error('plugin id is required')
@@ -835,8 +835,20 @@ export const core: CoreStore = {
     return next
   },
 
-  ensureAuthEnabled(): void {
-    getStmts().upsertSetting.run('auth_enabled', '1')
+  getAllowReadonlyWithoutAuth(): boolean {
+    const rows = getStmts().selectSettings.all() as Array<{
+      key: string
+      value: string
+    }>
+    const map = Object.fromEntries(rows.map(r => [r.key, r.value]))
+    return map.allow_readonly_without_auth === '1'
+  },
+
+  setAllowReadonlyWithoutAuth(value: boolean): void {
+    getStmts().upsertSetting.run(
+      'allow_readonly_without_auth',
+      value ? '1' : '0',
+    )
   },
 
   getStoredAgentSettings() {
@@ -1739,7 +1751,6 @@ export function initCore(databasePath: string): void {
   const insertSetting = stmts.insertSettingIgnore
   insertSetting.run('alert_policy', 'state_change')
   insertSetting.run('throttle_minutes', '30')
-  insertSetting.run('auth_enabled', '1')
   insertSetting.run('allow_readonly_without_auth', '0')
 
   const insertRole = stmts.insertRoleIgnore

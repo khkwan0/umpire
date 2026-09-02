@@ -103,10 +103,10 @@ export interface AgentChatWithMessages extends AgentChat {
   messages: AgentChatMessage[]
 }
 
-export type AuthPluginKind = 'check' | 'notify' | 'scheduler'
+export type MonitoringPluginKind = 'check' | 'notify' | 'scheduler'
 
 export interface RolePluginRef {
-  kind: AuthPluginKind
+  kind: MonitoringPluginKind
   id: string
 }
 
@@ -279,4 +279,22 @@ export interface SchedulerPlugin extends PluginInfo {
   reschedule(): void
   /** Optional HTTP routes under /api/plugins/<kind>/<id>/… (host applies the prefix). */
   registerRoutes?(app: FastifyInstance): void | Promise<void>
+}
+
+export type GateDecision =
+  | {ok: true}
+  | {ok: false; status: 401 | 403; error: string}
+
+/** Optional auth plugin — when disabled, core grants anonymous admin access. */
+export interface AuthPlugin extends PluginInfo {
+  /** Called once at startup when the plugin is enabled. */
+  bootstrap(): void
+  /** Register /api/auth, /api/users, /api/roles, /api/tokens, etc. */
+  registerRoutes(app: FastifyInstance): void | Promise<void>
+  resolvePrincipal(req: import('fastify').FastifyRequest): AuthPrincipal | null
+  evaluateAccess(
+    req: import('fastify').FastifyRequest,
+    principal: AuthPrincipal,
+  ): GateDecision
+  publicPaths(): Set<string>
 }

@@ -27,18 +27,36 @@ All paths below are relative to the base URL.
 
 ## Authentication
 
-Authentication is **always required**. The web UI is optional — the API enforces the same rules for curl, MCP, mobile, and scripts.
+Authentication is provided by the **`rbac` auth plugin** (`"auth": "rbac"` in `api/plugins.json`, enabled by default). When the auth plugin is **disabled** or absent, the API runs in open mode: every request gets anonymous admin access and no login is required.
 
-### Bootstrap (fresh install)
+### Bootstrap (fresh install with rbac enabled)
 
-On first start with an empty database, the API creates the initial admin from environment variables and refuses to start without them:
+On first start with an empty database and rbac enabled, the API creates the initial admin from environment variables and refuses to start without them:
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `UMPIRE_ADMIN_USERNAME` | Fresh install only | Bootstrap admin username (min 2 chars) |
-| `UMPIRE_ADMIN_PASSWORD` | Fresh install only | Bootstrap admin password (min 8 chars) |
+| `UMPIRE_ADMIN_USERNAME` | Fresh install + rbac enabled | Bootstrap admin username (min 2 chars) |
+| `UMPIRE_ADMIN_PASSWORD` | Fresh install + rbac enabled | Bootstrap admin password (min 8 chars) |
 
-Existing databases with users ignore these variables. Auth is always enabled.
+Existing databases with users ignore these variables. When rbac is disabled, bootstrap env vars are not needed.
+
+### Auth modes
+
+| Mode | How | Login |
+|------|-----|-------|
+| **Secured (default)** | `"auth": "rbac"` in `plugins.json`, enabled in plugin manager | Required (unless read-only-without-auth is on) |
+| **Open** | Remove `"auth"` from `plugins.json`, or disable auth in plugin manager and restart | Not required — all requests run as anonymous admin |
+
+### Read-only without login (rbac only)
+
+Admins can allow unauthenticated read access while keeping writes protected:
+
+- **UI:** Settings → Authentication → *Allow read-only access without signing in*
+- **API:** `PUT /api/plugins/auth/rbac/config` with `{ "allow_readonly_without_auth": true }`
+
+When enabled, `GET /api/auth/policy` returns `login_required: false` and anonymous clients receive read-only principals on `GET`/`HEAD`/`OPTIONS`.
+
+Disabling or enabling the auth plugin itself requires an **API restart** (Settings → Plugin manager → Auth).
 
 **API-only Docker example:**
 
@@ -67,7 +85,7 @@ Public paths (no credentials): `/api/health`, `/api/auth/policy`, `/api/auth/log
 
 | Endpoint | Access | Purpose |
 |----------|--------|---------|
-| `GET /api/auth/policy` | Public | Returns `{ login_required, user_count }` |
+| `GET /api/auth/policy` | Public | Returns `{ auth_enabled, allow_readonly_without_auth, login_required, user_count }` |
 | `GET /api/auth/me` | Authenticated | Current principal |
 | `POST /api/auth/login` | Public | Set session cookie |
 | `POST /api/auth/logout` | Session | Clear session |
@@ -158,6 +176,7 @@ curl -fsS -b /tmp/umpire.cookies -X POST "$API/api/users" \
 | Health | `GET` | `/api/health` |
 | Auth | `GET` | `/api/auth/policy`, `/api/auth/me` |
 | Auth | `POST` | `/api/auth/login`, `/api/auth/logout`, `/api/auth/change-password` |
+| Auth (rbac config, admin) | `PUT` | `/api/plugins/auth/rbac/config` |
 | API tokens | `GET`, `POST` | `/api/tokens` |
 | API tokens | `DELETE` | `/api/tokens/:id` |
 | Users (admin) | `GET`, `POST` | `/api/users` |
@@ -181,7 +200,7 @@ curl -fsS -b /tmp/umpire.cookies -X POST "$API/api/users" \
 | Notifiers inventory | `GET` | `/api/notifiers` |
 | Plugin catalog | `GET` | `/api/plugins` |
 | Plugin manager | `GET` | `/api/plugin-manager` |
-| Plugin manager | `PUT` | `/api/plugin-manager/:kind/:id` (`kind` = `check` \| `notify` \| `scheduler`) |
+| Plugin manager | `PUT` | `/api/plugin-manager/:kind/:id` (`kind` = `auth` \| `check` \| `notify` \| `scheduler`; auth toggle requires API restart) |
 | Agent | `GET` | `/api/agent/status` |
 | Agent (admin) | `GET`, `PUT` | `/api/agent/settings` |
 

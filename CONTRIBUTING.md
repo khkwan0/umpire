@@ -6,7 +6,7 @@ Thanks for contributing.
 
 Read these before changing code:
 
-- **[Plugin developer guide](docs/plugins.md)** — how to write check, scheduler, and notifier plugins (contracts, HTTP, UI, cookbooks).
+- **[Plugin developer guide](docs/plugins.md)** — how to write check, scheduler, notifier, and auth plugins (contracts, HTTP, UI, cookbooks).
 - **[Core developer guide](docs/core.md)** — how the host works (pipeline, frozen schema, alert policy, plugin host, UI shell) and what belongs in core vs a plugin.
 - **[AI agents guide](docs/agents.md)** — MCP server, built-in web chat, API tokens, WebSocket protocols, streaming.
 - **[`plugins/README.md`](plugins/README.md)** — implementations live in `plugins/<kind>/<id>/`; the host stays in `api/src/plugins/`.
@@ -21,7 +21,7 @@ To **run the packaged stack** locally (Docker), use [`./scripts/deploy.sh`](scri
   - `cp .env.example .env`
   - Optional, only if you enable FCM: `cp plugins/notify/fcm/fcm-service-account.json.example data/fcm-service-account.json`
 
-Run API:
+Run API (bootstrap env vars required on **fresh install** when the default `rbac` auth plugin is enabled):
 
 ```bash
 cd api && npm install && \

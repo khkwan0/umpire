@@ -73,10 +73,10 @@ export interface Settings {
   throttle_minutes: number
 }
 
-export type AuthPluginKind = 'check' | 'notify' | 'scheduler'
+export type MonitoringPluginKind = 'check' | 'notify' | 'scheduler'
 
 export interface RolePluginRef {
-  kind: AuthPluginKind
+  kind: MonitoringPluginKind
   id: string
 }
 
@@ -109,6 +109,8 @@ export interface AuthPrincipal {
 }
 
 export interface AuthPolicy {
+  auth_enabled: boolean
+  allow_readonly_without_auth: boolean
   login_required: boolean
   user_count: number
 }
@@ -262,6 +264,7 @@ export interface PluginManagerNotifierEntry extends PluginManagerEntry {
 }
 
 export interface PluginManagerState {
+  auth: PluginManagerEntry | null
   checks: PluginManagerEntry[]
   scheduler: PluginManagerEntry
   notifiers: PluginManagerNotifierEntry[]
@@ -680,6 +683,18 @@ export const api = {
           new_password: newPassword,
         }),
       }),
+    rbacConfig: {
+      put: (allowReadonlyWithoutAuth: boolean) =>
+        request<{allow_readonly_without_auth: boolean}>(
+          '/api/plugins/auth/rbac/config',
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              allow_readonly_without_auth: allowReadonlyWithoutAuth,
+            }),
+          },
+        ),
+    },
   },
   agent: {
     status: () => request<AgentStatus>('/api/agent/status'),
@@ -782,13 +797,16 @@ export const api = {
   pluginManager: {
     get: () => request<PluginManagerState>('/api/plugin-manager'),
     setEnabled: (
-      kind: 'check' | 'notify' | 'scheduler',
+      kind: 'auth' | 'check' | 'notify' | 'scheduler',
       id: string,
       enabled: boolean,
     ) =>
-      request<{ok: boolean}>(`/api/plugin-manager/${kind}/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify({enabled}),
-      }),
+      request<{ok: boolean; restart_required?: boolean}>(
+        `/api/plugin-manager/${kind}/${id}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({enabled}),
+        },
+      ),
   },
 }

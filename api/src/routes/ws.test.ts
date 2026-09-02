@@ -16,8 +16,33 @@ const core = {
   }),
 }
 
+let authPluginActive = false
+
+const rbacPublicPaths = new Set([
+  '/api/health',
+  '/api/auth/policy',
+  '/api/auth/login',
+  '/api/auth/logout',
+])
+
+const mockAuthPlugin = {
+  id: 'rbac',
+  publicPaths: () => rbacPublicPaths,
+  resolvePrincipal: () => null,
+  evaluateAccess: () => ({ok: true as const}),
+}
+
 jest.unstable_mockModule('../core/index.js', () => ({
   getCore: () => core,
+}))
+
+jest.unstable_mockModule('../auth/active.js', () => ({
+  initAuthActiveState: () => {},
+  isAuthPluginActive: () => authPluginActive,
+}))
+
+jest.unstable_mockModule('../plugins/runtime.js', () => ({
+  getAuth: () => (authPluginActive ? mockAuthPlugin : undefined),
 }))
 
 const {registerAuthGate} = await import('../auth/gate.js')
@@ -57,9 +82,10 @@ function waitForMessage(
 describe('websocket HTTP bridge', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    authPluginActive = false
   })
 
-  it('proxies API calls including auth gate behavior', async () => {
+  it('proxies API calls in open mode with anonymous admin', async () => {
     const app = Fastify()
     await registerOpenApi(app)
     await registerAuthGate(app)
@@ -72,7 +98,12 @@ describe('websocket HTTP bridge', () => {
     const hello = await waitForMessage(socket, msg => msg.type === 'connected')
     expect(hello).toMatchObject({
       type: 'connected',
-      auth: null,
+      auth: {
+        kind: 'anonymous',
+        is_admin: true,
+        can_write: true,
+        username: null,
+      },
     })
 
     const responsePromise = waitForMessage(socket, msg => msg.id === 'health-1')
@@ -95,6 +126,7 @@ describe('websocket HTTP bridge', () => {
   })
 
   it('defers WS handshake auth; rejects blocked paths and unauthenticated writes', async () => {
+    authPluginActive = true
     const app = Fastify()
     await registerOpenApi(app)
     await registerAuthGate(app)

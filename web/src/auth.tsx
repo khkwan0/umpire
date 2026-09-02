@@ -12,7 +12,7 @@ import {
   isTransientApiError,
   type AuthPolicy,
   type AuthPrincipal,
-  type AuthPluginKind,
+  type MonitoringPluginKind,
 } from './api'
 
 interface AuthContextValue {
@@ -23,7 +23,7 @@ interface AuthContextValue {
   refresh: () => Promise<void>
   login: (username: string, password: string) => Promise<void>
   logout: () => Promise<void>
-  canAccessPlugin: (kind: AuthPluginKind, id: string) => boolean
+  canAccessPlugin: (kind: MonitoringPluginKind, id: string) => boolean
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -38,6 +38,18 @@ export function AuthProvider({children}: {children: ReactNode}) {
     try {
       const nextPolicy = await api.auth.policy()
       setPolicy(nextPolicy)
+      if (!nextPolicy.auth_enabled) {
+        setPrincipal({
+          kind: 'anonymous',
+          user: null,
+          is_admin: true,
+          can_write: true,
+          plugins: 'all',
+        })
+        setReconnecting(false)
+        setReady(true)
+        return
+      }
       try {
         const me = await api.auth.me()
         setPrincipal(me.principal)
@@ -80,12 +92,13 @@ export function AuthProvider({children}: {children: ReactNode}) {
   }, [refresh])
 
   const canAccessPlugin = useCallback(
-    (kind: AuthPluginKind, id: string) => {
+    (kind: MonitoringPluginKind, id: string) => {
+      if (!policy?.login_required && !principal) return true
       if (!principal) return false
       if (principal.plugins === 'all') return true
       return principal.plugins.some(p => p.kind === kind && p.id === id)
     },
-    [principal],
+    [principal, policy],
   )
 
   const value = useMemo(

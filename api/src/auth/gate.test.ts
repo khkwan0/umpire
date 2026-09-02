@@ -47,7 +47,26 @@ const readOnlyUser: AuthPrincipal = {
 }
 
 describe('evaluateGate', () => {
-  it('requires auth for reads', () => {
+  it('allows anonymous read-only GET when configured', () => {
+    expect(
+      evaluateGate({
+        method: 'GET',
+        path: '/api/status',
+        principal: null,
+        allowReadonlyWithoutAuth: true,
+      }),
+    ).toEqual({ok: true})
+    expect(
+      evaluateGate({
+        method: 'POST',
+        path: '/api/targets',
+        principal: null,
+        allowReadonlyWithoutAuth: true,
+      }),
+    ).toEqual({ok: false, status: 401, error: 'Authentication required'})
+  })
+
+  it('requires auth for reads when readonly mode is off', () => {
     expect(
       evaluateGate({
         method: 'GET',

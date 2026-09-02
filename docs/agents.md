@@ -13,9 +13,9 @@ Both paths call the same UMPIRE HTTP API and respect auth/RBAC. Neither replaces
 
 ## Quick start
 
-### 1. Enable auth (recommended for production)
+### 1. Ensure auth is enabled (recommended for production)
 
-Create a user under **Settings → Users**, then turn on **Require login**. See [Authentication](core.md#authentication-and-rbac) in the core guide.
+The **`rbac` auth plugin** is enabled by default (`"auth": "rbac"` in `api/plugins.json`). On a fresh install, set `UMPIRE_ADMIN_USERNAME` and `UMPIRE_ADMIN_PASSWORD` before first start, then sign in and create additional users under **Settings → Users** if needed. To run without login (open mode), disable auth under **Settings → Plugin manager → Auth** and restart the API. See [Authentication](core.md#authentication-and-rbac) in the core guide.
 
 ### 2. Create an API token
 

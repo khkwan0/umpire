@@ -38,10 +38,10 @@ export interface Settings {
   throttle_minutes: number
 }
 
-export type AuthPluginKind = 'check' | 'notify' | 'scheduler'
+export type MonitoringPluginKind = 'check' | 'notify' | 'scheduler'
 
 export interface RolePluginRef {
-  kind: AuthPluginKind
+  kind: MonitoringPluginKind
   id: string
 }
 
@@ -74,6 +74,8 @@ export interface AuthPrincipal {
 }
 
 export interface AuthPolicy {
+  auth_enabled: boolean
+  allow_readonly_without_auth: boolean
   login_required: boolean
   user_count: number
 }

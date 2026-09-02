@@ -1,6 +1,6 @@
 import type {FastifyInstance} from 'fastify'
 import {pluginManagerState, setPluginEnabled} from '../plugins/manager.js'
-import {getChecks, getNotifiers, getScheduler} from '../plugins/registry.js'
+import {getAuth, getChecks, getNotifiers, getScheduler} from '../plugins/registry.js'
 import {publishRealtime} from '../realtime.js'
 
 const errorResponse = {
@@ -36,7 +36,7 @@ export async function pluginManagerRoutes(app: FastifyInstance): Promise<void> {
           type: 'object',
           required: ['kind', 'id'],
           properties: {
-            kind: {type: 'string', enum: ['check', 'notify', 'scheduler']},
+            kind: {type: 'string', enum: ['auth', 'check', 'notify', 'scheduler']},
             id: {type: 'string'},
           },
         },
@@ -50,8 +50,10 @@ export async function pluginManagerRoutes(app: FastifyInstance): Promise<void> {
         response: {
           200: {
             type: 'object',
+            required: ['ok'],
             properties: {
               ok: {type: 'boolean'},
+              restart_required: {type: 'boolean'},
             },
           },
           400: errorResponse,
@@ -67,6 +69,19 @@ export async function pluginManagerRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(400).send({error: 'enabled must be boolean'})
       }
 
+      if (kind === 'auth') {
+        const auth = getAuth()
+        if (!auth || auth.id !== id) {
+          return reply.code(404).send({error: 'auth plugin not loaded'})
+        }
+        setPluginEnabled('auth', id, enabled)
+        publishRealtime('plugin-manager.updated', {
+          kind: 'auth',
+          id,
+          enabled,
+        })
+        return {ok: true, restart_required: true}
+      }
       if (kind === 'check') {
         if (!getChecks().some(c => c.id === id)) {
           return reply.code(404).send({error: 'check plugin not loaded'})
@@ -116,7 +131,7 @@ export async function pluginManagerRoutes(app: FastifyInstance): Promise<void> {
 
       return reply
         .code(400)
-        .send({error: 'kind must be check|notify|scheduler'})
+        .send({error: 'kind must be auth|check|notify|scheduler'})
     },
   )
 }

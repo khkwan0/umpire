@@ -69,8 +69,9 @@ export function evaluateGate(input: {
   method: string
   path: string
   principal: AuthPrincipal | null
+  allowReadonlyWithoutAuth?: boolean
 }): GateDecision {
-  const {method, path, principal} = input
+  const {method, path, principal, allowReadonlyWithoutAuth = false} = input
   if (!path.startsWith('/api/')) return {ok: true}
   if (
     path === '/api/health' ||
@@ -85,6 +86,14 @@ export function evaluateGate(input: {
   let effective = principal
   if (!effective) {
     if (isDeviceRegistrationPath(method, path)) {
+      effective = {
+        kind: 'anonymous',
+        user: null,
+        is_admin: false,
+        can_write: false,
+        plugins: 'all',
+      }
+    } else if (allowReadonlyWithoutAuth && read) {
       effective = {
         kind: 'anonymous',
         user: null,

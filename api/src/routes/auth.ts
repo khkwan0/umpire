@@ -31,8 +31,15 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         response: {
           200: {
             type: 'object',
-            required: ['login_required', 'user_count'],
+            required: [
+              'auth_enabled',
+              'allow_readonly_without_auth',
+              'login_required',
+              'user_count',
+            ],
             properties: {
+              auth_enabled: {type: 'boolean'},
+              allow_readonly_without_auth: {type: 'boolean'},
               login_required: {type: 'boolean'},
               user_count: {type: 'integer'},
             },
@@ -42,8 +49,11 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     },
     async () => {
       const store = getCore()
+      const allowReadonly = store.getAllowReadonlyWithoutAuth()
       return {
-        login_required: true,
+        auth_enabled: true,
+        allow_readonly_without_auth: allowReadonly,
+        login_required: !allowReadonly,
         user_count: store.countUsers(),
       }
     },

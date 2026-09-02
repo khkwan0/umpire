@@ -125,6 +125,7 @@ export default function App() {
   const location = useLocation()
   const {
     ready: authReady,
+    policy,
     principal,
     reconnecting: authReconnecting,
     logout,
@@ -137,7 +138,7 @@ export default function App() {
   const [reconnecting, setReconnecting] = useState(false)
 
   const load = useCallback(async () => {
-    if (principal?.kind !== 'user') return
+    if (policy?.login_required && principal?.kind !== 'user') return
     try {
       const [nextCatalog, nextManager] = await Promise.all([
         api.plugins.list(),
@@ -154,7 +155,7 @@ export default function App() {
       setCatalog([])
       setReconnecting(false)
     }
-  }, [principal])
+  }, [policy?.login_required, principal])
 
   useEffect(() => {
     void load()
@@ -241,7 +242,7 @@ export default function App() {
     )
   }
 
-  if (principal?.kind !== 'user') {
+  if (policy?.login_required && principal?.kind !== 'user') {
     return <Navigate to="/login" replace state={{from: location.pathname}} />
   }
 

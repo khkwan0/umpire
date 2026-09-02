@@ -102,7 +102,8 @@ export interface CoreStore {
 
   countUsers(): number
   bootstrapAdmin(username: string, password: string): User
-  ensureAuthEnabled(): void
+  getAllowReadonlyWithoutAuth(): boolean
+  setAllowReadonlyWithoutAuth(value: boolean): void
   listUsers(): User[]
   getUser(id: number): User | undefined
   getUserByUsername(username: string): User | undefined

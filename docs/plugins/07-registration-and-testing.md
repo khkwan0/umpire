@@ -1,6 +1,6 @@
 # Chapter 7 — Registration & testing
 
-[← HTTP routes & UI](06-routes-and-ui.md) · [Guide index](README.md)
+[← HTTP routes & UI](06-routes-and-ui.md) · [Guide index](README.md) · [Next: Auth plugins →](08-auth-plugins.md)
 
 ## Registration workflow
 

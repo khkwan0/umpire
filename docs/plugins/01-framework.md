@@ -25,8 +25,8 @@ Plugins run **in-process** with API privileges. Only load code you trust.
 ## Mental model
 
 ```text
-plugins/                → check / notify / scheduler implementations
-plugins.json            → which modules load (process-wide pool)
+plugins/                → check / notify / scheduler / auth implementations
+plugins.json            → which modules load (process-wide pool; singular auth slot)
 plugin-manager.json     → which loaded plugins are enabled at runtime
 targets[]               → what to watch (url, interval, enabled, group)
 target.check_ids        → which enabled checks run ([] = all enabled)
@@ -73,9 +73,10 @@ Plugin HTTP and UI are a **side channel** for plugin-owned data. They are not ho
 
 ```text
 initCore(DB)
-  → initPlugins()           # load all plugins + plugin manager
-  → scheduler.init(ctx)     # ctx = { getTargets, run: runCheck }
-  → register core HTTP routes
+  → initPlugins()           # load checks, notifiers, scheduler, auth
+  → auth.bootstrap()        # when auth plugin enabled (e.g. rbac admin seed)
+  → registerAuthGate()      # delegate to auth plugin or anonymous admin
+  → register core HTTP routes + auth.registerRoutes()
   → mountAllPluginRoutes()  # /api/plugins/<kind>/<id>/…
   → app.listen()
   → scheduler.start()

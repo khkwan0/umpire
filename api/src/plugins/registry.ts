@@ -2,21 +2,27 @@ import fs from 'node:fs'
 import path from 'node:path'
 import {fileURLToPath, pathToFileURL} from 'node:url'
 import {
+  getAuth,
   getChecks,
   getNotifiers,
   getScheduler,
+  setAuth,
   setChecks,
   setNotifiers,
   setScheduler,
 } from './runtime.js'
 import {initPluginManager} from './manager.js'
-import type {CheckPlugin, NotifierPlugin, SchedulerPlugin} from './types.js'
+import type {
+  AuthPlugin,
+  CheckPlugin,
+  NotifierPlugin,
+  SchedulerPlugin,
+} from './types.js'
 
-export {getChecks, getNotifiers, getScheduler, hasNotifier} from './runtime.js'
-
-type PluginKind = 'check' | 'scheduler' | 'notify'
+export {getAuth, getChecks, getNotifiers, getScheduler, hasNotifier} from './runtime.js'
 
 interface PluginsConfig {
+  auth?: string
   checks: string[]
   scheduler: string
   notifiers: string[]
@@ -44,8 +50,6 @@ function implementationRoot(): string {
   if (process.env.PLUGINS_ROOT) {
     return path.resolve(process.env.PLUGINS_ROOT)
   }
-  // api/src/plugins → repo/plugins
-  // api/dist/api/src/plugins → api/dist/plugins
   return path.resolve(hostDir, '../../../plugins')
 }
 
@@ -69,11 +73,14 @@ function loadConfig(): PluginsConfig {
     throw new Error('plugins.json: notifiers must be an array of ids')
   }
   return {
+    auth: typeof raw.auth === 'string' ? raw.auth.trim() : undefined,
     checks: raw.checks.map(id => String(id)),
     scheduler: raw.scheduler.trim(),
     notifiers: raw.notifiers.map(id => String(id)),
   }
 }
+
+type PluginKind = 'auth' | 'check' | 'scheduler' | 'notify'
 
 function resolvePluginFile(kind: PluginKind, id: string): string {
   const kindRoot = path.join(implementationRoot(), kind)
@@ -106,6 +113,19 @@ function pickExport<T>(
   if (guard(mod)) return mod as T
   throw new Error(
     `${kind} module "${filePath}" must export a plugin object as default or plugin`,
+  )
+}
+
+function isAuthPlugin(value: unknown): value is AuthPlugin {
+  if (!value || typeof value !== 'object') return false
+  const p = value as Record<string, unknown>
+  return (
+    typeof p.id === 'string' &&
+    typeof p.bootstrap === 'function' &&
+    typeof p.registerRoutes === 'function' &&
+    typeof p.resolvePrincipal === 'function' &&
+    typeof p.evaluateAccess === 'function' &&
+    typeof p.publicPaths === 'function'
   )
 }
 
@@ -160,6 +180,14 @@ export async function initPlugins(): Promise<void> {
   const config = loadConfig()
   console.log(`[plugins] config=${pluginsConfigPath()}`)
 
+  if (config.auth) {
+    const loaded = await loadById('auth', config.auth, isAuthPlugin, 'Auth')
+    setAuth(loaded.plugin)
+    console.log(
+      `[plugins] auth=${loaded.plugin.id} (${path.basename(loaded.file)})`,
+    )
+  }
+
   const checks: CheckPlugin[] = []
   for (const id of config.checks) {
     const loaded = await loadById('check', id, isCheckPlugin, 'Check')
@@ -200,8 +228,10 @@ export async function initPlugins(): Promise<void> {
 }
 
 export function pluginStatus() {
+  const auth = getAuth()
   return {
     core: {engine: 'sqlite'},
+    auth: auth ? {id: auth.id} : null,
     checks: getChecks().map(c => ({id: c.id})),
     scheduler: {id: getScheduler().id},
     notifiers: getNotifiers().map(n => ({

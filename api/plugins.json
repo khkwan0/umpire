@@ -1,4 +1,5 @@
 {
+  "auth": "rbac",
   "checks": ["http", "tls", "keyword-body", "tcp", "ping"],
   "scheduler": "interval",
   "notifiers": ["fcm", "webhook", "slack", "telegram", "discord", "email"]

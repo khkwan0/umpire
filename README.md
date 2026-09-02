@@ -190,7 +190,7 @@ Images build from the **repo root** so Docker can copy [`plugins/`](plugins/). T
 
 ### API only (headless)
 
-Minimum deployment: the `api` image alone. Checks run on schedule, results are stored, and notifiers fire — no dashboard required.
+Minimum deployment: the `api` image alone. Checks run on schedule, results are stored, and notifiers fire — no dashboard required. The default **`rbac` auth plugin** is enabled; set bootstrap env vars on a fresh install (see below).
 
 ```bash
 mkdir -p data
@@ -397,7 +397,7 @@ SQLite file: `./data/monitor.sqlite` (bind-mounted in Compose at `/data/monitor.
 
 ## Notes
 
-- Authentication is always required. Set `UMPIRE_ADMIN_USERNAME` and `UMPIRE_ADMIN_PASSWORD` in `.env` before the first start (see `deploy/env.example`). Change the bootstrap password under **Settings → Change password** after signing in. Prefer binding to localhost or a VPN/firewall in production.
+- Authentication uses the **`rbac` auth plugin** (enabled by default). Set `UMPIRE_ADMIN_USERNAME` and `UMPIRE_ADMIN_PASSWORD` in `.env` before the **first** start when rbac is enabled (see `deploy/env.example`). Change the bootstrap password under **Settings → Change password** after signing in. Disable auth under **Settings → Plugin manager → Auth** for open mode (requires API restart). Prefer binding to localhost or a VPN/firewall in production.
 - Default branch for this repo is `master`
 - Local run: [`./scripts/deploy.sh`](scripts/deploy.sh) or `docker compose up --build -d` (repo-root build context). Use host `npm run dev` only when writing plugins or core — [CONTRIBUTING.md](CONTRIBUTING.md)
 - CI: GitHub Actions on push/PR ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)). Optional CD: Jenkins — [setup](docs/jenkins.md)

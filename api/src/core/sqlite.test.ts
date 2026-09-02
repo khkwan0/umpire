@@ -65,7 +65,9 @@ describeStore('core sqlite store', () => {
     expect(user.username).toBe('admin')
     expect(user.role_slug).toBe('admin')
     expect(core.countUsers()).toBe(1)
-    core.ensureAuthEnabled()
+    expect(core.getAllowReadonlyWithoutAuth()).toBe(false)
+    core.setAllowReadonlyWithoutAuth(true)
+    expect(core.getAllowReadonlyWithoutAuth()).toBe(true)
   })
 
   it('assigns group tags by path and builds a tree', () => {

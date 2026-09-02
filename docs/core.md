@@ -113,14 +113,51 @@ Docker: [`api/Dockerfile`](../api/Dockerfile) and [`web/Dockerfile`](../web/Dock
 
 ## Authentication and RBAC
 
-Auth is **always on** and **host-owned** (not a plugin kind). On a fresh install the API creates the first admin from `UMPIRE_ADMIN_USERNAME` and `UMPIRE_ADMIN_PASSWORD` and refuses to start without them. Existing databases with users ignore those env vars; auth is forced on at startup.
+Authentication is an **auth plugin** (fourth plugin kind), not baked into core. The shipped **`rbac`** plugin (`"auth": "rbac"` in [`api/plugins.json`](../api/plugins.json), enabled by default) provides username/password sessions, API tokens, and role-based access control.
+
+| Mode | Behavior |
+|------|----------|
+| Auth plugin disabled or absent from `plugins.json` | **Open mode** — anonymous admin on every request; no login |
+| rbac enabled (default) | Login required unless read-only-without-auth is on |
+| rbac + **Allow read-only without signing in** | Anonymous read (`GET`/`HEAD`/`OPTIONS`); writes need a signed-in user |
+
+**Plugin manager:** disabling auth under **Settings → Plugin manager → Auth** takes effect after an **API restart**. The read-only-without-auth toggle under **Settings → Authentication** applies immediately (no restart).
+
+### Bootstrap (fresh install, rbac enabled)
+
+On first start with an empty database and rbac enabled, the API creates the first admin from env vars and **exits** if they are missing:
 
 | Env var | Purpose |
 |---------|---------|
-| `UMPIRE_ADMIN_USERNAME` | Bootstrap admin username (fresh install only) |
-| `UMPIRE_ADMIN_PASSWORD` | Bootstrap admin password (fresh install only, min 8 chars) |
+| `UMPIRE_ADMIN_USERNAME` | Bootstrap admin username (fresh install + rbac only) |
+| `UMPIRE_ADMIN_PASSWORD` | Bootstrap admin password (min 8 chars) |
 
-Built-in roles (seeded, immutable):
+Existing databases with users ignore these vars. When rbac is disabled, bootstrap env vars are not needed.
+
+### Policy endpoint
+
+`GET /api/auth/policy` (public) returns:
+
+```json
+{
+  "auth_enabled": true,
+  "allow_readonly_without_auth": false,
+  "login_required": true,
+  "user_count": 1
+}
+```
+
+When auth is off, core serves `{ "auth_enabled": false, "login_required": false, … }`. Clients use `login_required` to decide whether to redirect to `/login`.
+
+Admins may toggle anonymous read-only via **Settings → Authentication** or:
+
+```bash
+curl -fsS -b cookies.txt -X PUT "$API/api/plugins/auth/rbac/config" \
+  -H 'content-type: application/json' \
+  -d '{"allow_readonly_without_auth": true}'
+```
+
+### Built-in roles (rbac)
 
 | Slug | Access |
 |------|--------|
@@ -128,14 +165,16 @@ Built-in roles (seeded, immutable):
 | `read_write` | Mutate targets, checks, and notifiers; no admin paths |
 | `read_only` | Read-only API access |
 
-Custom roles have `can_write` plus a plugin allowlist (`role_plugins`). Empty allowlist = no plugin HTTP/UI access.
+Custom roles have `can_write` plus a monitoring-plugin allowlist (`role_plugins`). Empty allowlist = no plugin HTTP/UI access.
 
-Rules:
+### Rules (rbac enabled)
 
-- Admin-only: `/api/users`, `/api/roles`, `PUT /api/settings`, plugin-manager mutations.
+- Admin-only: `/api/users`, `/api/roles`, `PUT /api/settings`, plugin-manager mutations, `PUT /api/plugins/auth/rbac/config`.
 - Any signed-in user may `POST /api/auth/change-password`.
-- Plugin namespaces `/api/plugins/<kind>/<id>/…` are gated by the allowlist for non-admin roles.
+- Plugin namespaces `/api/plugins/<kind>/<id>/…` are gated by the allowlist for non-admin roles (`kind` = `check` \| `notify` \| `scheduler`).
 - Pipeline / in-process `runCheck` writes are **not** gated by HTTP auth.
+
+Public paths (no credentials): `/api/health`, `/api/auth/policy`, `/api/auth/login`, `/api/auth/logout`.
 
 ### API tokens (agents & automation)
 
@@ -151,7 +190,7 @@ Send `Authorization: Bearer umpire_…` on HTTP and WebSocket-bridge requests. T
 
 **UI:** **Settings → API tokens** — create and revoke tokens without curl.
 
-All API access requires authentication (session cookie or Bearer token). Public paths: `/api/health`, `/api/auth/policy`, `/api/auth/login`, `/api/auth/logout`.
+When rbac is enabled, protected routes require a session cookie or Bearer token (unless read-only-without-auth grants anonymous read access). In open mode (auth disabled), all routes behave as admin.
 
 ### AI agents (MCP and built-in web chat)
 
@@ -177,7 +216,7 @@ Tool calls use `app.inject()` with the WS session cookie. Streaming is implement
 
 See [`agent/README.md`](../agent/README.md).
 
-Source: [`api/src/auth/`](../api/src/auth/), routes in `api/src/routes/auth.ts`, `tokens.ts`, `users.ts`, `roles.ts`. UI: Settings + `/login`.
+Source: core gate [`api/src/auth/gate.ts`](../api/src/auth/gate.ts); rbac implementation [`plugins/auth/rbac/`](../plugins/auth/rbac/). Plugin authoring: [Auth plugins](plugins/08-auth-plugins.md). UI: Settings + `/login`.
 
 ---
 

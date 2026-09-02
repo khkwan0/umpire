@@ -71,8 +71,8 @@ Environment variables (set in `.env` next to the compose file):
 | `BASE_PATH` | `/` | Public URL prefix — must match the **web image** build |
 | `UMPIRE_DATA_DIR` | `./data` | Host directory for SQLite + plugin config |
 | `CHECK_TIMEOUT_MS` | `10000` | HTTP check timeout |
-| `UMPIRE_ADMIN_USERNAME` | *(required)* | Bootstrap admin username on fresh install |
-| `UMPIRE_ADMIN_PASSWORD` | *(required)* | Bootstrap admin password on fresh install |
+| `UMPIRE_ADMIN_USERNAME` | *(empty)* | Bootstrap admin username — required on fresh install when rbac auth plugin is enabled |
+| `UMPIRE_ADMIN_PASSWORD` | *(empty)* | Bootstrap admin password — required on fresh install when rbac auth plugin is enabled |
 
 Example `.env` for a custom registry mirror:
 
@@ -122,11 +122,11 @@ services:
     environment:
       DATABASE_PATH: /data/monitor.sqlite
       BASE_PATH: /
-      UMPIRE_ADMIN_USERNAME: ${UMPIRE_ADMIN_USERNAME:?UMPIRE_ADMIN_USERNAME is required}
-      UMPIRE_ADMIN_PASSWORD: ${UMPIRE_ADMIN_PASSWORD:?UMPIRE_ADMIN_PASSWORD is required}
+      UMPIRE_ADMIN_USERNAME: ${UMPIRE_ADMIN_USERNAME:-}
+      UMPIRE_ADMIN_PASSWORD: ${UMPIRE_ADMIN_PASSWORD:-}
 ```
 
-Configure via REST ([docs/api.md](api.md)) or [MCP](../mcp/README.md). Log in with bootstrap credentials, then use session cookies or API tokens for subsequent requests. Swagger: `http://localhost:3000/documentation/`.
+Configure via REST ([docs/api.md](api.md)) or [MCP](../mcp/README.md). With rbac enabled (default), log in using bootstrap credentials on a fresh install, then use session cookies or API tokens. With auth disabled, no login is required. Swagger: `http://localhost:3000/documentation/`.
 
 ## Reverse proxy
 

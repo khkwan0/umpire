@@ -496,6 +496,15 @@ const pluginManagerStateSchema = {
   type: 'object',
   required: ['checks', 'scheduler', 'notifiers'],
   properties: {
+    auth: {
+      type: ['object', 'null'],
+      required: ['id', 'enabled'],
+      properties: {
+        id: {type: 'string'},
+        enabled: {type: 'boolean'},
+        description: {type: ['string', 'null']},
+      },
+    },
     checks: {
       type: 'array',
       items: {$ref: 'PluginManagerEntry#'},

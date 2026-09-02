@@ -22,3 +22,5 @@ export {
   getAuthContext,
   type AuthRequest,
 } from './gate.js'
+export {initAuthActiveState, isAuthPluginActive} from './active.js'
+export {registerNoAuthPolicyRoute} from './noop.js'

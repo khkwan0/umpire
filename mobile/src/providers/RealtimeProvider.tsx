@@ -31,10 +31,11 @@ const DEGRADE_AFTER_MS = 8000
 const POLL_INTERVAL_MS = 5000
 
 export function RealtimeProvider({children}: {children: ReactNode}) {
-  const {ready, principal} = useAuth()
+  const {ready, policy, principal} = useAuth()
   const [mode, setMode] = useState<RealtimeMode>('polling')
   const listenersRef = useRef(new Set<() => void>())
-  const streamAllowed = ready && principal?.kind === 'user'
+  const streamAllowed =
+    ready && (!policy?.login_required || principal?.kind === 'user')
 
   useEffect(() => {
     if (!streamAllowed) {

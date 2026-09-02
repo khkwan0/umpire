@@ -1,6 +1,6 @@
 # Plugin developer guide
 
-Cookbook for writing UMPIRE **check**, **scheduler**, and **notifier** plugins — including optional HTTP APIs and React UI. Written so a developer can add a working plugin without reverse-engineering the repo.
+Cookbook for writing UMPIRE **check**, **scheduler**, **notifier**, and **auth** plugins — including optional HTTP APIs and React UI. Written so a developer can add a working plugin without reverse-engineering the repo.
 
 Operator setup (run the app, shipped plugins, core HTTP API) lives in [`README.md`](../../README.md). Changing the host (pipeline, schema, plugin loader, UI shell): **[Core developer guide](../core.md)**.
 
@@ -15,6 +15,7 @@ Operator setup (run the app, shipped plugins, core HTTP API) lives in [`README.m
 | 5 | [Scheduler plugins](05-scheduler-plugins.md) | When to replace `interval`, hello world → production scheduler |
 | 6 | [HTTP routes & UI](06-routes-and-ui.md) | `registerRoutes`, React pages, dashboard widgets |
 | 7 | [Registration & testing](07-registration-and-testing.md) | `plugins.json`, plugin manager, verify checklist, tests |
+| 8 | [Auth plugins](08-auth-plugins.md) | rbac reference, `AuthPlugin` contract, open vs secured mode |
 
 ## Quick start
 
@@ -23,6 +24,7 @@ Operator setup (run the app, shipped plugins, core HTTP API) lives in [`README.m
 | Probe a URL (HTTP, TLS, DNS, keyword, …) | `check` | `check(ctx)` |
 | Decide *when* targets run (rarely: keep `interval`) | `scheduler` | `start` / `stop` / `reschedule` |
 | Deliver an alert (FCM, webhook, email, …) | `notify` | `isReady` + `notify(ctx)` |
+| Sessions, RBAC, API tokens (swap implementation) | `auth` | `bootstrap` + gate hooks + `registerRoutes` |
 
 **Id rule (must all match):** folder name, `plugins.json` entry, `plugin.id`, and UI `id`.
 
@@ -99,6 +101,7 @@ Rebuild **both** `api` and `web` if you changed `ui/index.tsx` (Vite globs plugi
 | Check | **Enabled** — runs without extra steps |
 | Notifier | **Disabled** (except `webhook`) — turn on in **Settings → Plugin manager** |
 | Scheduler | **Enabled** — only one id in `plugins.json` |
+| Auth | **Enabled** — only one id in `plugins.json`; disable for open mode (restart required) |
 
 Or via API: `PUT /api/plugin-manager/notify/my-notify` with body `{ "enabled": true }`.
 

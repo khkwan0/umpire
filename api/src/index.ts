@@ -1,10 +1,15 @@
 import Fastify from 'fastify'
 import websocket from '@fastify/websocket'
 import {initCore, getCore, closeCore} from './core/index.js'
-import {registerAuthGate} from './auth/index.js'
-import {ensureAuthBootstrap} from './auth/bootstrap.js'
+import {
+  registerAuthGate,
+  initAuthActiveState,
+  isAuthPluginActive,
+  registerNoAuthPolicyRoute,
+} from './auth/index.js'
 import {
   initPlugins,
+  getAuth,
   getScheduler,
   getChecks,
   getNotifiers,
@@ -28,18 +33,19 @@ import {checksRoutes} from './routes/checks.js'
 import {notifiersRoutes} from './routes/notifiers.js'
 import {pluginsRoutes} from './routes/plugins.js'
 import {pluginManagerRoutes} from './routes/plugin-manager.js'
-import {authRoutes} from './routes/auth.js'
-import {tokensRoutes} from './routes/tokens.js'
-import {usersRoutes} from './routes/users.js'
-import {rolesRoutes} from './routes/roles.js'
 
 const port = Number(process.env.PORT) || 3000
 const databasePath = process.env.DATABASE_PATH || './data/monitor.sqlite'
 
 async function main() {
   initCore(databasePath)
-  ensureAuthBootstrap()
   await initPlugins()
+  initAuthActiveState()
+
+  const auth = getAuth()
+  if (auth && isAuthPluginActive()) {
+    auth.bootstrap()
+  }
 
   getScheduler().init?.({
     getTargets: () =>
@@ -63,10 +69,11 @@ async function main() {
   })
 
   await app.register(healthRoutes)
-  await app.register(authRoutes)
-  await app.register(tokensRoutes)
-  await app.register(usersRoutes)
-  await app.register(rolesRoutes)
+  if (auth && isAuthPluginActive()) {
+    await auth.registerRoutes(app)
+  } else {
+    await registerNoAuthPolicyRoute(app)
+  }
   await app.register(targetsRoutes)
   await app.register(groupsRoutes)
   await app.register(settingsRoutes)

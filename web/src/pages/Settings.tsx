@@ -159,7 +159,7 @@ function pluginKey(p: RolePluginRef): string {
 
 export default function SettingsPage() {
   const {restart} = useOnboarding()
-  const {principal, refresh: refreshAuth} = useAuth()
+  const {principal, policy, refresh: refreshAuth} = useAuth()
   const isAdmin = Boolean(principal?.is_admin)
   const canWrite = Boolean(principal?.can_write)
   const signedIn = principal?.kind === 'user'
@@ -176,6 +176,9 @@ export default function SettingsPage() {
   const [busy, setBusy] = useState(false)
   const [plugins, setPlugins] = useState<PluginManagerState | null>(null)
   const [pluginBusy, setPluginBusy] = useState<string | null>(null)
+  const [allowReadonlyWithoutAuth, setAllowReadonlyWithoutAuth] =
+    useState(false)
+  const [authConfigBusy, setAuthConfigBusy] = useState(false)
 
   const [users, setUsers] = useState<User[]>([])
   const [roles, setRoles] = useState<Role[]>([])
@@ -282,10 +285,32 @@ export default function SettingsPage() {
         setError(err instanceof Error ? err.message : String(err))
         setReconnecting(false)
       })
-  }, [loadAgentSettings, principal?.is_admin])
+  }, [loadAgentSettings, policy, principal?.is_admin])
+
+  useEffect(() => {
+    if (policy?.auth_enabled) {
+      setAllowReadonlyWithoutAuth(policy.allow_readonly_without_auth)
+    }
+  }, [policy])
+
+  async function onSaveAuthConfig() {
+    if (!isAdmin || !policy?.auth_enabled) return
+    setAuthConfigBusy(true)
+    setError(null)
+    setMessage(null)
+    try {
+      await api.auth.rbacConfig.put(allowReadonlyWithoutAuth)
+      setMessage('Authentication settings saved')
+      await refreshAuth()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setAuthConfigBusy(false)
+    }
+  }
 
   async function togglePlugin(
-    kind: 'check' | 'notify' | 'scheduler',
+    kind: 'auth' | 'check' | 'notify' | 'scheduler',
     id: string,
     enabled: boolean,
   ) {
@@ -297,7 +322,11 @@ export default function SettingsPage() {
       await api.pluginManager.setEnabled(kind, id, enabled)
       const next = await api.pluginManager.get()
       setPlugins(next)
-      setMessage('Plugin state updated')
+      setMessage(
+        kind === 'auth'
+          ? 'Auth plugin state saved — restart the API to apply'
+          : 'Plugin state updated',
+      )
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -586,6 +615,31 @@ export default function SettingsPage() {
           </button>
         </form>
       </section>
+
+      {policy?.auth_enabled && isAdmin && (
+        <section className="panel">
+          <h2>Authentication</h2>
+          <p className="muted small">
+            Control whether visitors can browse the dashboard without signing
+            in. Write access always requires a signed-in account.
+          </p>
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={allowReadonlyWithoutAuth}
+              onChange={e => setAllowReadonlyWithoutAuth(e.target.checked)}
+            />
+            Allow read-only access without signing in
+          </label>
+          <button
+            type="button"
+            onClick={() => void onSaveAuthConfig()}
+            disabled={authConfigBusy}
+          >
+            {authConfigBusy ? 'Saving…' : 'Save authentication settings'}
+          </button>
+        </section>
+      )}
 
       {signedIn && (
         <section className="panel">
@@ -962,6 +1016,27 @@ export default function SettingsPage() {
           <p className="muted">Loading plugins…</p>
         ) : (
           <div className="stack">
+            {plugins.auth && (
+              <div>
+                <h3>Auth</h3>
+                <p className="muted small">
+                  Changing the auth plugin requires an API restart.
+                </p>
+                <div className="plugin-manager-list">
+                  <PluginManagerRow
+                    id={plugins.auth.id}
+                    enabled={plugins.auth.enabled}
+                    description={plugins.auth.description}
+                    busy={pluginBusy === `auth:${plugins.auth.id}`}
+                    onToggle={enabled => {
+                      if (!isAdmin) return
+                      void togglePlugin('auth', plugins.auth!.id, enabled)
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
             <div>
               <h3>Scheduler</h3>
               <div className="plugin-manager-list">

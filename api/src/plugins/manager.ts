@@ -1,16 +1,18 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import {getChecks, getNotifiers, getScheduler} from './runtime.js'
+import {getAuth, getChecks, getNotifiers, getScheduler} from './runtime.js'
 
-type PluginKind = 'check' | 'notify' | 'scheduler'
+type PluginKind = 'check' | 'notify' | 'scheduler' | 'auth'
 
 type PluginFlags = {
+  auth: Record<string, boolean>
   check: Record<string, boolean>
   notify: Record<string, boolean>
   scheduler: Record<string, boolean>
 }
 
 const flags: PluginFlags = {
+  auth: {},
   check: {},
   notify: {},
   scheduler: {},
@@ -34,6 +36,7 @@ function loadFlags(): void {
     const raw = JSON.parse(
       fs.readFileSync(file, 'utf8'),
     ) as Partial<PluginFlags>
+    Object.assign(flags.auth, raw.auth ?? {})
     Object.assign(flags.check, raw.check ?? {})
     Object.assign(flags.notify, raw.notify ?? {})
     Object.assign(flags.scheduler, raw.scheduler ?? {})
@@ -43,6 +46,10 @@ function loadFlags(): void {
 }
 
 function ensureDefaults(): void {
+  const auth = getAuth()
+  if (auth && flags.auth[auth.id] === undefined) {
+    flags.auth[auth.id] = true
+  }
   for (const c of getChecks()) {
     if (flags.check[c.id] === undefined) flags.check[c.id] = true
   }
@@ -80,6 +87,7 @@ function pluginDescription(plugin: {description?: string}): string | null {
 }
 
 export function pluginManagerState() {
+  const auth = getAuth()
   const checks = getChecks().map(c => ({
     id: c.id,
     enabled: isPluginEnabled('check', c.id),
@@ -93,6 +101,13 @@ export function pluginManagerState() {
   }))
   const scheduler = getScheduler()
   return {
+    auth: auth
+      ? {
+          id: auth.id,
+          enabled: isPluginEnabled('auth', auth.id),
+          description: pluginDescription(auth),
+        }
+      : null,
     checks,
     scheduler: {
       id: scheduler.id,
