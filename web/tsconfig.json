@@ -20,8 +20,12 @@
     "paths": {
       "@umpire/web-api": ["src/api.ts"],
       "@umpire/plugin-ui": ["src/plugin-ui.ts"],
+      "@umpire/web-auth": ["src/auth.tsx"],
+      "@umpire/web-datetime": ["src/datetime.ts"],
+      "@umpire/web-formatted-timestamp": ["src/FormattedTimestamp.tsx"],
       "react": ["./node_modules/@types/react/index.d.ts"],
-      "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime.d.ts"]
+      "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime.d.ts"],
+      "react-router-dom": ["node_modules/react-router-dom/dist/index.d.ts"]
     }
   },
   "include": ["src", "../plugins/**/ui/**/*"]

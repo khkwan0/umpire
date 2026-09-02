@@ -42,6 +42,7 @@ export default defineConfig({
         root,
         'src/FormattedTimestamp.tsx',
       ),
+      '@umpire/web-auth': path.resolve(root, 'src/auth.tsx'),
     },
   },
   server: {

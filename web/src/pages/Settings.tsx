@@ -1,5 +1,4 @@
 import {useCallback, useEffect, useMemo, useState, type FormEvent} from 'react'
-import {Link} from 'react-router-dom'
 import {
   api,
   isTransientApiError,
@@ -7,16 +6,13 @@ import {
   type AgentLlmProvider,
   type AgentSettings,
   type PluginManagerState,
-  type Role,
-  type RolePluginRef,
   type Settings,
-  type User,
 } from '../api'
+import {authUiForPlugin} from '../auth-plugin-ui'
 import {useAuth} from '../auth'
 import ReconnectBanner from '../ReconnectBanner'
 import ThemeSwitcher from '../ThemeSwitcher'
 import TimezoneSelect from '../TimezoneSelect'
-import ApiTokensPanel from './ApiTokensPanel'
 import {useOnboarding} from '../onboarding'
 
 const MISSING_PLUGIN_DESCRIPTION =
@@ -154,47 +150,26 @@ function PluginManagerRow({
   )
 }
 
-function pluginKey(p: RolePluginRef): string {
-  return `${p.kind}:${p.id}`
-}
-
 export default function SettingsPage() {
   const {restart} = useOnboarding()
-  const {principal, policy, refresh: refreshAuth, logout} = useAuth()
+  const {policy, principal, refresh: refreshAuth} = useAuth()
   const isAdmin = Boolean(principal?.is_admin)
   const canWrite = Boolean(principal?.can_write)
-  const signedIn = principal?.kind === 'user'
 
   const [settings, setSettings] = useState<Settings | null>(null)
   const [policyAlert, setPolicyAlert] = useState<AlertPolicy>('state_change')
   const [throttle, setThrottle] = useState(30)
-  const [ownCurrentPassword, setOwnCurrentPassword] = useState('')
-  const [ownNewPassword, setOwnNewPassword] = useState('')
-  const [changePasswordBusy, setChangePasswordBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [reconnecting, setReconnecting] = useState(false)
   const [busy, setBusy] = useState(false)
   const [plugins, setPlugins] = useState<PluginManagerState | null>(null)
   const [pluginBusy, setPluginBusy] = useState<string | null>(null)
-  const [allowReadonlyWithoutAuth, setAllowReadonlyWithoutAuth] =
-    useState(false)
-  const [authConfigBusy, setAuthConfigBusy] = useState(false)
 
-  const [users, setUsers] = useState<User[]>([])
-  const [roles, setRoles] = useState<Role[]>([])
-  const [newUsername, setNewUsername] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [newUserRoleId, setNewUserRoleId] = useState<number | ''>('')
-  const [editUserId, setEditUserId] = useState<number | null>(null)
-  const [editUsername, setEditUsername] = useState('')
-  const [editPassword, setEditPassword] = useState('')
-  const [editUserRoleId, setEditUserRoleId] = useState<number | ''>('')
-
-  const [roleName, setRoleName] = useState('')
-  const [roleCanWrite, setRoleCanWrite] = useState(false)
-  const [rolePlugins, setRolePlugins] = useState<RolePluginRef[]>([])
-  const [editRoleId, setEditRoleId] = useState<number | null>(null)
+  const activeAuthUi = useMemo(
+    () => authUiForPlugin(plugins?.auth?.id),
+    [plugins?.auth?.id],
+  )
 
   const [agentSettings, setAgentSettings] = useState<AgentSettings | null>(null)
   const [agentEnabled, setAgentEnabled] = useState(false)
@@ -213,31 +188,6 @@ export default function SettingsPage() {
     () => agentProviderMeta(agentProvider),
     [agentProvider],
   )
-
-  const availablePlugins = useMemo(() => {
-    if (!plugins) return [] as RolePluginRef[]
-    const list: RolePluginRef[] = [
-      {kind: 'scheduler', id: plugins.scheduler.id},
-      ...plugins.checks.map(c => ({kind: 'check' as const, id: c.id})),
-      ...plugins.notifiers.map(n => ({kind: 'notify' as const, id: n.id})),
-    ]
-    return list
-  }, [plugins])
-
-  async function loadAdminLists() {
-    if (!isAdmin) {
-      setUsers([])
-      setRoles([])
-      return
-    }
-    const [u, r] = await Promise.all([api.users.list(), api.roles.list()])
-    setUsers(u)
-    setRoles(r)
-    if (newUserRoleId === '' && r.length > 0) {
-      const admin = r.find(role => role.slug === 'admin')
-      setNewUserRoleId(admin?.id ?? r[0]!.id)
-    }
-  }
 
   function applyAgentSettings(next: AgentSettings) {
     setAgentSettings(next)
@@ -269,12 +219,7 @@ export default function SettingsPage() {
         setPlugins(p)
         setError(null)
         setReconnecting(false)
-        if (principal?.is_admin) {
-          const [u, r] = await Promise.all([api.users.list(), api.roles.list()])
-          setUsers(u)
-          setRoles(r)
-          const admin = r.find(role => role.slug === 'admin')
-          setNewUserRoleId(admin?.id ?? r[0]?.id ?? '')
+        if (isAdmin) {
           await loadAgentSettings()
         }
       })
@@ -286,29 +231,7 @@ export default function SettingsPage() {
         setError(err instanceof Error ? err.message : String(err))
         setReconnecting(false)
       })
-  }, [loadAgentSettings, policy, principal?.is_admin])
-
-  useEffect(() => {
-    if (policy?.auth_enabled) {
-      setAllowReadonlyWithoutAuth(policy.allow_readonly_without_auth)
-    }
-  }, [policy])
-
-  async function onSaveAuthConfig() {
-    if (!isAdmin || !policy?.auth_enabled) return
-    setAuthConfigBusy(true)
-    setError(null)
-    setMessage(null)
-    try {
-      await api.auth.rbacConfig.put(allowReadonlyWithoutAuth)
-      setMessage('Authentication settings saved')
-      await refreshAuth()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setAuthConfigBusy(false)
-    }
-  }
+  }, [loadAgentSettings, isAdmin])
 
   async function togglePlugin(
     kind: 'auth' | 'check' | 'notify' | 'scheduler',
@@ -359,22 +282,11 @@ export default function SettingsPage() {
     }
   }
 
-  async function onChangePassword(e: FormEvent) {
-    e.preventDefault()
-    setChangePasswordBusy(true)
-    setError(null)
-    setMessage(null)
-    try {
-      await api.auth.changePassword(ownCurrentPassword, ownNewPassword)
-      setOwnCurrentPassword('')
-      setOwnNewPassword('')
-      setMessage('Password changed')
-      await refreshAuth()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setChangePasswordBusy(false)
-    }
+  function onAgentProviderChange(provider: AgentLlmProvider) {
+    const meta = agentProviderMeta(provider)
+    setAgentProvider(provider)
+    setAgentModel(meta.defaultModel)
+    setAgentBaseUrl(meta.defaultBaseUrl ?? '')
   }
 
   async function onSaveAgent(e: FormEvent) {
@@ -416,150 +328,6 @@ export default function SettingsPage() {
     } finally {
       setAgentBusy(false)
     }
-  }
-
-  function onAgentProviderChange(provider: AgentLlmProvider) {
-    const meta = agentProviderMeta(provider)
-    setAgentProvider(provider)
-    setAgentModel(meta.defaultModel)
-    setAgentBaseUrl(meta.defaultBaseUrl ?? '')
-  }
-
-  async function createUser(e: FormEvent) {
-    e.preventDefault()
-    if (newUserRoleId === '') return
-    setError(null)
-    setMessage(null)
-    try {
-      await api.users.create({
-        username: newUsername,
-        password: newPassword,
-        role_id: newUserRoleId,
-      })
-      setNewUsername('')
-      setNewPassword('')
-      setMessage('User created')
-      await loadAdminLists()
-      await refreshAuth()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    }
-  }
-
-  async function saveUser(e: FormEvent) {
-    e.preventDefault()
-    if (editUserId == null || editUserRoleId === '') return
-    setError(null)
-    setMessage(null)
-    try {
-      const patch: Partial<{
-        username: string
-        password: string
-        role_id: number
-      }> = {
-        username: editUsername,
-        role_id: editUserRoleId,
-      }
-      if (editPassword) patch.password = editPassword
-      await api.users.update(editUserId, patch)
-      setEditUserId(null)
-      setEditPassword('')
-      setMessage('User updated')
-      await loadAdminLists()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    }
-  }
-
-  async function removeUser(id: number) {
-    setError(null)
-    setMessage(null)
-    try {
-      await api.users.remove(id)
-      setMessage('User deleted')
-      await loadAdminLists()
-      await refreshAuth()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    }
-  }
-
-  function toggleRolePlugin(ref: RolePluginRef) {
-    setRolePlugins(prev => {
-      const key = pluginKey(ref)
-      if (prev.some(p => pluginKey(p) === key)) {
-        return prev.filter(p => pluginKey(p) !== key)
-      }
-      return [...prev, ref]
-    })
-  }
-
-  async function createRole(e: FormEvent) {
-    e.preventDefault()
-    setError(null)
-    setMessage(null)
-    try {
-      await api.roles.create({
-        name: roleName,
-        can_write: roleCanWrite,
-        plugins: rolePlugins,
-      })
-      setRoleName('')
-      setRoleCanWrite(false)
-      setRolePlugins([])
-      setMessage('Role created')
-      await loadAdminLists()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    }
-  }
-
-  async function saveRole(e: FormEvent) {
-    e.preventDefault()
-    if (editRoleId == null) return
-    setError(null)
-    setMessage(null)
-    try {
-      await api.roles.update(editRoleId, {
-        name: roleName,
-        can_write: roleCanWrite,
-        plugins: rolePlugins,
-      })
-      setEditRoleId(null)
-      setRoleName('')
-      setRoleCanWrite(false)
-      setRolePlugins([])
-      setMessage('Role updated')
-      await loadAdminLists()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    }
-  }
-
-  async function removeRole(id: number) {
-    setError(null)
-    setMessage(null)
-    try {
-      await api.roles.remove(id)
-      setMessage('Role deleted')
-      await loadAdminLists()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    }
-  }
-
-  function startEditRole(role: Role) {
-    setEditRoleId(role.id)
-    setRoleName(role.name)
-    setRoleCanWrite(role.can_write)
-    setRolePlugins(role.plugins === 'all' ? [] : [...role.plugins])
-  }
-
-  function cancelEditRole() {
-    setEditRoleId(null)
-    setRoleName('')
-    setRoleCanWrite(false)
-    setRolePlugins([])
   }
 
   if (!settings && !error && !reconnecting)
@@ -622,96 +390,13 @@ export default function SettingsPage() {
         </form>
       </section>
 
-      {policy?.auth_enabled && (
-        <section className="panel">
-          <h2>Account</h2>
-          {signedIn ? (
-            <>
-              <p className="muted small">
-                Signed in as <strong>{principal?.user?.username}</strong>
-                {principal?.is_admin ? ' (admin)' : ''}.
-              </p>
-              <button type="button" onClick={() => void logout()}>
-                Sign out
-              </button>
-            </>
-          ) : (
-            <>
-              <p className="muted small">
-                Sign in for write access. You can also authenticate without the
-                UI: <code>POST /api/auth/login</code> sets a session cookie;
-                create a Bearer token with <code>POST /api/tokens</code> after
-                logging in. See <code>docs/api.md</code>.
-              </p>
-              <Link to="/login">Sign in</Link>
-            </>
-          )}
-        </section>
+      {activeAuthUi && plugins?.auth && !policy?.auth_enabled && (
+        <activeAuthUi.DisabledNotice />
       )}
 
-      {policy?.auth_enabled && isAdmin && (
-        <section className="panel">
-          <h2>Authentication</h2>
-          <p className="muted small">
-            Control whether visitors can browse the dashboard without signing
-            in. Write access always requires a signed-in account.
-          </p>
-          <div className="form-col">
-            <label className="check-ids-item">
-              <input
-                type="checkbox"
-                checked={allowReadonlyWithoutAuth}
-                onChange={e => setAllowReadonlyWithoutAuth(e.target.checked)}
-              />
-              Allow read-only access without signing in
-            </label>
-            <button
-              type="button"
-              onClick={() => void onSaveAuthConfig()}
-              disabled={authConfigBusy}
-            >
-              {authConfigBusy ? 'Saving…' : 'Save authentication settings'}
-            </button>
-          </div>
-        </section>
+      {activeAuthUi && policy?.auth_enabled && (
+        <activeAuthUi.Settings pluginManager={plugins} />
       )}
-
-      {signedIn && (
-        <section className="panel">
-          <h2>Change password</h2>
-          <p className="muted small">
-            Update the password for your account ({principal?.user?.username}).
-          </p>
-          <form className="form-col" onSubmit={onChangePassword}>
-            <label>
-              Current password
-              <input
-                type="password"
-                autoComplete="current-password"
-                value={ownCurrentPassword}
-                onChange={e => setOwnCurrentPassword(e.target.value)}
-                required
-              />
-            </label>
-            <label>
-              New password
-              <input
-                type="password"
-                autoComplete="new-password"
-                value={ownNewPassword}
-                onChange={e => setOwnNewPassword(e.target.value)}
-                required
-                minLength={8}
-              />
-            </label>
-            <button type="submit" disabled={changePasswordBusy}>
-              {changePasswordBusy ? 'Saving…' : 'Change password'}
-            </button>
-          </form>
-        </section>
-      )}
-
-      <ApiTokensPanel signedIn={signedIn} isAdmin={isAdmin} users={users} />
 
       {isAdmin && (
         <section className="panel">
@@ -836,215 +521,6 @@ export default function SettingsPage() {
         </section>
       )}
 
-      {isAdmin && (
-        <section className="panel">
-          <h2>Users</h2>
-          <p className="muted small">
-            Assign Admin, Read + write, or Read only roles. Admins can manage
-            users, settings, and plugins.
-          </p>
-          <ul className="plain-list">
-            {users.map(u => (
-              <li key={u.id} className="user-row">
-                {editUserId === u.id ? (
-                  <form className="form-col" onSubmit={saveUser}>
-                    <label>
-                      Username
-                      <input
-                        value={editUsername}
-                        onChange={e => setEditUsername(e.target.value)}
-                        required
-                      />
-                    </label>
-                    <label>
-                      New password (optional)
-                      <input
-                        type="password"
-                        value={editPassword}
-                        onChange={e => setEditPassword(e.target.value)}
-                      />
-                    </label>
-                    <label>
-                      Role
-                      <select
-                        value={editUserRoleId}
-                        onChange={e =>
-                          setEditUserRoleId(Number(e.target.value))
-                        }
-                      >
-                        {roles.map(r => (
-                          <option key={r.id} value={r.id}>
-                            {r.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <div className="row-actions">
-                      <button type="submit">Save</button>
-                      <button type="button" onClick={() => setEditUserId(null)}>
-                        Cancel
-                      </button>
-                    </div>
-                  </form>
-                ) : (
-                  <>
-                    <span>
-                      <strong>{u.username}</strong>{' '}
-                      <span className="muted small">({u.role_slug})</span>
-                    </span>
-                    <div className="row-actions">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditUserId(u.id)
-                          setEditUsername(u.username)
-                          setEditUserRoleId(u.role_id)
-                          setEditPassword('')
-                        }}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void removeUser(u.id)}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </>
-                )}
-              </li>
-            ))}
-          </ul>
-          <form className="form-col" onSubmit={createUser}>
-            <h3>Add user</h3>
-            <label>
-              Username
-              <input
-                value={newUsername}
-                onChange={e => setNewUsername(e.target.value)}
-                required
-              />
-            </label>
-            <label>
-              Password
-              <input
-                type="password"
-                value={newPassword}
-                onChange={e => setNewPassword(e.target.value)}
-                required
-                minLength={8}
-              />
-            </label>
-            <label>
-              Role
-              <select
-                value={newUserRoleId}
-                onChange={e => setNewUserRoleId(Number(e.target.value))}
-                required
-              >
-                {roles.map(r => (
-                  <option key={r.id} value={r.id}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button type="submit">Create user</button>
-          </form>
-        </section>
-      )}
-
-      {isAdmin && (
-        <section className="panel">
-          <h2>Roles</h2>
-          <p className="muted small">
-            Built-in Admin and Read only roles cannot be changed. Custom roles
-            can write (optional) and are limited to selected plugins.
-          </p>
-          <ul className="plain-list">
-            {roles.map(r => (
-              <li key={r.id} className="user-row">
-                <div>
-                  <strong>{r.name}</strong>{' '}
-                  <span className="muted small">({r.slug})</span>
-                  <div className="muted small">
-                    {r.is_system
-                      ? 'System role · all plugins'
-                      : `${r.can_write ? 'Write' : 'Read-only'} · ${
-                          r.plugins === 'all'
-                            ? 'all plugins'
-                            : `${r.plugins.length} plugin(s)`
-                        }`}
-                  </div>
-                </div>
-                {!r.is_system && (
-                  <div className="row-actions">
-                    <button type="button" onClick={() => startEditRole(r)}>
-                      Edit
-                    </button>
-                    <button type="button" onClick={() => void removeRole(r.id)}>
-                      Delete
-                    </button>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-          <form
-            className="form-col"
-            onSubmit={editRoleId != null ? saveRole : createRole}
-          >
-            <h3>{editRoleId != null ? 'Edit role' : 'Add role'}</h3>
-            <label>
-              Name
-              <input
-                value={roleName}
-                onChange={e => setRoleName(e.target.value)}
-                required
-              />
-            </label>
-            <label className="check-ids-item">
-              <input
-                type="checkbox"
-                checked={roleCanWrite}
-                onChange={e => setRoleCanWrite(e.target.checked)}
-              />
-              Allow writes
-            </label>
-            <fieldset className="plugin-allowlist">
-              <legend>Plugin access</legend>
-              {availablePlugins.length === 0 ? (
-                <p className="muted small">No plugins loaded</p>
-              ) : (
-                availablePlugins.map(p => (
-                  <label key={pluginKey(p)} className="check-ids-item">
-                    <input
-                      type="checkbox"
-                      checked={rolePlugins.some(
-                        x => pluginKey(x) === pluginKey(p),
-                      )}
-                      onChange={() => toggleRolePlugin(p)}
-                    />
-                    {p.kind}/{p.id}
-                  </label>
-                ))
-              )}
-            </fieldset>
-            <div className="row-actions">
-              <button type="submit">
-                {editRoleId != null ? 'Save role' : 'Create role'}
-              </button>
-              {editRoleId != null && (
-                <button type="button" onClick={cancelEditRole}>
-                  Cancel
-                </button>
-              )}
-            </div>
-          </form>
-        </section>
-      )}
-
       <section className="panel">
         <h2>Plugin manager</h2>
         {!plugins ? (
@@ -1055,7 +531,8 @@ export default function SettingsPage() {
               <div>
                 <h3>Auth</h3>
                 <p className="muted small">
-                  Changing the auth plugin requires an API restart.
+                  Enabling or disabling auth takes effect immediately. Swapping
+                  which auth plugin is loaded requires an API restart.
                 </p>
                 <div className="plugin-manager-list">
                   <PluginManagerRow

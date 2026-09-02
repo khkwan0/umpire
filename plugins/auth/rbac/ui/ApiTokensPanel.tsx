@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useState, type FormEvent} from 'react'
-import {api, type ApiToken, type User} from '../api'
-import {FormattedTimestamp} from '../FormattedTimestamp'
+import {api, type ApiToken, type User} from '@umpire/web-api'
+import {FormattedTimestamp} from '@umpire/web-formatted-timestamp'
 
 async function copyText(text: string): Promise<boolean> {
   try {

@@ -1,9 +1,24 @@
 import type {ComponentType} from 'react'
-import type {StatusResponse} from './api'
+import type {PluginManagerState, StatusResponse} from './api'
 
 /** Props passed to an optional plugin panel on the core Dashboard. */
 export interface DashboardWidgetProps {
   status: StatusResponse
+}
+
+/** Props for auth plugin panels embedded on core Settings. */
+export interface AuthPluginSettingsProps {
+  pluginManager: PluginManagerState | null
+}
+
+/** Contract for auth plugin UI under `plugins/auth/<id>/ui/`. */
+export interface AuthPluginUiModule {
+  id: string
+  kind: 'auth'
+  /** Shown on Settings when the auth plugin is loaded and enabled. */
+  Settings: ComponentType<AuthPluginSettingsProps>
+  /** Shown when the auth plugin is loaded but disabled in plugin manager. */
+  DisabledNotice: ComponentType
 }
 
 /** Contract for optional React pages co-located with a plugin under `ui/`.
@@ -36,6 +51,17 @@ export function hasDashboardWidget(
   ui: PluginUiModule,
 ): ui is DashboardWidgetModule {
   return typeof ui.Dashboard === 'function'
+}
+
+export function isAuthPluginUiModule(value: unknown): value is AuthPluginUiModule {
+  if (!value || typeof value !== 'object') return false
+  const m = value as Record<string, unknown>
+  return (
+    typeof m.id === 'string' &&
+    m.kind === 'auth' &&
+    typeof m.Settings === 'function' &&
+    typeof m.DisabledNotice === 'function'
+  )
 }
 
 export function isPluginUiModule(value: unknown): value is PluginUiModule {
