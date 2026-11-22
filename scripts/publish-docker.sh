@@ -9,6 +9,9 @@ set -euo pipefail
 #
 # File: .env.dockerhub or .env.docker (first found wins)
 #
+# Tag: VERSION env, else the repo VERSION file (bumped on master CI).
+# Also pushes :latest unless PUSH_LATEST=false.
+#
 # Usage:
 #   ./scripts/publish-docker.sh
 #   VERSION=1.0.0 ./scripts/publish-docker.sh
@@ -18,8 +21,18 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="${ROOT_DIR}/.env.dockerhub"
-VERSION="${VERSION:-latest}"
 BASE_PATH="${BASE_PATH:-/}"
+
+repo_version() {
+  local f="${ROOT_DIR}/VERSION"
+  if [[ -f "${f}" ]]; then
+    tr -d '[:space:]' <"${f}"
+  else
+    echo latest
+  fi
+}
+
+VERSION="${VERSION:-$(repo_version)}"
 PUSH_LATEST="${PUSH_LATEST:-true}"
 BUILD_API=true
 BUILD_WEB=true
@@ -29,7 +42,7 @@ log() {
 }
 
 usage() {
-  sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
