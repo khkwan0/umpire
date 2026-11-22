@@ -215,7 +215,13 @@ export function OnboardingProvider({children}: {children: ReactNode}) {
     return () => {
       cancelled = true
     }
-  }, [applySnapshot, authReady, loadSnapshot, policy?.login_required, principal?.kind])
+  }, [
+    applySnapshot,
+    authReady,
+    loadSnapshot,
+    policy?.login_required,
+    principal?.kind,
+  ])
 
   const refresh = useCallback(async () => {
     if (status !== 'active') return

@@ -341,9 +341,8 @@ export default function App() {
         {(reconnecting || authReconnecting) && <ReconnectBanner />}
         {shouldOfferSignIn(policy, principal) && policy == null && (
           <p className="muted small read-only-banner">
-            Could not load auth policy.{' '}
-            <NavLink to="/login">Sign in</NavLink> if this server requires an
-            account.
+            Could not load auth policy. <NavLink to="/login">Sign in</NavLink>{' '}
+            if this server requires an account.
           </p>
         )}
         {!principal?.can_write && policy?.auth_enabled && (
