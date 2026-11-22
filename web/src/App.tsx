@@ -16,6 +16,7 @@ import {
   type PluginManagerState,
 } from './api'
 import {useAuth} from './auth'
+import {shouldOfferSignIn} from './authUi'
 import ReconnectBanner from './ReconnectBanner'
 import {assetUrl} from './basePath'
 import {
@@ -331,13 +332,19 @@ export default function App() {
             >
               Sign out ({principal.user?.username})
             </button>
-          ) : policy?.auth_enabled ? (
+          ) : shouldOfferSignIn(policy, principal) ? (
             <NavLink to="/login">Sign in</NavLink>
           ) : null}
         </nav>
       </header>
       <main>
         {(reconnecting || authReconnecting) && <ReconnectBanner />}
+        {shouldOfferSignIn(policy, principal) && policy == null && (
+          <p className="muted small read-only-banner">
+            Could not load auth policy. <NavLink to="/login">Sign in</NavLink>{' '}
+            if this server requires an account.
+          </p>
+        )}
         {!principal?.can_write && policy?.auth_enabled && (
           <p className="muted small read-only-banner">
             Read-only mode.{' '}

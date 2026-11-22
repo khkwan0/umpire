@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# After a commit on master, patch-bump VERSION in a follow-up commit.
+# Skip: rebase/merge/cherry-pick, bump commits, non-master, SKIP_VERSION_BUMP=1.
+set -euo pipefail
+
+if [[ "${SKIP_VERSION_BUMP:-}" == "1" ]]; then
+  exit 0
+fi
+
+git_dir="$(git rev-parse --git-dir)"
+if [[ -d "${git_dir}/rebase-merge" || -d "${git_dir}/rebase-apply" ]]; then
+  exit 0
+fi
+if [[ -f "${git_dir}/MERGE_HEAD" || -f "${git_dir}/CHERRY_PICK_HEAD" || -f "${git_dir}/REVERT_HEAD" ]]; then
+  exit 0
+fi
+
+branch="$(git rev-parse --abbrev-ref HEAD)"
+if [[ "${branch}" != "master" ]]; then
+  exit 0
+fi
+
+msg="$(git log -1 --pretty=%s)"
+if [[ "${msg}" == "chore: bump version"* ]]; then
+  exit 0
+fi
+
+root="$(git rev-parse --show-toplevel)"
+cd "${root}"
+node scripts/bump-version.mjs
+VERSION="$(tr -d '[:space:]' < VERSION)"
+git add VERSION \
+  api/package.json api/package-lock.json \
+  web/package.json web/package-lock.json \
+  agent/package.json
+SKIP_VERSION_BUMP=1 git commit -m "chore: bump version to ${VERSION}"
+echo "Bumped version to ${VERSION}"

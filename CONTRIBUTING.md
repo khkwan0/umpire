@@ -13,6 +13,16 @@ Read these before changing code:
 
 Operator setup and the HTTP API list live in [`README.md`](README.md).
 
+## Git hooks
+
+After clone, enable the repo hooks (post-commit patch-bump of `VERSION` on `master`):
+
+```bash
+./scripts/install-githooks.sh
+```
+
+Skip a bump with `SKIP_VERSION_BUMP=1 git commit …`. Feature branches, rebases, and merges do not bump.
+
 ## Development setup
 
 To **run the packaged stack** locally (Docker), use [`./scripts/deploy.sh`](scripts/deploy.sh) or `docker compose up --build -d` — see [`README.md`](README.md). The commands below are the two-process watch path for changing code.

@@ -70,7 +70,7 @@ The extension does **not** use the `/api/ws` HTTP bridge (that is RPC, not a pus
 ## Permissions
 
 - `storage`, `alarms`, `notifications`
-- Optional host access to the UMPIRE origin you configure (requested when you save Options). Production servers use HTTPS; localhost is supported for development.
+- Optional host access to the UMPIRE origin you configure (requested when you save Options). HTTP and HTTPS origins are allowed, including LAN hostnames. The prompt still names only the origin you entered.
 
 ## Publishing
 

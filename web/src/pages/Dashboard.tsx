@@ -11,6 +11,8 @@ import ReconnectBanner from '../ReconnectBanner'
 import {FormattedTimestamp} from '../FormattedTimestamp'
 import {useRealtimeRefresh} from '../realtime'
 import type {DashboardWidgetModule} from '../plugin-ui'
+import {useAuth} from '../auth'
+import {shouldOfferSignIn} from '../authUi'
 
 function statusLabel(isUp: number | null, enabled: number): string {
   if (!enabled) return 'paused'
@@ -40,6 +42,7 @@ export default function Dashboard({
 }: {
   widgets?: DashboardWidgetModule[]
 }) {
+  const {policy, principal} = useAuth()
   const [data, setData] = useState<StatusResponse | null>(null)
   const [pluginState, setPluginState] = useState<PluginManagerState | null>(
     null,
@@ -76,7 +79,19 @@ export default function Dashboard({
 
   useRealtimeRefresh(load)
 
-  if (error && !data) return <p className="error">{error}</p>
+  if (error && !data) {
+    return (
+      <p className="error">
+        {error}
+        {shouldOfferSignIn(policy, principal) ? (
+          <>
+            {' '}
+            <Link to="/login">Sign in</Link>
+          </>
+        ) : null}
+      </p>
+    )
+  }
   if (!data) return <p className="muted">Loading…</p>
 
   const up = data.targets.filter(t => t.enabled && t.is_up === 1).length
@@ -95,7 +110,17 @@ export default function Dashboard({
   return (
     <div className="stack">
       {reconnecting && <ReconnectBanner />}
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error">
+          {error}
+          {shouldOfferSignIn(policy, principal) ? (
+            <>
+              {' '}
+              <Link to="/login">Sign in</Link>
+            </>
+          ) : null}
+        </p>
+      )}
       <section className="hero-stats">
         <div>
           <strong>{up}</strong>

@@ -168,11 +168,19 @@ docker compose -f docker-compose.hub.yml up -d
 
 ## Publishing images (maintainers)
 
+Commits on `master` patch-bump [`VERSION`](../VERSION) (and api/web/agent `package.json`) via a **post-commit** hook. Enable it once per clone:
+
+```bash
+./scripts/install-githooks.sh
+```
+
+`publish-docker.sh` tags images with that version and also `:latest`. GitHub squash-merges do not run the hook — bump on a local `master` commit, or run `node scripts/bump-version.mjs` by hand.
+
 From a repo clone with Docker Hub credentials in `.env.dockerhub`:
 
 ```bash
-./scripts/publish-docker.sh                  # both images → :latest
-VERSION=1.0.0 ./scripts/publish-docker.sh    # versioned + :latest
+./scripts/publish-docker.sh                  # :$(cat VERSION) and :latest
+VERSION=1.0.0 ./scripts/publish-docker.sh    # override the tag
 BASE_PATH=/umpire VERSION=umpire ./scripts/publish-docker.sh --web-only
 ./scripts/publish-dockerhub-metadata.sh      # descriptions, overviews, categories on Hub
 ```
