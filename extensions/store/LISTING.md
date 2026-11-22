@@ -181,7 +181,7 @@ Display local desktop notifications when a monitored target transitions between 
 
 ### host permissions (optional)
 
-The user enters their self-hosted UMPIRE server URL in Options. The extension requests access only to that origin so it can call UMPIRE HTTP APIs (`/api/status`, `/api/incidents`, `/api/stream`, auth endpoints). It does not browse arbitrary websites or read page content. HTTPS covers production deployments; localhost patterns support local development.
+The user enters their self-hosted UMPIRE server URL in Options. The extension requests access only to that origin so it can call UMPIRE HTTP APIs (`/api/status`, `/api/incidents`, `/api/stream`, auth endpoints). It does not browse arbitrary websites or read page content. `http://*/*` and `https://*/*` are optional so a LAN hostname such as `http://cubi.local.net:8089` can be granted at save time. Localhost and `127.0.0.1` stay explicit because a wildcard host does not match them.
 
 ## Single purpose description (Chrome)
 

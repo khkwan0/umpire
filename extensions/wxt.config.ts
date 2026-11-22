@@ -9,11 +9,13 @@ export default defineConfig({
     name: 'UMPIRE',
     description:
       'Companion for self-hosted UMPIRE. Requires your UMPIRE API server. Toolbar health badge and outage notifications.',
-    version: '1.0.2',
+    version: '1.0.3',
     permissions: ['storage', 'alarms', 'notifications'],
     // Runtime request only the user's configured origin (see permissions.ts).
-    // https for production servers; localhost patterns for local dev.
+    // http://*/* covers LAN hostnames such as http://cubi.local.net:8089.
+    // * does not match localhost or IP literals, so those stay explicit.
     optional_host_permissions: [
+      'http://*/*',
       'http://localhost/*',
       'http://127.0.0.1/*',
       'https://*/*',

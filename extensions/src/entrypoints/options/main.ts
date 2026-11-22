@@ -1,7 +1,7 @@
 import './options.css'
 import {browser} from 'wxt/browser'
 import {canonicalizeBaseUrl} from '../../utils/api'
-import {ensureHostPermission} from '../../utils/permissions'
+import {requestHostPermission} from '../../utils/permissions'
 import {sendTestNotification} from '../../utils/notifications'
 import {getSettings, setSettings} from '../../utils/storage'
 
@@ -93,6 +93,8 @@ async function render(): Promise<void> {
   })
 
   save.addEventListener('click', () => {
+    // Must start in this turn, before setSettings awaits.
+    const permissionPromise = requestHostPermission(base.value.trim())
     void (async () => {
       status.hidden = false
       status.className = 'status'
@@ -104,7 +106,7 @@ async function render(): Promise<void> {
           notifyOnOutage: outage.checked,
           notifyOnRecovery: recovery.checked,
         })
-        const allowed = await ensureHostPermission(draft.baseUrl)
+        const allowed = await permissionPromise
         if (!allowed) {
           status.className = 'status error'
           status.textContent =
@@ -115,7 +117,12 @@ async function render(): Promise<void> {
         const next = await setSettings({baseUrl: canonical})
         base.value = next.baseUrl
         if (canonical !== draft.baseUrl) {
-          await ensureHostPermission(canonical)
+          const canonicalAllowed = await requestHostPermission(canonical)
+          if (!canonicalAllowed) {
+            status.className = 'status error'
+            status.textContent = `Saved ${draft.baseUrl}, but access to ${canonical} was not granted. Allow access when prompted, then save again.`
+            return
+          }
         }
         await browser.runtime.sendMessage({type: 'settings-changed'})
         status.className = 'status ok'
@@ -149,7 +156,7 @@ async function render(): Promise<void> {
     field(
       'UMPIRE base URL',
       base,
-      'Example: https://monitor.example.com or http://localhost:8089 (include BASE_PATH if you use one, e.g. https://host/umpire). Prefer https when your server redirects HTTP to HTTPS.',
+      'Example: https://monitor.example.com, http://cubi.local.net:8089, or http://localhost:8089. Include BASE_PATH if you use one, e.g. https://host/umpire. Allow the site-access prompt when you save.',
     ),
     field(
       'Poll interval (seconds)',
