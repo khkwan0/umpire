@@ -1,0 +1,45 @@
+# UMPIRE — copy this file as docker-compose.yml and run:
+#   docker compose pull
+#   docker compose up -d
+# Then open http://localhost:8089 and sign in (see comments below).
+#
+# Change UMPIRE_ADMIN_PASSWORD before exposing this to a network.
+# Pin tags instead of :latest for a production host, e.g. umpire-api:1.0.8
+
+services:
+  api:
+    image: nitroxstudios/umpire-api:latest
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://127.0.0.1:3000/api/health']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 120s
+    volumes:
+      - ./data:/data
+    environment:
+      PORT: '3000'
+      DATABASE_PATH: /data/monitor.sqlite
+      BASE_PATH: /
+      CHECK_TIMEOUT_MS: '10000'
+      # Fresh install creates this admin (password must be at least 8 characters).
+      UMPIRE_ADMIN_USERNAME: admin
+      UMPIRE_ADMIN_PASSWORD: change-me-on-first-login
+    networks:
+      - monitor
+
+  web:
+    image: nitroxstudios/umpire-web:latest
+    restart: unless-stopped
+    ports:
+      - '8089:80'
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - monitor
+
+networks:
+  monitor:
+    driver: bridge

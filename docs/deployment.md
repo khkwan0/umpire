@@ -2,6 +2,8 @@
 
 UMPIRE ships as two Docker images. Use this guide to run published images from Docker Hub without cloning or building the repo.
 
+**First-time operators:** [Getting started](getting-started.md) (install, sign in, add a target).
+
 **Developers** building from source: see [README — Run locally](../README.md#run-locally).
 
 ## Docker Hub images
@@ -30,27 +32,23 @@ docker pull nitroxstudios/umpire-web:${UMPIRE_IMAGE_TAG}
 
 ## Quick start (Docker Compose)
 
-The repo includes [`docker-compose.hub.yml`](../docker-compose.hub.yml) — Compose file that **pulls** images (no `build:`).
+Copy [`deploy/dockerhub/docker-compose.yml`](../deploy/dockerhub/docker-compose.yml) (also pasted on the Docker Hub overviews). It pulls both images and includes example admin credentials so a fresh install boots.
 
 ```bash
 mkdir umpire && cd umpire
-curl -fsSLO https://raw.githubusercontent.com/khkwan0/umpire/master/docker-compose.hub.yml
-curl -fsSLO https://raw.githubusercontent.com/khkwan0/umpire/master/deploy/env.example
-cp env.example .env
-
-docker compose -f docker-compose.hub.yml pull
-docker compose -f docker-compose.hub.yml up -d
+curl -fsSLO https://raw.githubusercontent.com/khkwan0/umpire/master/deploy/dockerhub/docker-compose.yml
+docker compose pull
+docker compose up -d
 ```
 
-Or from a git clone:
+Open [http://localhost:8089](http://localhost:8089) and sign in as `admin` / `change-me-on-first-login`. Change that password, add a target, and configure a webhook under **Notifiers → Webhook**.
+
+From a git clone you can use the same file, or [`docker-compose.hub.yml`](../docker-compose.hub.yml) with optional [`.env`](../deploy/env.example) (defaults match the example admin):
 
 ```bash
-cp deploy/env.example .env
 docker compose -f docker-compose.hub.yml pull
 docker compose -f docker-compose.hub.yml up -d
 ```
-
-Open [http://localhost:8089](http://localhost:8089), add a target, configure a webhook under **Notifiers → Webhook**.
 
 Health check:
 
@@ -71,8 +69,8 @@ Environment variables (set in `.env` next to the compose file):
 | `BASE_PATH` | `/` | Public URL prefix — must match the **web image** build |
 | `UMPIRE_DATA_DIR` | `./data` | Host directory for SQLite + plugin config |
 | `CHECK_TIMEOUT_MS` | `10000` | HTTP check timeout |
-| `UMPIRE_ADMIN_USERNAME` | *(empty)* | Bootstrap admin username — required on fresh install when rbac auth plugin is enabled |
-| `UMPIRE_ADMIN_PASSWORD` | *(empty)* | Bootstrap admin password — required on fresh install when rbac auth plugin is enabled |
+| `UMPIRE_ADMIN_USERNAME` | `admin` | Bootstrap admin username — required on fresh install when rbac is enabled |
+| `UMPIRE_ADMIN_PASSWORD` | `change-me-on-first-login` | Bootstrap admin password — required on fresh install (min 8 chars); change after first login |
 
 Example `.env` for a custom registry mirror:
 
@@ -122,8 +120,8 @@ services:
     environment:
       DATABASE_PATH: /data/monitor.sqlite
       BASE_PATH: /
-      UMPIRE_ADMIN_USERNAME: ${UMPIRE_ADMIN_USERNAME:-}
-      UMPIRE_ADMIN_PASSWORD: ${UMPIRE_ADMIN_PASSWORD:-}
+      UMPIRE_ADMIN_USERNAME: ${UMPIRE_ADMIN_USERNAME:-admin}
+      UMPIRE_ADMIN_PASSWORD: ${UMPIRE_ADMIN_PASSWORD:-change-me-on-first-login}
 ```
 
 Configure via REST ([docs/api.md](api.md)) or [MCP](../mcp/README.md). With rbac enabled (default), log in using bootstrap credentials on a fresh install, then use session cookies or API tokens. With auth disabled, no login is required. Swagger: `http://localhost:3000/documentation/`.

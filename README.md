@@ -11,28 +11,31 @@ When you need more — ping, TLS, Slack, FCM, a custom probe — you extend Umpi
 
 Default process-wide set in [`api/plugins.json`](api/plugins.json) + [`data/plugin-manager.json`](data/plugin-manager.json): **`http`** check, **`interval`** scheduler, **`webhook`** notifier. Other shipped notifiers (FCM, Slack, …) load but stay off until you enable them in **Settings → Plugin manager**.
 
-## Deploy with Docker Hub
+## Getting started
 
-Pre-built images on [Docker Hub](https://hub.docker.com/u/nitroxstudios):
-
-| Image | Purpose |
-|-------|---------|
-| [`nitroxstudios/umpire-api`](https://hub.docker.com/r/nitroxstudios/umpire-api) | API — **required** (checks, storage, alerts) |
-| [`nitroxstudios/umpire-web`](https://hub.docker.com/r/nitroxstudios/umpire-web) | Dashboard — optional but recommended |
+Step-by-step (install, first login, first target): **[docs/getting-started.md](docs/getting-started.md)**.
 
 ```bash
-cp deploy/env.example .env
-docker compose -f docker-compose.hub.yml pull
-docker compose -f docker-compose.hub.yml up -d
+mkdir umpire && cd umpire
+curl -fsSLO https://raw.githubusercontent.com/khkwan0/umpire/master/deploy/dockerhub/docker-compose.yml
+docker compose pull
+docker compose up -d
 ```
 
-Open [http://localhost:8089](http://localhost:8089). Health: `curl http://localhost:8089/api/health`
+Open [http://localhost:8089](http://localhost:8089). Sign in:
 
-- **API only** (no UI): pull `umpire-api` only — see [docs/deployment.md](docs/deployment.md#api-only-no-dashboard)
-- **Subpath hosting** (`BASE_PATH=/umpire`): see [deployment guide](docs/deployment.md#hosting-at-a-subpath-base_path)
-- **Configure via API** (headless): [docs/api.md](docs/api.md)
+| | |
+|---|---|
+| Username | `admin` |
+| Password | `change-me-on-first-login` |
 
-Full deployment guide (tags, reverse proxy, upgrades): **[docs/deployment.md](docs/deployment.md)**
+Then **Settings → Change password**, add a URL under **Targets**, and optionally set **Notifiers → Webhook**. Health: `curl -fsS http://localhost:8089/api/health`
+
+Images: [`nitroxstudios/umpire-api`](https://hub.docker.com/r/nitroxstudios/umpire-api) (required) and [`nitroxstudios/umpire-web`](https://hub.docker.com/r/nitroxstudios/umpire-web) (dashboard). From a git clone: `docker compose -f docker-compose.hub.yml up -d`.
+
+- **API only** (no UI): [docs/deployment.md](docs/deployment.md#api-only-no-dashboard)
+- **Subpath hosting** (`BASE_PATH=/umpire`): [deployment guide](docs/deployment.md#hosting-at-a-subpath-base_path)
+- **Production** (tags, reverse proxy, upgrades): [docs/deployment.md](docs/deployment.md)
 
 ### Run from source
 
@@ -399,7 +402,7 @@ SQLite file: `./data/monitor.sqlite` (bind-mounted in Compose at `/data/monitor.
 
 ## Notes
 
-- Authentication uses the **`rbac` auth plugin** (enabled by default). Set `UMPIRE_ADMIN_USERNAME` and `UMPIRE_ADMIN_PASSWORD` in `.env` before the **first** start when rbac is enabled (see `deploy/env.example`). Change the bootstrap password in the rbac Settings panel after signing in. Disable auth under **Settings → Plugin manager → Auth** for open mode (immediate). Prefer binding to localhost or a VPN/firewall in production.
+- Authentication uses the **`rbac` auth plugin** (enabled by default). First login and password change: [Getting started](docs/getting-started.md). Disable auth under **Settings → Plugin manager → Auth** for open mode (immediate). Prefer binding to localhost or a VPN/firewall in production.
 - Default branch for this repo is `master`
 - Local run: [`./scripts/deploy.sh`](scripts/deploy.sh) or `docker compose up --build -d` (repo-root build context). Use host `npm run dev` only when writing plugins or core — [CONTRIBUTING.md](CONTRIBUTING.md)
 - CI: GitHub Actions on push/PR ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)). Optional CD: Jenkins — [setup](docs/jenkins.md)
@@ -407,6 +410,7 @@ SQLite file: `./data/monitor.sqlite` (bind-mounted in Compose at `/data/monitor.
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Browser companion: **[Chrome Web Store](https://chromewebstore.google.com/detail/umpire/lhhafgjninkefjakefhmeepfehfpcmhl)** — source and Firefox: [extensions/README.md](extensions/README.md)
 - HTTP API operator guide: [docs/api.md](docs/api.md)
+- **Getting started** (install, first login): [docs/getting-started.md](docs/getting-started.md)
 - **Deployment** (Docker Hub, Compose, reverse proxy): [docs/deployment.md](docs/deployment.md)
 - AI agents (MCP, web chat, tokens, WebSockets): [docs/agents.md](docs/agents.md)
 - MCP server: [mcp/README.md](mcp/README.md)

@@ -1,10 +1,11 @@
 # Pull pre-built images from Docker Hub (no local build).
 #
-# Quick start:
-#   cp deploy/env.example .env    # optional — defaults work for local try-out
+# Quick start (example admin is built in; change the password after login):
 #   docker compose -f docker-compose.hub.yml pull
 #   docker compose -f docker-compose.hub.yml up -d
+#   open http://localhost:8089  (admin / change-me-on-first-login)
 #
+# Or copy deploy/dockerhub/docker-compose.yml (literal example, no .env).
 # See docs/deployment.md for BASE_PATH, reverse proxies, and API-only setups.
 
 services:
@@ -25,8 +26,8 @@ services:
       BASE_PATH: ${BASE_PATH:-/}
       CHECK_TIMEOUT_MS: ${CHECK_TIMEOUT_MS:-10000}
       FCM_ANDROID_CHANNEL_ID: ${FCM_ANDROID_CHANNEL_ID:-}
-      UMPIRE_ADMIN_USERNAME: ${UMPIRE_ADMIN_USERNAME:-}
-      UMPIRE_ADMIN_PASSWORD: ${UMPIRE_ADMIN_PASSWORD:-}
+      UMPIRE_ADMIN_USERNAME: ${UMPIRE_ADMIN_USERNAME:-admin}
+      UMPIRE_ADMIN_PASSWORD: ${UMPIRE_ADMIN_PASSWORD:-change-me-on-first-login}
     networks:
       - monitor
 

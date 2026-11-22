@@ -12,6 +12,7 @@ Uses `.env.dockerhub` or `.env.docker` (same credentials as `publish-docker.sh`)
 
 | File | Docker Hub repo | Field |
 |------|-----------------|-------|
+| [`docker-compose.yml`](docker-compose.yml) | both | Copy-paste Compose with example admin (`admin` / `change-me-on-first-login`) |
 | [`umpire-api-short.txt`](umpire-api-short.txt) | `nitroxstudios/umpire-api` | Short description (manual paste) |
 | [`umpire-api-overview.md`](umpire-api-overview.md) | `nitroxstudios/umpire-api` | Full overview |
 | [`umpire-api.meta.json`](umpire-api.meta.json) | `nitroxstudios/umpire-api` | Description + categories (used by script) |
@@ -34,4 +35,4 @@ Canonical deployment guide (linked from both overviews):
 
 https://github.com/khkwan0/umpire/blob/master/docs/deployment.md
 
-After publishing a new image tag, run `./scripts/publish-dockerhub-metadata.sh` again only if overview text changed.
+After publishing a new image tag, run `./scripts/publish-dockerhub-metadata.sh` again only if overview text or the example compose file changed. The compose YAML is inlined in both overviews — keep it in sync with [`docker-compose.yml`](docker-compose.yml).

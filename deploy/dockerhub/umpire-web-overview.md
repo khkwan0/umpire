@@ -2,34 +2,99 @@
 
 Dashboard UI for **UMPIRE** — React app behind nginx. Proxies `/api`, `/documentation`, and WebSockets to the API container.
 
-**Not required for monitoring** — checks and alerts run in [`nitroxstudios/umpire-api`](https://hub.docker.com/r/nitroxstudios/umpire-api). This image is for day-to-day use: targets, history, plugin settings, and the built-in agent chat page.
+**Do not run this image alone.** Checks and alerts run in [`nitroxstudios/umpire-api`](https://hub.docker.com/r/nitroxstudios/umpire-api). This image is the UI: targets, history, plugin settings, and the built-in agent chat.
 
 - **Source:** https://github.com/khkwan0/umpire
 - **Deployment guide:** https://github.com/khkwan0/umpire/blob/master/docs/deployment.md
 
-## Pull
+## Quick start (API + dashboard)
+
+Save the compose file below as `docker-compose.yml`, then:
 
 ```bash
-docker pull nitroxstudios/umpire-web:latest
+docker compose pull
+docker compose up -d
 ```
 
-Default `latest` is built for **root** hosting (`BASE_PATH=/`). For subdirectory hosting (e.g. `https://example.com/umpire`), use a web image tag built with that path — see the deployment guide.
+Open **http://localhost:8089** and sign in:
 
-## Run with the API (Docker Compose)
+| | |
+|---|---|
+| Username | `admin` |
+| Password | `change-me-on-first-login` |
 
-Do **not** run this image alone in production. Use Compose with the API service:
+Then change that password under **Settings**, add a target (for example `https://example.com`), and point **Notifiers → Webhook** at an endpoint if you want alerts.
 
-https://github.com/khkwan0/umpire/blob/master/docs/deployment.md
+Health: `curl -fsS http://localhost:8089/api/health`
+
+A first boot **without** `UMPIRE_ADMIN_USERNAME` and `UMPIRE_ADMIN_PASSWORD` (8+ characters) exits. The example compose sets both.
+
+## docker-compose.yml (copy-paste)
+
+```yaml
+# UMPIRE — copy this file as docker-compose.yml and run:
+#   docker compose pull
+#   docker compose up -d
+# Then open http://localhost:8089 and sign in (see comments below).
+#
+# Change UMPIRE_ADMIN_PASSWORD before exposing this to a network.
+# Pin tags instead of :latest for a production host, e.g. umpire-api:1.0.8
+
+services:
+  api:
+    image: nitroxstudios/umpire-api:latest
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://127.0.0.1:3000/api/health']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 120s
+    volumes:
+      - ./data:/data
+    environment:
+      PORT: '3000'
+      DATABASE_PATH: /data/monitor.sqlite
+      BASE_PATH: /
+      CHECK_TIMEOUT_MS: '10000'
+      # Fresh install creates this admin (password must be at least 8 characters).
+      UMPIRE_ADMIN_USERNAME: admin
+      UMPIRE_ADMIN_PASSWORD: change-me-on-first-login
+    networks:
+      - monitor
+
+  web:
+    image: nitroxstudios/umpire-web:latest
+    restart: unless-stopped
+    ports:
+      - '8089:80'
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - monitor
+
+networks:
+  monitor:
+    driver: bridge
+```
+
+Same file in git: [`deploy/dockerhub/docker-compose.yml`](https://github.com/khkwan0/umpire/blob/master/deploy/dockerhub/docker-compose.yml)
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/khkwan0/umpire/master/deploy/dockerhub/docker-compose.yml
+docker compose pull
+docker compose up -d
+```
+
+## Pull only
 
 ```bash
 docker pull nitroxstudios/umpire-api:latest
 docker pull nitroxstudios/umpire-web:latest
-
-# From the deployment guide — docker-compose.hub.yml + .env
-docker compose -f docker-compose.hub.yml up -d
 ```
 
-Default UI: http://localhost:8089
+Default `latest` is built for **root** hosting (`BASE_PATH=/`). For subdirectory hosting (e.g. `https://example.com/umpire`), use a web image tag built with that path — see the deployment guide.
 
 ## `BASE_PATH` (important)
 
@@ -40,7 +105,7 @@ The public URL path is **baked into this image at build time**. It must match ho
 | `https://example.com/` | `umpire-web:latest` (default) |
 | `https://example.com/umpire` | Tag built with `BASE_PATH=/umpire` (e.g. `umpire-web:umpire`) |
 
-Set `BASE_PATH` in `.env` to the same value at runtime (API + Swagger). Details:
+Set `BASE_PATH` on the API to the same value at runtime. Details:
 
 https://github.com/khkwan0/umpire/blob/master/docs/deployment.md#hosting-at-a-subpath-base_path
 
