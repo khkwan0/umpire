@@ -21,6 +21,7 @@ import {
   type OnboardingStep,
 } from './onboarding'
 import {useRealtimeRefresh} from './realtime'
+import {useAuth} from './auth'
 
 type HighlightId =
   | 'targets-panel'
@@ -140,6 +141,10 @@ function placeCard(
 export function OnboardingProvider({children}: {children: ReactNode}) {
   const location = useLocation()
   const navigate = useNavigate()
+  const {ready: authReady, policy, principal} = useAuth()
+  const loginWall =
+    location.pathname === '/login' ||
+    (Boolean(policy?.login_required) && principal?.kind !== 'user')
   const [hydrated, setHydrated] = useState(false)
   const [status, setStatus] = useState<OnboardingStatus | 'idle'>('idle')
   const [step, setStep] = useState<OnboardingStep>('target')
@@ -166,15 +171,23 @@ export function OnboardingProvider({children}: {children: ReactNode}) {
   }, [])
 
   useEffect(() => {
+    if (!authReady) return
     let cancelled = false
     async function init() {
+      if (policy?.login_required && principal?.kind !== 'user') {
+        setHydrated(true)
+        return
+      }
+
       const stored = readOnboarding()
       let targetCount = 0
+      let loaded = false
       try {
         const snap = await loadSnapshot()
         if (cancelled) return
         targetCount = snap.targetCount
         applySnapshot(snap.targetCount, snap.readyNotifier)
+        loaded = true
       } catch {
         if (cancelled) return
       }
@@ -185,6 +198,8 @@ export function OnboardingProvider({children}: {children: ReactNode}) {
       } else if (stored?.status === 'active') {
         setStatus('active')
         setStep(stored.step)
+      } else if (!loaded) {
+        setStatus('idle')
       } else if (targetCount === 0) {
         const next: OnboardingState = {status: 'active', step: 'target'}
         writeOnboarding(next)
@@ -200,7 +215,7 @@ export function OnboardingProvider({children}: {children: ReactNode}) {
     return () => {
       cancelled = true
     }
-  }, [applySnapshot, loadSnapshot])
+  }, [applySnapshot, authReady, loadSnapshot, policy?.login_required, principal?.kind])
 
   const refresh = useCallback(async () => {
     if (status !== 'active') return
@@ -270,7 +285,7 @@ export function OnboardingProvider({children}: {children: ReactNode}) {
 
   const value = useMemo<OnboardingContextValue>(
     () => ({
-      active: hydrated && status === 'active',
+      active: hydrated && status === 'active' && !loginWall,
       step,
       hasTarget,
       hasReadyNotifier,
@@ -287,6 +302,7 @@ export function OnboardingProvider({children}: {children: ReactNode}) {
       hasReadyNotifier,
       hasTarget,
       hydrated,
+      loginWall,
       restart,
       skip,
       status,

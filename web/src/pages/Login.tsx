@@ -78,11 +78,14 @@ export default function LoginPage() {
           </button>
         </form>
         {error && <p className="error">{error}</p>}
-        {policy?.allow_readonly_without_auth && (
-          <p className="muted small login-continue">
-            <Link to="/">Continue without signing in</Link> (read-only).
-          </p>
-        )}
+        <p className="muted small login-continue">
+          {policy?.allow_readonly_without_auth ? (
+            <Link to="/">Continue without signing in</Link>
+          ) : (
+            <Link to="/">Back to dashboard</Link>
+          )}
+          {policy?.allow_readonly_without_auth ? ' (read-only).' : null}
+        </p>
       </div>
     </div>
   )
