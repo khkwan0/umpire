@@ -80,6 +80,15 @@ export const AGENT_TOOLS: LlmToolDef[] = [
     },
   },
   {
+    name: 'get_version',
+    description: 'Report the UMPIRE API package version (GET /api/version).',
+    parameters: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'list_api_routes',
     description:
       'List compact HTTP routes (method, path, description) for core APIs plus loaded plugins. Call this before umpire_api_request when no named tool matches. Do not use GET /api/schema or OpenAPI for discovery.',
@@ -170,6 +179,8 @@ export async function executeAgentTool(
         }),
       )
     }
+    case 'get_version':
+      return summarizeResult(await call('GET', '/api/version'))
     case 'list_api_routes': {
       let catalog: unknown = []
       let plugin_catalog_error: string | undefined
@@ -208,7 +219,7 @@ export const DEFAULT_SYSTEM_PROMPT = `You are the UMPIRE monitoring assistant. U
 
 Help operators understand target health, investigate outages, and manage monitoring configuration. Always use tools to fetch live data before answering factual questions about current status. Be concise and actionable.
 
-Named tools: get_monitoring_status, list_incidents, list_targets, update_target, list_groups, list_api_routes, umpire_api_request. You do not have MCP-generated tools such as patch_targets_id.
+Named tools: get_monitoring_status, list_incidents, list_targets, update_target, list_groups, get_version, list_api_routes, umpire_api_request. You do not have MCP-generated tools such as patch_targets_id.
 
 Pause a target with update_target (id, enabled=false) and resume with enabled=true. That is PATCH /api/targets/:id.
 

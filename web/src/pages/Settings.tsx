@@ -14,6 +14,7 @@ import ReconnectBanner from '../ReconnectBanner'
 import ThemeSwitcher from '../ThemeSwitcher'
 import TimezoneSelect from '../TimezoneSelect'
 import {useOnboarding} from '../onboarding'
+import VersionLabel from '../VersionLabel'
 
 const MISSING_PLUGIN_DESCRIPTION =
   "No description offered by the plugin's author"
@@ -612,6 +613,11 @@ export default function SettingsPage() {
             )}
           </div>
         )}
+      </section>
+
+      <section className="panel">
+        <h2>About</h2>
+        <VersionLabel />
       </section>
 
       {message && <p className="ok-text">{message}</p>}

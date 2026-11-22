@@ -19,6 +19,7 @@ const HTTP_METHODS = new Set<string>(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'])
 /** Core HTTP routes always available (plugin routes come from GET /api/plugins). */
 export const CORE_ROUTES: ListedRoute[] = [
   {method: 'GET', path: '/api/health', description: 'API liveness check'},
+  {method: 'GET', path: '/api/version', description: 'API package version'},
   {method: 'GET', path: '/api/auth/policy', description: 'Public auth policy'},
   {
     method: 'GET',

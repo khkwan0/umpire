@@ -179,7 +179,7 @@ Custom roles have `can_write` plus a monitoring-plugin allowlist (`role_plugins`
 - Plugin namespaces `/api/plugins/<kind>/<id>/…` are gated by the allowlist for non-admin roles (`kind` = `check` \| `notify` \| `scheduler`).
 - Pipeline / in-process `runCheck` writes are **not** gated by HTTP auth.
 
-Public paths (no credentials): `/api/health`, `/api/auth/policy`, `/api/auth/login`, `/api/auth/logout`.
+Public paths (no credentials): `/api/health`, `/api/version`, `/api/auth/policy`, `/api/auth/login`, `/api/auth/logout`.
 
 ### API tokens (agents & automation)
 

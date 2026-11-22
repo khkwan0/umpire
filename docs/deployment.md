@@ -95,7 +95,7 @@ For subdirectory hosting, use a web image tag published with `BASE_PATH=/umpire`
 
 ```bash
 # Publisher (maintainer)
-BASE_PATH=/umpire VERSION=umpire ./scripts/publish-docker.sh --web-only
+BASE_PATH=/umpire WEB_VERSION=umpire ./scripts/publish-docker.sh --web-only
 
 # Deployer
 UMPIRE_WEB_IMAGE_TAG=umpire
@@ -168,20 +168,21 @@ docker compose -f docker-compose.hub.yml up -d
 
 ## Publishing images (maintainers)
 
-Commits on `master` patch-bump [`VERSION`](../VERSION) (and api/web/agent `package.json`) via a **post-commit** hook. Enable it once per clone:
+Commits on `master` patch-bump **api** and/or **web** `package.json` versions via a **post-commit** hook, only when that tree changed. **Web** bumps for any file under `web/` (not only the dashboard) and for plugin UI. **API** bumps for `api/`, `agent/`, and non-UI `plugins/`. Enable the hook once per clone:
 
 ```bash
 ./scripts/install-githooks.sh
 ```
 
-`publish-docker.sh` tags images with that version and also `:latest`. GitHub squash-merges do not run the hook — bump on a local `master` commit, or run `node scripts/bump-version.mjs` by hand.
+`publish-docker.sh` tags `umpire-api` from `api/package.json` and `umpire-web` from `web/package.json`, and also `:latest`. GitHub squash-merges do not run the hook — bump on a local `master` commit, or run `node scripts/bump-version.mjs --api` / `--web` by hand.
 
 From a repo clone with Docker Hub credentials in `.env.dockerhub`:
 
 ```bash
-./scripts/publish-docker.sh                  # :$(cat VERSION) and :latest
-VERSION=1.0.0 ./scripts/publish-docker.sh    # override the tag
-BASE_PATH=/umpire VERSION=umpire ./scripts/publish-docker.sh --web-only
+./scripts/publish-docker.sh                  # each image's package version + :latest
+VERSION=1.0.0 ./scripts/publish-docker.sh    # same tag for both
+API_VERSION=1.0.8 WEB_VERSION=1.0.4 ./scripts/publish-docker.sh
+BASE_PATH=/umpire WEB_VERSION=umpire ./scripts/publish-docker.sh --web-only
 ./scripts/publish-dockerhub-metadata.sh      # descriptions, overviews, categories on Hub
 ```
 

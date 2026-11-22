@@ -109,6 +109,7 @@ const example: AuthPlugin = {
   publicPaths() {
     return new Set([
       '/api/health',
+      '/api/version',
       '/api/auth/policy',
       '/api/auth/login',
       '/api/auth/logout',

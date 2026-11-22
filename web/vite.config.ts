@@ -1,9 +1,15 @@
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 const root = path.dirname(fileURLToPath(import.meta.url))
+const webVersion = (
+  JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')) as {
+    version: string
+  }
+).version
 
 function viteBase(raw: string | undefined): string {
   const value = (raw ?? '/').trim() || '/'
@@ -26,6 +32,9 @@ const proxyRewrite = prefix
 
 export default defineConfig({
   base,
+  define: {
+    __WEB_VERSION__: JSON.stringify(webVersion),
+  },
   plugins: [react()],
   resolve: {
     // Plugin UI modules live outside web/ and import `react` bare.

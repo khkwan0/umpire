@@ -35,6 +35,7 @@ import LoginPage from './pages/Login'
 import HttpCheckTargetOverride from './pages/HttpCheckTargetOverride'
 import NotifierTargetOverride from './pages/NotifierTargetOverride'
 import {useOnboarding} from './onboarding'
+import VersionLabel from './VersionLabel'
 
 const uiModules = Object.values(
   import.meta.glob('../../plugins/*/*/ui/index.tsx', {
@@ -263,6 +264,7 @@ export default function App() {
           <div>
             <h1>UMPIRE</h1>
             <p>Universal Monitoring Plugin &amp; Incident Reporter</p>
+            <VersionLabel />
           </div>
         </div>
         <div

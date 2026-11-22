@@ -2,6 +2,7 @@ import {useState, type FormEvent} from 'react'
 import {Link, Navigate, useNavigate} from 'react-router-dom'
 import {useAuth} from '../auth'
 import {assetUrl} from '../basePath'
+import VersionLabel from '../VersionLabel'
 
 export default function LoginPage() {
   const {ready, policy, principal, login} = useAuth()
@@ -45,6 +46,7 @@ export default function LoginPage() {
           <div>
             <h1>UMPIRE</h1>
             <p>Sign in to continue</p>
+            <VersionLabel />
             {policy?.allow_readonly_without_auth && (
               <p className="muted small">
                 Read-only access is available without signing in. Sign in for

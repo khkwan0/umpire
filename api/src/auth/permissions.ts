@@ -73,6 +73,7 @@ export function evaluateGate(input: {
   if (!path.startsWith('/api/')) return {ok: true}
   if (
     path === '/api/health' ||
+    path === '/api/version' ||
     path === '/api/auth/policy' ||
     path === '/api/auth/login' ||
     path === '/api/auth/logout'

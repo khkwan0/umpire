@@ -4,7 +4,6 @@ import {
   api,
   isTransientApiError,
   type Incident,
-  type PluginManagerState,
   type StatusResponse,
 } from '../api'
 import ReconnectBanner from '../ReconnectBanner'
@@ -44,23 +43,15 @@ export default function Dashboard({
 }) {
   const {policy, principal} = useAuth()
   const [data, setData] = useState<StatusResponse | null>(null)
-  const [pluginState, setPluginState] = useState<PluginManagerState | null>(
-    null,
-  )
   const [incidents, setIncidents] = useState<Incident[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [reconnecting, setReconnecting] = useState(false)
 
   const load = useCallback(async () => {
     try {
-      const [status, log, manager] = await Promise.all([
-        api.status(),
-        api.incidents(50),
-        api.pluginManager.get(),
-      ])
+      const [status, log] = await Promise.all([api.status(), api.incidents(50)])
       setData(status)
       setIncidents(log)
-      setPluginState(manager)
       setError(null)
       setReconnecting(false)
     } catch (err) {
@@ -99,13 +90,6 @@ export default function Dashboard({
   const down = data.targets.filter(t => t.enabled && t.is_up === 0).length
   const paused = data.targets.filter(t => !t.enabled).length
   const ongoing = (incidents ?? []).filter(i => !i.recovered).length
-  const enabledChecks = pluginState?.checks.filter(c => c.enabled).length ?? 0
-  const totalChecks = pluginState?.checks.length ?? 0
-  const enabledNotifiers =
-    pluginState?.notifiers.filter(n => n.enabled).length ?? 0
-  const totalNotifiers = pluginState?.notifiers.length ?? 0
-  const readyEnabledNotifiers =
-    pluginState?.notifiers.filter(n => n.enabled && n.ready).length ?? 0
 
   return (
     <div className="stack">
@@ -138,23 +122,6 @@ export default function Dashboard({
           <strong>{paused}</strong>
           <span>paused</span>
         </div>
-        {pluginState && (
-          <>
-            <div>
-              <strong>
-                {enabledChecks}/{totalChecks}
-              </strong>
-              <span>checks enabled</span>
-            </div>
-            <div>
-              <strong>
-                {enabledNotifiers}/{totalNotifiers}
-              </strong>
-              <span>notifiers enabled</span>
-              <div className="muted small">{readyEnabledNotifiers} ready</div>
-            </div>
-          </>
-        )}
       </section>
 
       <section className="panel">

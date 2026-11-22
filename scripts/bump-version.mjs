@@ -4,7 +4,6 @@ import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const versionPath = join(root, 'VERSION')
 
 /** @type {'patch' | 'minor' | 'major'} */
 const level = process.argv.includes('--major')
@@ -14,17 +13,28 @@ const level = process.argv.includes('--major')
     : 'patch'
 
 const dryRun = process.argv.includes('--dry-run')
+const wantApi = process.argv.includes('--api')
+const wantWeb = process.argv.includes('--web')
+const targets = {
+  api: wantApi || (!wantApi && !wantWeb),
+  web: wantWeb || (!wantApi && !wantWeb),
+}
 
-const PKG_FILES = [
-  'api/package.json',
-  'web/package.json',
-  'agent/package.json',
-]
-
-const LOCK_FILES = ['api/package-lock.json', 'web/package-lock.json']
+const AREAS = {
+  api: {
+    pkg: 'api/package.json',
+    lock: 'api/package-lock.json',
+    extraPkg: ['agent/package.json'],
+  },
+  web: {
+    pkg: 'web/package.json',
+    lock: 'web/package-lock.json',
+    extraPkg: [],
+  },
+}
 
 function parseVersion(version) {
-  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version.trim())
+  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(version).trim())
   if (!match) {
     throw new Error(`Unsupported version format: ${version}`)
   }
@@ -50,47 +60,46 @@ function bump(version, bumpLevel) {
   return `${parts.major}.${parts.minor}.${parts.patch}`
 }
 
-function readCurrent() {
-  if (existsSync(versionPath)) {
-    return readFileSync(versionPath, 'utf8').trim()
-  }
-  const apiPkg = JSON.parse(
-    readFileSync(join(root, 'api/package.json'), 'utf8'),
-  )
-  return String(apiPkg.version)
+function readPkgVersion(rel) {
+  const pkg = JSON.parse(readFileSync(join(root, rel), 'utf8'))
+  return String(pkg.version)
 }
 
-function writeJson(path, mutate) {
-  const full = join(root, path)
+function writeJson(rel, mutate) {
+  const full = join(root, rel)
   const data = JSON.parse(readFileSync(full, 'utf8'))
   mutate(data)
   writeFileSync(full, `${JSON.stringify(data, null, 2)}\n`)
 }
 
-const current = readCurrent()
-const next = bump(current, level)
-
-if (dryRun) {
-  console.log(`${current} → ${next} (${level})`)
-  process.exit(0)
-}
-
-writeFileSync(versionPath, `${next}\n`)
-
-for (const path of PKG_FILES) {
-  writeJson(path, pkg => {
-    pkg.version = next
-  })
-}
-
-for (const path of LOCK_FILES) {
-  if (!existsSync(join(root, path))) continue
-  writeJson(path, lock => {
-    lock.version = next
-    if (lock.packages?.['']) {
-      lock.packages[''].version = next
+function applyArea(name) {
+  const spec = AREAS[name]
+  const current = readPkgVersion(spec.pkg)
+  const next = bump(current, level)
+  if (!dryRun) {
+    writeJson(spec.pkg, pkg => {
+      pkg.version = next
+    })
+    if (spec.lock && existsSync(join(root, spec.lock))) {
+      writeJson(spec.lock, lock => {
+        lock.version = next
+        if (lock.packages?.['']) lock.packages[''].version = next
+      })
     }
-  })
+    for (const extra of spec.extraPkg) {
+      if (!existsSync(join(root, extra))) continue
+      writeJson(extra, pkg => {
+        pkg.version = next
+      })
+    }
+  }
+  return {name, current, next}
 }
 
-console.log(`version ${current} → ${next} (${level})`)
+const results = []
+if (targets.api) results.push(applyArea('api'))
+if (targets.web) results.push(applyArea('web'))
+
+for (const r of results) {
+  console.log(`${r.name} ${r.current} → ${r.next} (${level})`)
+}

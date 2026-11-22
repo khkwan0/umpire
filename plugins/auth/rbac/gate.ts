@@ -18,6 +18,7 @@ import {
 
 export const RBAC_PUBLIC_PATHS = new Set([
   '/api/health',
+  '/api/version',
   '/api/auth/policy',
   '/api/auth/login',
   '/api/auth/logout',

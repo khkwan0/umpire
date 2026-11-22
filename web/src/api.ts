@@ -346,6 +346,10 @@ export function isConfigurableNotifier(
   return (CONFIGURABLE_NOTIFIERS as readonly string[]).includes(id)
 }
 
+export interface VersionInfo {
+  api: string
+}
+
 export interface StatusResponse {
   core: {engine: string}
   checks: PluginRef[]
@@ -434,6 +438,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  version: {
+    get: () => request<VersionInfo>('/api/version'),
+  },
   status: () => request<StatusResponse>('/api/status'),
   incidents: (limit = 50) =>
     request<Incident[]>(`/api/incidents?limit=${limit}`),

@@ -97,6 +97,7 @@ Put `UMPIRE_BASE_URL` and `UMPIRE_API_TOKEN` in `.env` (see [`.env.example`](../
 | ------------------------------ | ------------------------------------------------------------ |
 | `umpire_request`               | Generic HTTP proxy — any `/api/…` route including plugins    |
 | `umpire_list_routes`           | Discover core + plugin routes and their dedicated tool names |
+| `umpire_version`               | API package version (`GET /api/version`)                     |
 | `get_status`, `get_targets`, … | One tool per core/plugin route (generated at startup)        |
 
 Auth and RBAC match the HTTP API: the token inherits the creating user's role (`read_only`, custom plugin allowlists, admin, etc.).

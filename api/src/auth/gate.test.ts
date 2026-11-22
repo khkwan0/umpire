@@ -66,6 +66,16 @@ describe('evaluateGate', () => {
     ).toEqual({ok: false, status: 401, error: 'Authentication required'})
   })
 
+  it('allows anonymous GET /api/version', () => {
+    expect(
+      evaluateGate({
+        method: 'GET',
+        path: '/api/version',
+        principal: null,
+      }),
+    ).toEqual({ok: true})
+  })
+
   it('requires auth for reads when readonly mode is off', () => {
     expect(
       evaluateGate({

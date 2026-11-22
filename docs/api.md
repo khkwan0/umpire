@@ -83,7 +83,7 @@ Protected routes accept either:
 - **Session cookie** — `POST /api/auth/login`, then send `umpire_session` on later requests (`curl -c` / `-b`)
 - **Bearer token** — `POST /api/tokens` (while logged in), then `Authorization: Bearer umpire_…`
 
-Public paths (no credentials): `/api/health`, `/api/auth/policy`, `/api/auth/login`, `/api/auth/logout`.
+Public paths (no credentials): `/api/health`, `/api/version`, `/api/auth/policy`, `/api/auth/login`, `/api/auth/logout`.
 
 | Endpoint | Access | Purpose |
 |----------|--------|---------|
@@ -116,8 +116,9 @@ API=http://localhost:3000
 USER=admin
 PASS=change-me-on-first-login
 
-# 0. Health (no auth)
+# 0. Health and version (no auth)
 curl -fsS "$API/api/health"
+curl -fsS "$API/api/version"
 
 # 1. Log in and save session cookie
 curl -fsS -c /tmp/umpire.cookies -X POST "$API/api/auth/login" \
@@ -176,6 +177,7 @@ curl -fsS -b /tmp/umpire.cookies -X POST "$API/api/users" \
 | Area | Methods | Path |
 |------|---------|------|
 | Health | `GET` | `/api/health` |
+| Version | `GET` | `/api/version` |
 | Auth | `GET` | `/api/auth/policy`, `/api/auth/me` |
 | Auth | `POST` | `/api/auth/login`, `/api/auth/logout`, `/api/auth/change-password` |
 | Auth (rbac config, admin) | `PUT` | `/api/plugins/auth/rbac/config` |

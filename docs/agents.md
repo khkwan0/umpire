@@ -93,6 +93,7 @@ The MCP server does **not** embed an LLM. Configure your model and API keys in t
 |------|---------|
 | `umpire_request` | Generic proxy to any `/api/…` route (core + plugins) |
 | `umpire_list_routes` | Discover routes and dedicated tool names |
+| `umpire_version` | API package version (`GET /api/version`) |
 | `get_status`, `get_targets`, … | One generated tool per core and plugin route (from `GET /api/plugins` at startup) |
 
 Auth and RBAC match HTTP: the token’s user role and plugin allowlist apply to every tool call.
@@ -146,6 +147,7 @@ The agent LLM can call:
 | `list_targets` | `GET /api/targets` |
 | `update_target` | `PATCH /api/targets/:id` (pause = `enabled: false`) |
 | `list_groups` | `GET /api/groups` |
+| `get_version` | `GET /api/version` |
 | `list_api_routes` | Compact core + plugin routes (`GET /api/plugins`) |
 | `umpire_api_request` | Any `/api/…` route (blocks `/api/agent/*`) |
 

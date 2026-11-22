@@ -15,13 +15,13 @@ Operator setup and the HTTP API list live in [`README.md`](README.md).
 
 ## Git hooks
 
-After clone, enable the repo hooks (post-commit patch-bump of `VERSION` on `master`):
+After clone, enable the repo hooks (post-commit patch-bump of api and/or web versions on `master` when those trees change — any `web/` file bumps web, not only dashboard):
 
 ```bash
 ./scripts/install-githooks.sh
 ```
 
-Skip a bump with `SKIP_VERSION_BUMP=1 git commit …`. Feature branches, rebases, and merges do not bump.
+Skip a bump with `SKIP_VERSION_BUMP=1 git commit …`. Feature branches, rebases, and merges do not bump. Docs-only commits do not bump.
 
 ## Development setup
 

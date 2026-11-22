@@ -134,6 +134,22 @@ export async function createServer(client: UmpireClient): Promise<McpServer> {
   )
 
   server.registerTool(
+    'umpire_version',
+    {
+      description: 'Report the UMPIRE API package version (GET /api/version).',
+      inputSchema: {},
+    },
+    async () => {
+      try {
+        const data = await client.request('GET', '/api/version')
+        return jsonResult(data)
+      } catch (err) {
+        return errorResult(err)
+      }
+    },
+  )
+
+  server.registerTool(
     'umpire_list_routes',
     {
       description:
@@ -167,7 +183,11 @@ export async function createServer(client: UmpireClient): Promise<McpServer> {
     pluginRoutes = []
   }
 
-  const usedNames = new Set<string>(['umpire_request', 'umpire_list_routes'])
+  const usedNames = new Set<string>([
+    'umpire_request',
+    'umpire_list_routes',
+    'umpire_version',
+  ])
   for (const route of [...CORE_ROUTES, ...pluginRoutes]) {
     registerRouteTool(server, client, route, usedNames)
   }

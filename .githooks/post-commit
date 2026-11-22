@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# After a commit on master, patch-bump VERSION in a follow-up commit.
+# After a commit on master, patch-bump api and/or web versions if those trees changed.
+# Web: any path under web/ (pages, styles, nginx, Dockerfile, …) plus plugin UI.
+# API: api/, agent/, and non-UI plugin files.
 # Skip: rebase/merge/cherry-pick, bump commits, non-master, SKIP_VERSION_BUMP=1.
 set -euo pipefail
 
@@ -27,11 +29,42 @@ fi
 
 root="$(git rev-parse --show-toplevel)"
 cd "${root}"
-node scripts/bump-version.mjs
-VERSION="$(tr -d '[:space:]' < VERSION)"
-git add VERSION \
-  api/package.json api/package-lock.json \
-  web/package.json web/package-lock.json \
-  agent/package.json
-SKIP_VERSION_BUMP=1 git commit -m "chore: bump version to ${VERSION}"
-echo "Bumped version to ${VERSION}"
+
+mapfile -t files < <(git diff-tree --no-commit-id --name-only -r HEAD)
+bump_api=false
+bump_web=false
+for f in "${files[@]}"; do
+  if [[ "${f}" == web/* ]]; then
+    bump_web=true
+  elif [[ "${f}" == plugins/*/ui/* || "${f}" == plugins/*/*/ui/* ]]; then
+    bump_web=true
+  elif [[ "${f}" == api/* || "${f}" == agent/* ]]; then
+    bump_api=true
+  elif [[ "${f}" == plugins/* ]]; then
+    bump_api=true
+  fi
+done
+
+args=()
+[[ "${bump_api}" == true ]] && args+=(--api)
+[[ "${bump_web}" == true ]] && args+=(--web)
+if [[ ${#args[@]} -eq 0 ]]; then
+  exit 0
+fi
+
+node scripts/bump-version.mjs "${args[@]}"
+
+add=()
+parts=()
+if [[ "${bump_api}" == true ]]; then
+  add+=(api/package.json api/package-lock.json agent/package.json)
+  parts+=("api $(node -p "require('./api/package.json').version")")
+fi
+if [[ "${bump_web}" == true ]]; then
+  add+=(web/package.json web/package-lock.json)
+  parts+=("web $(node -p "require('./web/package.json').version")")
+fi
+
+git add "${add[@]}"
+SKIP_VERSION_BUMP=1 git commit -m "chore: bump version ${parts[*]}"
+echo "Bumped ${parts[*]}"

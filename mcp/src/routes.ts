@@ -27,6 +27,13 @@ export const CORE_ROUTES: RouteDef[] = [
   },
   {
     method: 'GET',
+    path: '/api/version',
+    description: 'API package version',
+    pathParams: [],
+    hasBody: false,
+  },
+  {
+    method: 'GET',
     path: '/api/auth/policy',
     description: 'Public auth policy',
     pathParams: [],

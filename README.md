@@ -318,9 +318,9 @@ Vite serves the UI on [http://localhost:8089](http://localhost:8089) (same host 
 - `./scripts/deploy.sh` — build and start API + web with Docker Compose, then wait for `/api/health`
 - `WEB_PORT=8090 ./scripts/deploy.sh` — deploy and health-check with a custom web port
 - `BASE_PATH=/umpire ./scripts/deploy.sh` — bake a subdirectory public path into the web image
-- `./scripts/publish-docker.sh` — build and push `umpire-api` / `umpire-web` to Docker Hub (reads `.env.dockerhub`; tags `${VERSION}` from the repo `VERSION` file, plus `:latest`)
-- `./scripts/install-githooks.sh` — enable `.githooks/post-commit` (patch-bump `VERSION` after each commit on `master`)
-- `node scripts/bump-version.mjs` — patch-bump `VERSION` and api/web/agent package versions (`--minor` / `--major` / `--dry-run`)
+- `./scripts/publish-docker.sh` — build and push `umpire-api` / `umpire-web` to Docker Hub (reads `.env.dockerhub`; tags each image from its `package.json` version, plus `:latest`)
+- `./scripts/install-githooks.sh` — enable `.githooks/post-commit` (patch-bump api and/or web versions after commits on `master` that touch those trees)
+- `node scripts/bump-version.mjs` — patch-bump api/web (`--api`, `--web`, `--minor` / `--major` / `--dry-run`)
 - `./scripts/publish-dockerhub-metadata.sh` — push descriptions, overviews, and categories to Docker Hub repos
 - `docker compose -f docker-compose.hub.yml pull` — pull published images (see [docs/deployment.md](docs/deployment.md))
 
@@ -375,7 +375,7 @@ Pushes and pull requests run [GitHub Actions](.github/workflows/ci.yml) (current
 
 Summary of route groups:
 
-- **Core** — `/api/health`, `/api/groups`, `/api/targets`, `/api/settings`, `/api/status`, `/api/incidents`, `/api/schema`, `/api/checks`, `/api/notifiers`, `/api/plugins`, `/api/plugin-manager`
+- **Core** — `/api/health`, `/api/version`, `/api/groups`, `/api/targets`, `/api/settings`, `/api/status`, `/api/incidents`, `/api/schema`, `/api/checks`, `/api/notifiers`, `/api/plugins`, `/api/plugin-manager`
 - **Auth & admin** — `/api/auth/*`, `/api/tokens`, `/api/users`, `/api/roles` (when auth is enabled)
 - **Per-target** — `/api/targets/:id/results`, `/api/targets/:id/checks/:checkId/config`, `/api/targets/:id/notifiers/:notifierId/check-ids`
 - **Plugins** — `/api/plugins/<kind>/<id>/…` (HTTP check, webhook, Slack, FCM, etc. — see `GET /api/plugins`)

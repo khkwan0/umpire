@@ -20,6 +20,7 @@ let authPluginActive = false
 
 const rbacPublicPaths = new Set([
   '/api/health',
+  '/api/version',
   '/api/auth/policy',
   '/api/auth/login',
   '/api/auth/logout',

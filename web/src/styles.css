@@ -164,6 +164,12 @@ button.theme-switcher-option.active {
   font-size: 0.9rem;
 }
 
+.brand p.brand-versions,
+p.brand-versions {
+  margin: 0.25rem 0 0;
+  font-size: 0.78rem;
+}
+
 nav {
   display: flex;
   gap: 0.5rem;

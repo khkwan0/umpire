@@ -18,6 +18,7 @@ import {mountAllPluginRoutes} from './plugins/routes.js'
 import {runCheck} from './pipeline.js'
 import {registerOpenApi} from './openapi.js'
 import {healthRoutes} from './routes/health.js'
+import {versionRoutes} from './routes/version.js'
 import {targetsRoutes} from './routes/targets.js'
 import {groupsRoutes} from './routes/groups.js'
 import {settingsRoutes} from './routes/settings.js'
@@ -69,6 +70,7 @@ async function main() {
   })
 
   await app.register(healthRoutes)
+  await app.register(versionRoutes)
   await registerAuthPolicyRoute(app)
   if (auth) {
     await auth.registerRoutes(app)
