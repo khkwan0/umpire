@@ -1,6 +1,6 @@
 {
   "name": "umpire-agent",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "private": true,
   "description": "UMPIRE AI agent — LLM tool-calling CLI and library",
   "type": "module",
