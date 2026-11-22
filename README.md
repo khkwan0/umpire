@@ -29,7 +29,7 @@ Open [http://localhost:8089](http://localhost:8089). Sign in:
 | Username | `admin` |
 | Password | `change-me-on-first-login` |
 
-Then **Settings → Change password**, add a URL under **Targets**, and optionally set **Notifiers → Webhook**. Health: `curl -fsS http://localhost:8089/api/health`
+Those credentials come from `UMPIRE_ADMIN_USERNAME` and `UMPIRE_ADMIN_PASSWORD` on the API container (already set in the example Compose file). Set your own values **before the first start**; after that use **Settings → Change password**. The other Compose env vars (`PORT`, `DATABASE_PATH`, `BASE_PATH`, `CHECK_TIMEOUT_MS`, host port `8089`, volume `./data`) are explained in [Getting started](docs/getting-started.md#2-environment-variables). Add a URL under **Targets**, and optionally set **Notifiers → Webhook**. Health: `curl -fsS http://localhost:8089/api/health`
 
 Images: [`nitroxstudios/umpire-api`](https://hub.docker.com/r/nitroxstudios/umpire-api) (required) and [`nitroxstudios/umpire-web`](https://hub.docker.com/r/nitroxstudios/umpire-web) (dashboard). From a git clone: `docker compose -f docker-compose.hub.yml up -d`.
 
