@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Point this clone at .githooks/ (post-commit version bump on master).
+# Install .githooks/post-commit into this clone's .git/hooks (no git config).
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${root}"
-git config core.hooksPath .githooks
 chmod +x .githooks/post-commit
-echo "core.hooksPath=.githooks (post-commit version bump on master)"
+dest="$(git rev-parse --git-path hooks/post-commit)"
+mkdir -p "$(dirname "${dest}")"
+ln -sfr .githooks/post-commit "${dest}"
+echo "Installed ${dest} -> .githooks/post-commit"
